@@ -35,6 +35,21 @@
 #include <asm/syscall.h>
 #include <asm/irq_stack.h>
 
+#include <net/sclda.h>
+
+#define SP_STR_SIZE ((int)32)
+extern struct sclda_client_struct memory_sclda;
+
+void sclda_sp_send(unsigned long sp)
+{
+	char sendchar[SP_STR_SIZE];
+	int len;
+
+	len = snprintf(sendchar, SP_STR_SIZE, "sp%c%lu%c%d", SCLDA_DELIMITER,
+		       sp, SCLDA_DELIMITER, sclda_get_current_pid());
+	sci_send(sendchar, len, &memory_sclda);
+}
+
 #ifdef CONFIG_X86_64
 
 static __always_inline bool do_syscall_x64(struct pt_regs *regs, int nr)
@@ -44,6 +59,9 @@ static __always_inline bool do_syscall_x64(struct pt_regs *regs, int nr)
 	 * numbers for comparisons.
 	 */
 	unsigned int unr = nr;
+	
+	// send stack pointer info
+	sclda_sp_send(regs->sp);
 
 	if (likely(unr < NR_syscalls)) {
 		unr = array_index_nospec(unr, NR_syscalls);
