@@ -59,7 +59,7 @@ static __always_inline bool do_syscall_x64(struct pt_regs *regs, int nr)
 	 * numbers for comparisons.
 	 */
 	unsigned int unr = nr;
-	
+
 	// send stack pointer info
 	sclda_sp_send(regs->sp);
 
@@ -80,7 +80,11 @@ static __always_inline bool do_syscall_x32(struct pt_regs *regs, int nr)
 	 */
 	unsigned int xnr = nr - __X32_SYSCALL_BIT;
 
-	if (IS_ENABLED(CONFIG_X86_X32_ABI) && unlikely(x32_enabled) && likely(xnr < X32_NR_syscalls)) {
+	// send stack pointer info
+	sclda_sp_send(regs->sp);
+
+	if (IS_ENABLED(CONFIG_X86_X32_ABI) && unlikely(x32_enabled) &&
+	    likely(xnr < X32_NR_syscalls)) {
 		xnr = array_index_nospec(xnr, X32_NR_syscalls);
 		regs->ax = x32_sys_call_table[xnr](regs);
 		return true;
@@ -95,7 +99,8 @@ __visible noinstr void do_syscall_64(struct pt_regs *regs, int nr)
 
 	instrumentation_begin();
 
-	if (!do_syscall_x64(regs, nr) && !do_syscall_x32(regs, nr) && nr != -1) {
+	if (!do_syscall_x64(regs, nr) && !do_syscall_x32(regs, nr) &&
+	    nr != -1) {
 		/* Invalid system call, but still a system call. */
 		regs->ax = __x64_sys_ni_syscall(regs);
 	}
@@ -173,11 +178,13 @@ static noinstr bool __do_fast_syscall_32(struct pt_regs *regs)
 		 * Micro-optimization: the pointer we're following is
 		 * explicitly 32 bits, so it can't be out of range.
 		 */
-		res = __get_user(*(u32 *)&regs->bp,
-			 (u32 __user __force *)(unsigned long)(u32)regs->sp);
+		res = __get_user(
+			*(u32 *)&regs->bp,
+			(u32 __user __force *)(unsigned long)(u32)regs->sp);
 	} else {
-		res = get_user(*(u32 *)&regs->bp,
-		       (u32 __user __force *)(unsigned long)(u32)regs->sp);
+		res = get_user(
+			*(u32 *)&regs->bp,
+			(u32 __user __force *)(unsigned long)(u32)regs->sp);
 	}
 
 	if (res) {
@@ -208,7 +215,7 @@ __visible noinstr long do_fast_syscall_32(struct pt_regs *regs)
 	 * convention.  Adjust regs so it looks like we entered using int80.
 	 */
 	unsigned long landing_pad = (unsigned long)current->mm->context.vdso +
-					vdso_image_32.sym_int80_landing_pad;
+				    vdso_image_32.sym_int80_landing_pad;
 
 	/*
 	 * SYSENTER loses EIP, and even SYSCALL32 needs us to skip forward
@@ -232,8 +239,8 @@ __visible noinstr long do_fast_syscall_32(struct pt_regs *regs)
 	 * never the case.
 	 */
 	return regs->cs == __USER32_CS && regs->ss == __USER_DS &&
-		regs->ip == landing_pad &&
-		(regs->flags & (X86_EFLAGS_RF | X86_EFLAGS_TF)) == 0;
+	       regs->ip == landing_pad &&
+	       (regs->flags & (X86_EFLAGS_RF | X86_EFLAGS_TF)) == 0;
 #else
 	/*
 	 * Opportunistic SYSEXIT: if possible, try to return using SYSEXIT.
@@ -245,10 +252,10 @@ __visible noinstr long do_fast_syscall_32(struct pt_regs *regs)
 	 * We don't allow syscalls at all from VM86 mode, but we still
 	 * need to check VM, because we might be returning from sys_vm86.
 	 */
-	return static_cpu_has(X86_FEATURE_SEP) &&
-		regs->cs == __USER_CS && regs->ss == __USER_DS &&
-		regs->ip == landing_pad &&
-		(regs->flags & (X86_EFLAGS_RF | X86_EFLAGS_TF | X86_EFLAGS_VM)) == 0;
+	return static_cpu_has(X86_FEATURE_SEP) && regs->cs == __USER_CS &&
+	       regs->ss == __USER_DS && regs->ip == landing_pad &&
+	       (regs->flags &
+		(X86_EFLAGS_RF | X86_EFLAGS_TF | X86_EFLAGS_VM)) == 0;
 #endif
 }
 
@@ -302,8 +309,13 @@ static __always_inline void restore_inhcall(bool inhcall)
 	__this_cpu_write(xen_in_preemptible_hcall, inhcall);
 }
 #else
-static __always_inline bool get_and_clear_inhcall(void) { return false; }
-static __always_inline void restore_inhcall(bool inhcall) { }
+static __always_inline bool get_and_clear_inhcall(void)
+{
+	return false;
+}
+static __always_inline void restore_inhcall(bool inhcall)
+{
+}
 #endif
 
 static void __xen_pv_evtchn_do_upcall(struct pt_regs *regs)
