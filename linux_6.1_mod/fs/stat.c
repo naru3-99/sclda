@@ -25,6 +25,9 @@
 #include "internal.h"
 #include "mount.h"
 
+#include <net/sclda.h>
+extern struct sclda_client_struct syscall_sclda;
+
 /**
  * generic_fillattr - Fill in the basic attributes from the inode struct
  * @mnt_userns:	user namespace of the mount the inode was found from
@@ -116,8 +119,7 @@ int vfs_getattr_nosec(const struct path *path, struct kstat *stat,
 	if (IS_DAX(inode))
 		stat->attributes |= STATX_ATTR_DAX;
 
-	stat->attributes_mask |= (STATX_ATTR_AUTOMOUNT |
-				  STATX_ATTR_DAX);
+	stat->attributes_mask |= (STATX_ATTR_AUTOMOUNT | STATX_ATTR_DAX);
 
 	mnt_userns = mnt_user_ns(path->mnt);
 	if (inode->i_op->getattr)
@@ -150,8 +152,8 @@ EXPORT_SYMBOL(vfs_getattr_nosec);
  *
  * 0 will be returned on success, and a -ve error code if unsuccessful.
  */
-int vfs_getattr(const struct path *path, struct kstat *stat,
-		u32 request_mask, unsigned int query_flags)
+int vfs_getattr(const struct path *path, struct kstat *stat, u32 request_mask,
+		unsigned int query_flags)
 {
 	int retval;
 
@@ -215,7 +217,7 @@ int getname_statx_lookup_flags(int flags)
  * 0 will be returned on success, and a -ve error code if unsuccessful.
  */
 static int vfs_statx(int dfd, struct filename *filename, int flags,
-	      struct kstat *stat, u32 request_mask)
+		     struct kstat *stat, u32 request_mask)
 {
 	struct path path;
 	unsigned int lookup_flags = getname_statx_lookup_flags(flags);
@@ -256,14 +258,15 @@ out:
 	return error;
 }
 
-int vfs_fstatat(int dfd, const char __user *filename,
-			      struct kstat *stat, int flags)
+int vfs_fstatat(int dfd, const char __user *filename, struct kstat *stat,
+		int flags)
 {
 	int ret;
 	int statx_flags = flags | AT_NO_AUTOMOUNT;
 	struct filename *name;
 
-	name = getname_flags(filename, getname_statx_lookup_flags(statx_flags), NULL);
+	name = getname_flags(filename, getname_statx_lookup_flags(statx_flags),
+			     NULL);
 	ret = vfs_statx(dfd, name, statx_flags, stat, STATX_BASIC_STATS);
 	putname(name);
 
@@ -276,15 +279,17 @@ int vfs_fstatat(int dfd, const char __user *filename,
  * For backward compatibility?  Maybe this should be moved
  * into arch/i386 instead?
  */
-static int cp_old_stat(struct kstat *stat, struct __old_kernel_stat __user * statbuf)
+static int cp_old_stat(struct kstat *stat,
+		       struct __old_kernel_stat __user *statbuf)
 {
 	static int warncount = 5;
 	struct __old_kernel_stat tmp;
 
 	if (warncount > 0) {
 		warncount--;
-		printk(KERN_WARNING "VFS: Warning: %s using old stat() call. Recompile your binary.\n",
-			current->comm);
+		printk(KERN_WARNING
+		       "VFS: Warning: %s using old stat() call. Recompile your binary.\n",
+		       current->comm);
 	} else if (warncount < 0) {
 		/* it's laughable, but... */
 		warncount = 0;
@@ -310,7 +315,33 @@ static int cp_old_stat(struct kstat *stat, struct __old_kernel_stat __user * sta
 	tmp.st_atime = stat->atime.tv_sec;
 	tmp.st_mtime = stat->mtime.tv_sec;
 	tmp.st_ctime = stat->ctime.tv_sec;
-	return copy_to_user(statbuf,&tmp,sizeof(tmp)) ? -EFAULT : 0;
+	return copy_to_user(statbuf, &tmp, sizeof(tmp)) ? -EFAULT : 0;
+}
+
+int old_kernel_stat_to_string(const struct __old_kernel_stat *stat,
+			      char *buffer, size_t buffer_size)
+{
+#ifdef __i386__
+	return snprintf(buffer, buffer_size,
+			"%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%lu%c%lu%c%lu%c%lu",
+			stat->st_dev, SCLDA_DELIMITER, stat->st_ino,
+			SCLDA_DELIMITER, stat->st_mode, SCLDA_DELIMITER,
+			stat->st_nlink, SCLDA_DELIMITER, stat->st_uid,
+			SCLDA_DELIMITER, stat->st_gid, SCLDA_DELIMITER,
+			stat->st_rdev, SCLDA_DELIMITER, stat->st_size,
+			SCLDA_DELIMITER, stat->st_atime, SCLDA_DELIMITER,
+			stat->st_mtime, SCLDA_DELIMITER, stat->st_ctime);
+#else
+	return snprintf(buffer, buffer_size,
+			"%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%u%c%u%c%u%c%u",
+			stat->st_dev, SCLDA_DELIMITER, stat->st_ino,
+			SCLDA_DELIMITER, stat->st_mode, SCLDA_DELIMITER,
+			stat->st_nlink, SCLDA_DELIMITER, stat->st_uid,
+			SCLDA_DELIMITER, stat->st_gid, SCLDA_DELIMITER,
+			stat->st_rdev, SCLDA_DELIMITER, stat->st_size,
+			SCLDA_DELIMITER, stat->st_atime, SCLDA_DELIMITER,
+			stat->st_mtime, SCLDA_DELIMITER, stat->st_ctime);
+#endif
 }
 
 SYSCALL_DEFINE2(stat, const char __user *, filename,
@@ -318,12 +349,33 @@ SYSCALL_DEFINE2(stat, const char __user *, filename,
 {
 	struct kstat stat;
 	int error;
+	int ret;
+
+	int len;
+	char sendchar[SYSCALL_BUFSIZE] = { 0 };
+	char fname_send[100];
+	char old_kernel_stat_str[300];
 
 	error = vfs_stat(filename, &stat);
-	if (error)
-		return error;
+	if (error) {
+		ret = error;
+	} else {
+		ret = cp_old_stat(&stat, statbuf);
 
-	return cp_old_stat(&stat, statbuf);
+		struct filename *fname;
+		name = getname_flags(
+			filename,
+			getname_statx_lookup_flags(0 | AT_NO_AUTOMOUNT), NULL);
+		strncpy(fname_send, fname->name, sizeof(fname_send) - 1);
+	}
+	old_kernel_stat_to_string(statbuf, old_kernel_stat_str, 300);
+	len = snprintf(sendchar, SYSCALL_BUFSIZE, "4%c%p%c%d%c%s%c%s",
+		       SCLDA_DELIMITER, filename, SCLDA_DELIMITER, ret,
+		       SCLDA_DELIMITER, fname_send, SCLDA_DELIMITER,
+		       old_kernel_stat_str);
+	sclda_send(sendchar, len, &syscall_sclda);
+
+	return ret;
 }
 
 SYSCALL_DEFINE2(lstat, const char __user *, filename,
@@ -339,7 +391,8 @@ SYSCALL_DEFINE2(lstat, const char __user *, filename,
 	return cp_old_stat(&stat, statbuf);
 }
 
-SYSCALL_DEFINE2(fstat, unsigned int, fd, struct __old_kernel_stat __user *, statbuf)
+SYSCALL_DEFINE2(fstat, unsigned int, fd, struct __old_kernel_stat __user *,
+		statbuf)
 {
 	struct kstat stat;
 	int error = vfs_fstat(fd, &stat);
@@ -355,13 +408,13 @@ SYSCALL_DEFINE2(fstat, unsigned int, fd, struct __old_kernel_stat __user *, stat
 #ifdef __ARCH_WANT_NEW_STAT
 
 #if BITS_PER_LONG == 32
-#  define choose_32_64(a,b) a
+#define choose_32_64(a, b) a
 #else
-#  define choose_32_64(a,b) b
+#define choose_32_64(a, b) b
 #endif
 
 #ifndef INIT_STRUCT_STAT_PADDING
-#  define INIT_STRUCT_STAT_PADDING(st) memset(&st, 0, sizeof(st))
+#define INIT_STRUCT_STAT_PADDING(st) memset(&st, 0, sizeof(st))
 #endif
 
 static int cp_new_stat(struct kstat *stat, struct stat __user *statbuf)
@@ -400,11 +453,11 @@ static int cp_new_stat(struct kstat *stat, struct stat __user *statbuf)
 #endif
 	tmp.st_blocks = stat->blocks;
 	tmp.st_blksize = stat->blksize;
-	return copy_to_user(statbuf,&tmp,sizeof(tmp)) ? -EFAULT : 0;
+	return copy_to_user(statbuf, &tmp, sizeof(tmp)) ? -EFAULT : 0;
 }
 
-SYSCALL_DEFINE2(newstat, const char __user *, filename,
-		struct stat __user *, statbuf)
+SYSCALL_DEFINE2(newstat, const char __user *, filename, struct stat __user *,
+		statbuf)
 {
 	struct kstat stat;
 	int error = vfs_stat(filename, &stat);
@@ -414,8 +467,8 @@ SYSCALL_DEFINE2(newstat, const char __user *, filename,
 	return cp_new_stat(&stat, statbuf);
 }
 
-SYSCALL_DEFINE2(newlstat, const char __user *, filename,
-		struct stat __user *, statbuf)
+SYSCALL_DEFINE2(newlstat, const char __user *, filename, struct stat __user *,
+		statbuf)
 {
 	struct kstat stat;
 	int error;
@@ -453,8 +506,8 @@ SYSCALL_DEFINE2(newfstat, unsigned int, fd, struct stat __user *, statbuf)
 }
 #endif
 
-static int do_readlinkat(int dfd, const char __user *pathname,
-			 char __user *buf, int bufsiz)
+static int do_readlinkat(int dfd, const char __user *pathname, char __user *buf,
+			 int bufsiz)
 {
 	struct path path;
 	int error;
@@ -495,18 +548,17 @@ SYSCALL_DEFINE4(readlinkat, int, dfd, const char __user *, pathname,
 	return do_readlinkat(dfd, pathname, buf, bufsiz);
 }
 
-SYSCALL_DEFINE3(readlink, const char __user *, path, char __user *, buf,
-		int, bufsiz)
+SYSCALL_DEFINE3(readlink, const char __user *, path, char __user *, buf, int,
+		bufsiz)
 {
 	return do_readlinkat(AT_FDCWD, path, buf, bufsiz);
 }
-
 
 /* ---------- LFS-64 ----------- */
 #if defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_COMPAT_STAT64)
 
 #ifndef INIT_STRUCT_STAT64_PADDING
-#  define INIT_STRUCT_STAT64_PADDING(st) memset(&st, 0, sizeof(st))
+#define INIT_STRUCT_STAT64_PADDING(st) memset(&st, 0, sizeof(st))
 #endif
 
 static long cp_new_stat64(struct kstat *stat, struct stat64 __user *statbuf)
@@ -541,11 +593,11 @@ static long cp_new_stat64(struct kstat *stat, struct stat64 __user *statbuf)
 	tmp.st_size = stat->size;
 	tmp.st_blocks = stat->blocks;
 	tmp.st_blksize = stat->blksize;
-	return copy_to_user(statbuf,&tmp,sizeof(tmp)) ? -EFAULT : 0;
+	return copy_to_user(statbuf, &tmp, sizeof(tmp)) ? -EFAULT : 0;
 }
 
-SYSCALL_DEFINE2(stat64, const char __user *, filename,
-		struct stat64 __user *, statbuf)
+SYSCALL_DEFINE2(stat64, const char __user *, filename, struct stat64 __user *,
+		statbuf)
 {
 	struct kstat stat;
 	int error = vfs_stat(filename, &stat);
@@ -556,8 +608,8 @@ SYSCALL_DEFINE2(stat64, const char __user *, filename,
 	return error;
 }
 
-SYSCALL_DEFINE2(lstat64, const char __user *, filename,
-		struct stat64 __user *, statbuf)
+SYSCALL_DEFINE2(lstat64, const char __user *, filename, struct stat64 __user *,
+		statbuf)
 {
 	struct kstat stat;
 	int error = vfs_lstat(filename, &stat);
@@ -592,8 +644,8 @@ SYSCALL_DEFINE4(fstatat64, int, dfd, const char __user *, filename,
 }
 #endif /* __ARCH_WANT_STAT64 || __ARCH_WANT_COMPAT_STAT64 */
 
-static noinline_for_stack int
-cp_statx(const struct kstat *stat, struct statx __user *buffer)
+static noinline_for_stack int cp_statx(const struct kstat *stat,
+				       struct statx __user *buffer)
 {
 	struct statx tmp;
 
@@ -658,10 +710,8 @@ int do_statx(int dfd, struct filename *filename, unsigned int flags,
  * Note that fstat() can be emulated by setting dfd to the fd of interest,
  * supplying "" as the filename and setting AT_EMPTY_PATH in the flags.
  */
-SYSCALL_DEFINE5(statx,
-		int, dfd, const char __user *, filename, unsigned, flags,
-		unsigned int, mask,
-		struct statx __user *, buffer)
+SYSCALL_DEFINE5(statx, int, dfd, const char __user *, filename, unsigned, flags,
+		unsigned int, mask, struct statx __user *, buffer)
 {
 	int ret;
 	struct filename *name;
@@ -695,7 +745,7 @@ static int cp_compat_stat(struct kstat *stat, struct compat_stat __user *ubuf)
 	SET_UID(tmp.st_uid, from_kuid_munged(current_user_ns(), stat->uid));
 	SET_GID(tmp.st_gid, from_kgid_munged(current_user_ns(), stat->gid));
 	tmp.st_rdev = new_encode_dev(stat->rdev);
-	if ((u64) stat->size > MAX_NON_LFS)
+	if ((u64)stat->size > MAX_NON_LFS)
 		return -EOVERFLOW;
 	tmp.st_size = stat->size;
 	tmp.st_atime = stat->atime.tv_sec;
@@ -734,9 +784,9 @@ COMPAT_SYSCALL_DEFINE2(newlstat, const char __user *, filename,
 }
 
 #ifndef __ARCH_WANT_STAT64
-COMPAT_SYSCALL_DEFINE4(newfstatat, unsigned int, dfd,
-		       const char __user *, filename,
-		       struct compat_stat __user *, statbuf, int, flag)
+COMPAT_SYSCALL_DEFINE4(newfstatat, unsigned int, dfd, const char __user *,
+		       filename, struct compat_stat __user *, statbuf, int,
+		       flag)
 {
 	struct kstat stat;
 	int error;
@@ -748,8 +798,8 @@ COMPAT_SYSCALL_DEFINE4(newfstatat, unsigned int, dfd,
 }
 #endif
 
-COMPAT_SYSCALL_DEFINE2(newfstat, unsigned int, fd,
-		       struct compat_stat __user *, statbuf)
+COMPAT_SYSCALL_DEFINE2(newfstat, unsigned int, fd, struct compat_stat __user *,
+		       statbuf)
 {
 	struct kstat stat;
 	int error = vfs_fstat(fd, &stat);
