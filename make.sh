@@ -1,7 +1,7 @@
 #!/bin/bash
 sudo apt install -y build-essential bc bison flex libelf-dev libssl-dev libncurses5-dev
 
-cd Linux_5.10_mod
+cd Linux_6.1_mod
 
 cp /boot/config-$(uname -r) .config
 
