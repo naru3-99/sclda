@@ -108,10 +108,11 @@
 #include <asm/cacheflush.h>
 
 #include <net/sclda.h>
-extern struct sclda_client_struct syscall_sclda;
 extern struct sclda_client_struct pidppid_sclda;
-extern struct sclda_client_struct memory_sclda;
-extern struct sclda_client_struct cputime_sclda;
+extern struct sclda_client_struct syscall_sclda_1;
+extern struct sclda_client_struct syscall_sclda_2;
+extern struct sclda_client_struct syscall_sclda_3;
+extern struct sclda_client_struct syscall_sclda_4;
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/initcall.h>
@@ -1166,10 +1167,11 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	arch_call_rest_init();
 
 	// init all sclda_client_struct
-	init_sclda_client(&syscall_sclda, SYSCALL_PORT);
-	init_sclda_client(&pidppid_sclda, PIDPPID_PORT);
-	init_sclda_client(&memory_sclda, MEMORY_PORT);
-	init_sclda_client(&cputime_sclda, CPUTIME_PORT);
+	init_sclda_client(&pidppid_sclda, SCLDA_PIDPPID_PORT);
+	init_sclda_client(&syscall_sclda_1, SCLDA_SYSCALL_PORT_1);
+	init_sclda_client(&syscall_sclda_2, SCLDA_SYSCALL_PORT_2);
+	init_sclda_client(&syscall_sclda_3, SCLDA_SYSCALL_PORT_3);
+	init_sclda_client(&syscall_sclda_4, SCLDA_SYSCALL_PORT_4);
 
 	prevent_tail_call_optimization();
 }

@@ -1,18 +1,16 @@
 #include <net/sclda.h>
 
-struct sclda_client_struct syscall_sclda;
 struct sclda_client_struct pidppid_sclda;
-struct sclda_client_struct memory_sclda;
-struct sclda_client_struct cputime_sclda;
+struct sclda_client_struct syscall_sclda_1;
+struct sclda_client_struct syscall_sclda_2;
+struct sclda_client_struct syscall_sclda_3;
+struct sclda_client_struct syscall_sclda_4;
 
 static int sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
 {
 	int ret = sock_create_kern(&init_net, PF_INET, SOCK_DGRAM, IPPROTO_UDP,
 				   &(sclda_cs_ptr->sock));
-	if (ret) {
-		return -1;
-	}
-	return 0;
+	return ret;
 }
 
 static int sclda_connect_socket(struct sclda_client_struct *sclda_cs_ptr,
@@ -25,10 +23,7 @@ static int sclda_connect_socket(struct sclda_client_struct *sclda_cs_ptr,
 	int ret = kernel_connect(sclda_cs_ptr->sock,
 				 (struct sockaddr *)(&(sclda_cs_ptr->addr)),
 				 sizeof(struct sockaddr), 0);
-	if (ret) {
-		return -1;
-	}
-	return 0;
+	return ret;
 }
 
 int init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
@@ -48,18 +43,43 @@ int init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
 }
 
 static DEFINE_MUTEX(sclda_send_mutex);
-void sclda_send(char *buf, int len, struct sclda_client_struct *sclda_cs_ptr)
+void sclda_send(char *buf, int len,
+		struct sclda_client_struct *sclda_struct_ptr)
 {
 	static struct kvec iov;
 
 	mutex_lock(&sclda_send_mutex);
 	iov.iov_base = buf;
 	iov.iov_len = len;
-	kernel_sendmsg(sclda_cs_ptr->sock, &(sclda_cs_ptr->msg), &iov, 1, len);
+	kernel_sendmsg(sclda_struct_ptr->sock, &(sclda_struct_ptr->msg), &iov,
+		       1, len);
 	mutex_unlock(&sclda_send_mutex);
+}
+
+void sclda_send_split(char *, int)
+{
+	struct sclda_client_struct *sclda_to_send = sclda_decide_struct();
+
 }
 
 int sclda_get_current_pid()
 {
 	return (int)pid_nr(get_task_pid(current, PIDTYPE_PID));
+}
+
+struct sclda_client_struct sclda_decide_struct()
+{
+	unsigned int cpu_id = smp_processor_id();
+	switch (cpu_id % 4) {
+	case 0:
+		return &syscall_sclda_1;
+	case 1:
+		return &syscall_sclda_2;
+	case 2:
+		return &syscall_sclda_3;
+	case 3:
+		return &syscall_sclda_4;
+	default:
+		return &syscall_sclda_1;
+	}
 }
