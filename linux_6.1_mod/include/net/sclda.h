@@ -9,6 +9,9 @@
 #include <linux/in.h>
 #include <linux/netpoll.h>
 
+#include <linux/slab.h>
+#include <linux/sched.h>
+
 #include <linux/mutex.h>
 #include <linux/spinlock.h>
 

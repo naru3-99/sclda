@@ -79,7 +79,7 @@ void sclda_send_split(char *msg, int msg_len)
 }
 
 //現在のPIDを返す関数
-int sclda_get_current_pid()
+int sclda_get_current_pid(void)
 {
 	return (int)pid_nr(get_task_pid(current, PIDTYPE_PID));
 }
