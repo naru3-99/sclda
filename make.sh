@@ -29,7 +29,7 @@ rm -rf ./temp1
 mv ./temp2 ./.config
 
 make localmodconfig
-make
+make -j$(nproc)
 sudo make modules_install
 sudo make install
 sudo reboot
