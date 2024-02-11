@@ -27,11 +27,8 @@
 // システムコールの情報を取得するポート
 // プロセッサのID(smp_processor_id())により、
 // 送るポートを分けることで負荷分散を図る
-// プロセッサ数は8で固定する
-#define SCLDA_SYSCALL_PORT_1 ((int)15002)
-#define SCLDA_SYSCALL_PORT_2 ((int)15003)
-#define SCLDA_SYSCALL_PORT_3 ((int)15004)
-#define SCLDA_SYSCALL_PORT_4 ((int)15005)
+// BASEPORT + (プロセッサID % 4)をPORTとして使用する
+#define SCLDA_SYSCALL_BASEPORT ((int)15002)
 
 // maximum buffer for 1 packet
 #define SCLDA_BUFSIZE ((int)1000)
@@ -60,6 +57,6 @@ int sclda_get_current_pid(void);
 
 // システムコール関連情報を送信する際の、
 // sclda_client_structを決定する
-struct sclda_client_struct *sclda_decide_struct(void);
+struct sclda_client_struct * sclda_decide_struct(void);
 
 #endif // SCLDA_H

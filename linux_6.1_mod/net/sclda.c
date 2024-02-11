@@ -1,11 +1,10 @@
 #include <net/sclda.h>
 
 struct sclda_client_struct pidppid_sclda;
-struct sclda_client_struct syscall_sclda_1;
-struct sclda_client_struct syscall_sclda_2;
-struct sclda_client_struct syscall_sclda_3;
-struct sclda_client_struct syscall_sclda_4;
+struct sclda_client_struct syscall_sclda[4];
 
+// ソケットを作成する関数
+// only used for init_sclda_client
 static int sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
 {
 	int ret = sock_create_kern(&init_net, PF_INET, SOCK_DGRAM, IPPROTO_UDP,
@@ -13,6 +12,8 @@ static int sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
 	return ret;
 }
 
+// ソケットを接続するための関数
+// only used for init_sclda_client
 static int sclda_connect_socket(struct sclda_client_struct *sclda_cs_ptr,
 				int port)
 {
@@ -26,6 +27,7 @@ static int sclda_connect_socket(struct sclda_client_struct *sclda_cs_ptr,
 	return ret;
 }
 
+// sclda_client_structを初期化するための関数
 int init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
 {
 	if (sclda_create_socket(sclda_cs_ptr) < 0 ||
@@ -42,6 +44,7 @@ int init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
 	return 0;
 }
 
+// 文字列を送信するための最もかんたんな実装
 static DEFINE_MUTEX(sclda_send_mutex);
 void sclda_send(char *buf, int len,
 		struct sclda_client_struct *sclda_struct_ptr)
@@ -56,30 +59,33 @@ void sclda_send(char *buf, int len,
 	mutex_unlock(&sclda_send_mutex);
 }
 
-void sclda_send_split(char *, int)
+// 大きいサイズの文字列を分割して送信するための追加関数
+// system-call関連情報を送信するときのみ使用する
+void sclda_send_split(char *msg, int msg_len)
 {
+	size_t sent_bytes = 0;
+	size_t chunk_size;
 	struct sclda_client_struct *sclda_to_send = sclda_decide_struct();
+	while (sent_bytes < msg_len) {
+		if ((msg_len - sent_bytes) < SCLDA_BUFSIZE) {
+			chunk_size = msg_len - sent_bytes;
+		} else {
+			chunk_size = SCLDA_BUFSIZE;
+		}
 
+		sclda_send(msg + sent_bytes, chunk_size, sclda_to_send);
+		sent_bytes += chunk_size;
+	}
 }
 
+//現在のPIDを返す関数
 int sclda_get_current_pid()
 {
 	return (int)pid_nr(get_task_pid(current, PIDTYPE_PID));
 }
 
-struct sclda_client_struct sclda_decide_struct()
+struct sclda_client_struct *sclda_decide_struct()
 {
 	unsigned int cpu_id = smp_processor_id();
-	switch (cpu_id % 4) {
-	case 0:
-		return &syscall_sclda_1;
-	case 1:
-		return &syscall_sclda_2;
-	case 2:
-		return &syscall_sclda_3;
-	case 3:
-		return &syscall_sclda_4;
-	default:
-		return &syscall_sclda_1;
-	}
+	return &(syscall_sclda[cpu_id % 4]);
 }
