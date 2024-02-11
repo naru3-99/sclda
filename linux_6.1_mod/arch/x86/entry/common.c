@@ -37,6 +37,19 @@
 
 #ifdef CONFIG_X86_64
 
+#include <net/sclda.h>
+struct sclda_client_struct dosys64_sclda;
+void sclda_sp_send(unsigned long sp)
+{
+	char sendchar[SCLDA_DOSYS64_BUFSIZE];
+	int len;
+
+	len = snprintf(sendchar, SCLDA_DOSYS64_BUFSIZE, "%d%c%llu%c%llu%c%lu",
+		       sclda_get_current_pid(), SCLDA_DELIMITER, current->utime,
+		       SCLDA_DELIMITER, current->ktime, SCLDA_DELIMITER, sp);
+	sci_send(sendchar, len, &dosys64_sclda);
+}
+
 static __always_inline bool do_syscall_x64(struct pt_regs *regs, int nr)
 {
 	/*
@@ -44,6 +57,7 @@ static __always_inline bool do_syscall_x64(struct pt_regs *regs, int nr)
 	 * numbers for comparisons.
 	 */
 	unsigned int unr = nr;
+	sclda_sp_send(regs->sp);
 
 	if (likely(unr < NR_syscalls)) {
 		unr = array_index_nospec(unr, NR_syscalls);
@@ -61,7 +75,6 @@ static __always_inline bool do_syscall_x32(struct pt_regs *regs, int nr)
 	 * numbers for comparisons.
 	 */
 	unsigned int xnr = nr - __X32_SYSCALL_BIT;
-
 
 	if (IS_ENABLED(CONFIG_X86_X32_ABI) && unlikely(x32_enabled) &&
 	    likely(xnr < X32_NR_syscalls)) {

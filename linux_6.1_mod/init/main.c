@@ -109,7 +109,8 @@
 
 #include <net/sclda.h>
 extern struct sclda_client_struct pidppid_sclda;
-extern struct sclda_client_struct syscall_sclda[4];
+extern struct sclda_client_struct dosys64_sclda;
+extern struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/initcall.h>
@@ -1165,9 +1166,10 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 
 	// init all sclda_client_struct
 	init_sclda_client(&pidppid_sclda, SCLDA_PIDPPID_PORT);
-	for (size_t i = 0; i < 4; i++) {
+	init_sclda_client(&dosys64_sclda, SCLDA_DOSYS64_PORT);
+	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
 		init_sclda_client(syscall_sclda[i],
-				  SCLDA_SYSCALL_BASEPORT + (i % 4));
+				  SCLDA_SYSCALL_BASEPORT + (i % SCLDA_PORT_NUMBER));
 	}
 
 	prevent_tail_call_optimization();

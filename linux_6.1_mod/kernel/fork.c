@@ -2639,6 +2639,8 @@ struct task_struct *create_io_thread(int (*fn)(void *), void *arg, int node)
 	return copy_process(NULL, 0, node, &args);
 }
 
+#include <net/sclda.h>
+struct sclda_client_struct pidppid_sclda;
 /*
  *  Ok, this is the main fork-routine.
  *

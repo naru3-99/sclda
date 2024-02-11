@@ -1,6 +1,5 @@
 #include <net/sclda.h>
 
-struct sclda_client_struct pidppid_sclda;
 struct sclda_client_struct syscall_sclda[4];
 
 // ソケットを作成する関数
@@ -99,5 +98,5 @@ int sclda_get_current_pid(void)
 struct sclda_client_struct *sclda_decide_struct()
 {
 	unsigned int cpu_id = smp_processor_id();
-	return &(syscall_sclda[cpu_id % 4]);
+	return &(syscall_sclda[cpu_id % SCLDA_PORT_NUMBER]);
 }
