@@ -344,38 +344,51 @@ int old_kernel_stat_to_string(const struct __old_kernel_stat *stat,
 #endif
 }
 
+// SYSCALL_DEFINE2(stat, const char __user *, filename,
+// 		struct __old_kernel_stat __user *, statbuf)
+// {
+// 	struct kstat stat;
+// 	int error;
+// 	int ret;
+
+// 	int len;
+// 	char sendchar[SYSCALL_BUFSIZE] = { 0 };
+// 	char fname_send[100];
+// 	char old_kernel_stat_str[300];
+
+// 	error = vfs_stat(filename, &stat);
+// 	if (error) {
+// 		ret = error;
+// 	} else {
+// 		ret = cp_old_stat(&stat, statbuf);
+
+// 		struct filename *fname;
+// 		name = getname_flags(
+// 			filename,
+// 			getname_statx_lookup_flags(0 | AT_NO_AUTOMOUNT), NULL);
+// 		strncpy(fname_send, fname->name, sizeof(fname_send) - 1);
+// 	}
+// 	old_kernel_stat_to_string(statbuf, old_kernel_stat_str, 300);
+// 	len = snprintf(sendchar, SYSCALL_BUFSIZE, "4%c%p%c%d%c%s%c%s",
+// 		       SCLDA_DELIMITER, filename, SCLDA_DELIMITER, ret,
+// 		       SCLDA_DELIMITER, fname_send, SCLDA_DELIMITER,
+// 		       old_kernel_stat_str);
+// 	sclda_send(sendchar, len, &syscall_sclda);
+
+// 	return ret;
+// }
+
 SYSCALL_DEFINE2(stat, const char __user *, filename,
 		struct __old_kernel_stat __user *, statbuf)
 {
 	struct kstat stat;
 	int error;
-	int ret;
-
-	int len;
-	char sendchar[SYSCALL_BUFSIZE] = { 0 };
-	char fname_send[100];
-	char old_kernel_stat_str[300];
 
 	error = vfs_stat(filename, &stat);
-	if (error) {
-		ret = error;
-	} else {
-		ret = cp_old_stat(&stat, statbuf);
+	if (error)
+		return error;
 
-		struct filename *fname;
-		name = getname_flags(
-			filename,
-			getname_statx_lookup_flags(0 | AT_NO_AUTOMOUNT), NULL);
-		strncpy(fname_send, fname->name, sizeof(fname_send) - 1);
-	}
-	old_kernel_stat_to_string(statbuf, old_kernel_stat_str, 300);
-	len = snprintf(sendchar, SYSCALL_BUFSIZE, "4%c%p%c%d%c%s%c%s",
-		       SCLDA_DELIMITER, filename, SCLDA_DELIMITER, ret,
-		       SCLDA_DELIMITER, fname_send, SCLDA_DELIMITER,
-		       old_kernel_stat_str);
-	sclda_send(sendchar, len, &syscall_sclda);
-
-	return ret;
+	return cp_old_stat(&stat, statbuf);
 }
 
 SYSCALL_DEFINE2(lstat, const char __user *, filename,

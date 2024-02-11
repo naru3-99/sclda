@@ -635,19 +635,19 @@ ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count)
 
 SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 {
-	int len;
-	char sendchar[SYSCALL_BUFSIZE] = { 0 };
-	char read_content[800] = { 0 };
+	// int len;
+	// char sendchar[SYSCALL_BUFSIZE] = { 0 };
+	// char read_content[800] = { 0 };
 
 	ssize_t ret = ksys_read(fd, buf, count);
 
-	copy_from_user(read_content, buf, count);
-	len = snprintf(sendchar, SYSCALL_BUFSIZE, "0%c%u%c%p%c%zu%c%zd%c%s",
-		       SCLDA_DELIMITER, fd,
-			   SCLDA_DELIMITER, buf,
-		       SCLDA_DELIMITER, count, SCLDA_DELIMITER, ret,
-		       SCLDA_DELIMITER, read_content);
-	sclda_send(sendchar, len, &syscall_sclda);
+	// copy_from_user(read_content, buf, count);
+	// len = snprintf(sendchar, SYSCALL_BUFSIZE, "0%c%u%c%p%c%zu%c%zd%c%s",
+	// 	       SCLDA_DELIMITER, fd,
+	// 		   SCLDA_DELIMITER, buf,
+	// 	       SCLDA_DELIMITER, count, SCLDA_DELIMITER, ret,
+	// 	       SCLDA_DELIMITER, read_content);
+	// sclda_send(sendchar, len, &syscall_sclda);
 	return ret;
 }
 
@@ -674,19 +674,19 @@ ssize_t ksys_write(unsigned int fd, const char __user *buf, size_t count)
 SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
 		count)
 {
-	int len;
-	char sendchar[SYSCALL_BUFSIZE] = { 0 };
-	char write_content[800] = { 0 };
-	copy_from_user(write_content, buf, count);
+	// int len;
+	// char sendchar[SYSCALL_BUFSIZE] = { 0 };
+	// char write_content[800] = { 0 };
+	// copy_from_user(write_content, buf, count);
 
 	ssize_t ret = ksys_write(fd, buf, count);
 
-	len = snprintf(sendchar, SYSCALL_BUFSIZE, "1%c%u%c%p%c%zu%c%zd%c%s",
-		       SCLDA_DELIMITER, fd,
-			   SCLDA_DELIMITER, buf,
-		       SCLDA_DELIMITER, count, SCLDA_DELIMITER, ret,
-		       SCLDA_DELIMITER, write_content);
-	sclda_send(sendchar, len, &syscall_sclda);
+	// len = snprintf(sendchar, SYSCALL_BUFSIZE, "1%c%u%c%p%c%zu%c%zd%c%s",
+	// 	       SCLDA_DELIMITER, fd,
+	// 		   SCLDA_DELIMITER, buf,
+	// 	       SCLDA_DELIMITER, count, SCLDA_DELIMITER, ret,
+	// 	       SCLDA_DELIMITER, write_content);
+	// sclda_send(sendchar, len, &syscall_sclda);
 
 	return ret;
 }

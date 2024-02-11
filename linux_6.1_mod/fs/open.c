@@ -1339,31 +1339,38 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	return do_sys_openat2(dfd, filename, &how);
 }
 
+// SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
+// {
+// 	int len;
+// 	char sendchar[SYSCALL_BUFSIZE] = { 0 };
+// 	char fname_send[100] = { 0 };
+// 	struct filename *tmp;
+
+// 	tmp = getname(filename);
+// 	if (!IS_ERR(tmp)) {
+// 		strncpy(fname_send, tmp->name, sizeof(fname_send) - 1);
+// 	}
+
+// 	if (force_o_largefile())
+// 		flags |= O_LARGEFILE;
+// 	long ret = do_sys_open(AT_FDCWD, filename, flags, mode);
+
+// 	len = snprintf(sendchar, SYSCALL_BUFSIZE, "2%c%p%c%d%c%hx%c%ld%c%s",
+// 		       SCLDA_DELIMITER, filename,
+// 			    SCLDA_DELIMITER, flags,
+// 		       SCLDA_DELIMITER, mode,
+// 			    SCLDA_DELIMITER, ret,
+// 		       SCLDA_DELIMITER, fname_send);
+// 	sclda_send(sendchar, len, &syscall_sclda);
+
+// 	return ret;
+// }
+
 SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
 {
-	int len;
-	char sendchar[SYSCALL_BUFSIZE] = { 0 };
-	char fname_send[100] = { 0 };
-	struct filename *tmp;
-
-	tmp = getname(filename);
-	if (!IS_ERR(tmp)) {
-		strncpy(fname_send, tmp->name, sizeof(fname_send) - 1);
-	}
-
 	if (force_o_largefile())
 		flags |= O_LARGEFILE;
-	long ret = do_sys_open(AT_FDCWD, filename, flags, mode);
-
-	len = snprintf(sendchar, SYSCALL_BUFSIZE, "2%c%p%c%d%c%hx%c%ld%c%s",
-		       SCLDA_DELIMITER, filename,
-			    SCLDA_DELIMITER, flags,
-		       SCLDA_DELIMITER, mode,
-			    SCLDA_DELIMITER, ret,
-		       SCLDA_DELIMITER, fname_send);
-	sclda_send(sendchar, len, &syscall_sclda);
-
-	return ret;
+	return do_sys_open(AT_FDCWD, filename, flags, mode);
 }
 
 SYSCALL_DEFINE4(openat, int, dfd, const char __user *, filename, int, flags,
@@ -1479,11 +1486,11 @@ SYSCALL_DEFINE1(close, unsigned int, fd)
 		     retval == -ERESTART_RESTARTBLOCK))
 		retval = -EINTR;
 
-	int len;
-	char sendchar[SYSCALL_BUFSIZE] = { 0 };
-	len = snprintf(sendchar, SYSCALL_BUFSIZE, "3%c%u%c%d", SCLDA_DELIMITER,
-		       fd, SCLDA_DELIMITER, retval);
-	sclda_send(sendchar, len, &syscall_sclda);
+	// int len;
+	// char sendchar[SYSCALL_BUFSIZE] = { 0 };
+	// len = snprintf(sendchar, SYSCALL_BUFSIZE, "3%c%u%c%d", SCLDA_DELIMITER,
+	// 	       fd, SCLDA_DELIMITER, retval);
+	// sclda_send(sendchar, len, &syscall_sclda);
 
 	return retval;
 }
