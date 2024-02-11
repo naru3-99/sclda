@@ -66,6 +66,15 @@ void sclda_send_split(char *msg, int msg_len)
 	size_t sent_bytes = 0;
 	size_t chunk_size;
 	struct sclda_client_struct *sclda_to_send = sclda_decide_struct();
+
+	int pid = sclda_get_current_pid();
+	u64 utime = current->utime;
+
+	char *sending_msg;
+	sending_msg = kmalloc(SCLDA_ADD_BUFSIZE, GFP_KERNEL);
+
+	int header_len;
+
 	while (sent_bytes < msg_len) {
 		if ((msg_len - sent_bytes) < SCLDA_BUFSIZE) {
 			chunk_size = msg_len - sent_bytes;
@@ -73,9 +82,12 @@ void sclda_send_split(char *msg, int msg_len)
 			chunk_size = SCLDA_BUFSIZE;
 		}
 
-		sclda_send(msg + sent_bytes, chunk_size, sclda_to_send);
+		header_len = snprintf(sending_msg, SCLDA_ADD_BUFSIZE, "%d%c%llu%c", pid, SCLDA_DELIMITER, utime, SCLDA_DELIMITER);
+		snprintf(sending_msg + header_len, SCLDA_ADD_BUFSIZE - header_len, "%.*s", (int)chunk_size, msg + sent_bytes);
+		sclda_send(sending_msg, SCLDA_ADD_BUFSIZE, sclda_to_send);
 		sent_bytes += chunk_size;
 	}
+	kfree(sending_msg);
 }
 
 //現在のPIDを返す関数

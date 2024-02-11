@@ -35,6 +35,8 @@
 
 // maximum buffer for 1 packet
 #define SCLDA_BUFSIZE ((int)1000)
+// syscall_buffersize for additional info
+#define SCLDA_ADD_BUFSIZE ((int)1500)
 
 // ソケットなどをひとまとめにする構造体
 struct sclda_client_struct {
