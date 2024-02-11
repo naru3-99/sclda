@@ -26,7 +26,6 @@
 #include <asm/unistd.h>
 
 #include <net/sclda.h>
-extern struct sclda_client_struct syscall_sclda;
 
 const struct file_operations generic_ro_fops = {
 	.llseek = generic_file_llseek,

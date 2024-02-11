@@ -26,7 +26,6 @@
 #include "mount.h"
 
 #include <net/sclda.h>
-extern struct sclda_client_struct syscall_sclda;
 
 /**
  * generic_fillattr - Fill in the basic attributes from the inode struct
