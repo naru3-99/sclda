@@ -1164,14 +1164,6 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	/* Do the rest non-__init'ed, we're now alive */
 	arch_call_rest_init();
 
-	// init all sclda_client_struct
-	init_sclda_client(&pidppid_sclda, SCLDA_PIDPPID_PORT);
-	init_sclda_client(&dosys64_sclda, SCLDA_DOSYS64_PORT);
-	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
-		init_sclda_client(&syscall_sclda[i],
-				  SCLDA_SYSCALL_BASEPORT + (i % SCLDA_PORT_NUMBER));
-	}
-
 	prevent_tail_call_optimization();
 }
 
@@ -1530,6 +1522,10 @@ static int __ref kernel_init(void *unused)
 	wait_for_completion(&kthreadd_done);
 
 	kernel_init_freeable();
+
+	// init all sclda_client_struct
+	init_all_sclda();
+
 	/* need to finish all async __init code before freeing the memory */
 	async_synchronize_full();
 

@@ -1,6 +1,8 @@
 #include <net/sclda.h>
 
-struct sclda_client_struct syscall_sclda[4];
+struct sclda_client_struct pidppid_sclda;
+struct sclda_client_struct dosys64_sclda;
+struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
 
 // ソケットを作成する関数
 // only used for init_sclda_client
@@ -43,6 +45,19 @@ int init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
 	return 0;
 }
 
+int init_all_sclda(void)
+{
+	// init all sclda_client_struct
+	init_sclda_client(&pidppid_sclda, SCLDA_PIDPPID_PORT);
+	init_sclda_client(&dosys64_sclda, SCLDA_DOSYS64_PORT);
+	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
+		init_sclda_client(&syscall_sclda[i],
+				  SCLDA_SYSCALL_BASEPORT +
+					  (i % SCLDA_PORT_NUMBER));
+	}
+	return 0;
+}
+
 // 文字列を送信するための最もかんたんな実装
 static DEFINE_MUTEX(sclda_send_mutex);
 void sclda_send(char *buf, int len,
@@ -81,8 +96,12 @@ void sclda_send_split(char *msg, int msg_len)
 			chunk_size = SCLDA_BUFSIZE;
 		}
 
-		header_len = snprintf(sending_msg, SCLDA_ADD_BUFSIZE, "%d%c%llu%c", pid, SCLDA_DELIMITER, utime, SCLDA_DELIMITER);
-		snprintf(sending_msg + header_len, SCLDA_ADD_BUFSIZE - header_len, "%.*s", (int)chunk_size, msg + sent_bytes);
+		header_len = snprintf(sending_msg, SCLDA_ADD_BUFSIZE,
+				      "%d%c%llu%c", pid, SCLDA_DELIMITER, utime,
+				      SCLDA_DELIMITER);
+		snprintf(sending_msg + header_len,
+			 SCLDA_ADD_BUFSIZE - header_len, "%.*s",
+			 (int)chunk_size, msg + sent_bytes);
 		sclda_send(sending_msg, SCLDA_ADD_BUFSIZE, sclda_to_send);
 		sent_bytes += chunk_size;
 	}
