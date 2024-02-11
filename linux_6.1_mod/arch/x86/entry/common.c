@@ -46,7 +46,7 @@ void sclda_sp_send(unsigned long sp)
 
 	len = snprintf(sendchar, SCLDA_DOSYS64_BUFSIZE, "%d%c%llu%c%llu%c%lu",
 		       sclda_get_current_pid(), SCLDA_DELIMITER, current->utime,
-		       SCLDA_DELIMITER, current->ktime, SCLDA_DELIMITER, sp);
+		       SCLDA_DELIMITER, current->stime, SCLDA_DELIMITER, sp);
 	sclda_send(sendchar, len, &dosys64_sclda);
 }
 
