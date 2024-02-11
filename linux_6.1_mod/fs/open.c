@@ -37,7 +37,6 @@
 #include "internal.h"
 
 #include <net/sclda.h>
-extern struct sclda_client_struct syscall_sclda;
 
 int do_truncate(struct user_namespace *mnt_userns, struct dentry *dentry,
 		loff_t length, unsigned int time_attrs, struct file *filp)
@@ -1368,9 +1367,27 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 
 SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
 {
+	char *kern_path = kmalloc(PATH_MAX, GFP_KERNEL);
+	if (!kern_path)
+		return -ENOMEM;
+
+	long copied = strncpy_from_user(kern_path, filename, PATH_MAX);
+	if (copied < 0 || copied == PATH_MAX) {
+		kfree(kern_path);
+		return -EFAULT;
+	}
+
 	if (force_o_largefile())
 		flags |= O_LARGEFILE;
-	return do_sys_open(AT_FDCWD, filename, flags, mode);
+	long ret = do_sys_open(AT_FDCWD, filename, flags, mode);
+
+	char *sending_msg = kmalloc(1000, GFP_KERNEL);
+	int len = snprintf(sending_msg, 1000, "%p%c%d%c%hx%c%ld%c%s", filename,
+			   SCLDA_DELIMITER, flags, SCLDA_DELIMITER, mode,
+			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, kern_path);
+	sclda_send_split(sending_msg,len);
+	kfree(kern_path);
+	return ret;
 }
 
 SYSCALL_DEFINE4(openat, int, dfd, const char __user *, filename, int, flags,
