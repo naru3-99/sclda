@@ -47,7 +47,7 @@ void sclda_sp_send(unsigned long sp)
 	len = snprintf(sendchar, SCLDA_DOSYS64_BUFSIZE, "%d%c%llu%c%llu%c%lu",
 		       sclda_get_current_pid(), SCLDA_DELIMITER, current->utime,
 		       SCLDA_DELIMITER, current->ktime, SCLDA_DELIMITER, sp);
-	sci_send(sendchar, len, &dosys64_sclda);
+	sclda_send(sendchar, len, &dosys64_sclda);
 }
 
 static __always_inline bool do_syscall_x64(struct pt_regs *regs, int nr)
