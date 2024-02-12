@@ -76,6 +76,9 @@ unsigned long sclda_get_current_spsize(void);
 // currentから、ヒープのサイズを取得する(バイト単位)
 unsigned long sclda_get_current_heapsize(void);
 
+// currentから、全体のメモリ使用量を取得する(バイト単位)
+unsigned long sclda_get_current_totalsize(void);
+
 // システムコール関連情報を送信する際の、
 // sclda_client_structを決定する
 struct sclda_client_struct * sclda_decide_struct(void);

@@ -116,12 +116,17 @@ int sclda_get_current_pid(void)
 
 unsigned long sclda_get_current_spsize(void)
 {
-	return mm->stack_vm * PAGE_SIZE;
+	return current->mm->stack_vm * PAGE_SIZE;
 }
 
 unsigned long sclda_get_current_heapsize(void)
 {
-	return mm->brk - mm->start_brk;
+	return current->mm->brk - current->mm->start_brk;
+}
+
+unsigned long sclda_get_current_totalsize(void)
+{
+	return current->mm->total_vm * PAGE_SIZE;
 }
 
 struct sclda_client_struct *sclda_decide_struct()
