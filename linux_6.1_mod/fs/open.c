@@ -1338,33 +1338,6 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	return do_sys_openat2(dfd, filename, &how);
 }
 
-// SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
-// {
-// 	int len;
-// 	char sendchar[SYSCALL_BUFSIZE] = { 0 };
-// 	char fname_send[100] = { 0 };
-// 	struct filename *tmp;
-
-// 	tmp = getname(filename);
-// 	if (!IS_ERR(tmp)) {
-// 		strncpy(fname_send, tmp->name, sizeof(fname_send) - 1);
-// 	}
-
-// 	if (force_o_largefile())
-// 		flags |= O_LARGEFILE;
-// 	long ret = do_sys_open(AT_FDCWD, filename, flags, mode);
-
-// 	len = snprintf(sendchar, SYSCALL_BUFSIZE, "2%c%p%c%d%c%hx%c%ld%c%s",
-// 		       SCLDA_DELIMITER, filename,
-// 			    SCLDA_DELIMITER, flags,
-// 		       SCLDA_DELIMITER, mode,
-// 			    SCLDA_DELIMITER, ret,
-// 		       SCLDA_DELIMITER, fname_send);
-// 	sclda_send(sendchar, len, &syscall_sclda);
-
-// 	return ret;
-// }
-
 SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
 {
 	char *kern_path = kmalloc(PATH_MAX, GFP_KERNEL);
@@ -1381,12 +1354,39 @@ SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
 		flags |= O_LARGEFILE;
 	long ret = do_sys_open(AT_FDCWD, filename, flags, mode);
 
-	char *sending_msg = kmalloc(1000, GFP_KERNEL);
-	int len = snprintf(sending_msg, 1000, "%p%c%d%c%hx%c%ld%c%s", filename,
-			   SCLDA_DELIMITER, flags, SCLDA_DELIMITER, mode,
-			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, kern_path);
-	sclda_send_split(sending_msg,len);
+	int msg_len_max = 2000;
+	char *sending_msg = kmalloc(msg_len_max, GFP_KERNEL);
+	int len = snprintf(sending_msg, msg_len_max,
+			   "%llu%c2%c%d%c%hx%c%ld%c%s", current->stime,
+			   SCLDA_DELIMITER SCLDA_DELIMITER, flags,
+			   SCLDA_DELIMITER, mode, SCLDA_DELIMITER, ret,
+			   SCLDA_DELIMITER);
+
+	if ((copied + (long)len) < (long)msg_len_max) {
+		len = snprintf(sending_msg + len, msg_len_max - len, "%s",
+			       kern_path);
+		sclda_send_split(sending_msg, len);
+	} else {
+		int required_size = len + strlen(kern_path) + 1;
+		char *new_sending_msg = kmalloc(required_size, GFP_KERNEL);
+
+		if (!new_sending_msg) {
+			kfree(sending_msg);
+			kfree(kern_path);
+			return -ENOMEM;
+		}
+
+		int new_len = snprintf(new_sending_msg, required_size, "%s%s",
+				       sending_msg, kern_path);
+		sclda_send_split(new_sending_msg, new_len);
+		kfree(new_sending_msg);
+	}
+
+	sclda_send_split(sending_msg, len);
+
 	kfree(kern_path);
+	kfree(sending_msg);
+
 	return ret;
 }
 
