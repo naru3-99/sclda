@@ -70,6 +70,12 @@ void sclda_send_split(char *, int);
 // 現在のPIDを取得する関数
 int sclda_get_current_pid(void);
 
+// currentから、スタックの大きさを取得する(バイト単位)
+unsigned long sclda_get_current_spsize(void);
+
+// currentから、ヒープのサイズを取得する(バイト単位)
+unsigned long sclda_get_current_heapsize(void);
+
 // システムコール関連情報を送信する際の、
 // sclda_client_structを決定する
 struct sclda_client_struct * sclda_decide_struct(void);

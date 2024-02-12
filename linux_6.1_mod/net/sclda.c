@@ -114,6 +114,16 @@ int sclda_get_current_pid(void)
 	return (int)pid_nr(get_task_pid(current, PIDTYPE_PID));
 }
 
+unsigned long sclda_get_current_spsize(void)
+{
+	return mm->stack_vm * PAGE_SIZE;
+}
+
+unsigned long sclda_get_current_heapsize(void)
+{
+	return mm->brk - mm->start_brk;
+}
+
 struct sclda_client_struct *sclda_decide_struct()
 {
 	unsigned int cpu_id = smp_processor_id();

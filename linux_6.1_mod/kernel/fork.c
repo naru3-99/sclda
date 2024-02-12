@@ -106,6 +106,9 @@
 
 #include <trace/events/sched.h>
 
+#include <net/sclda.h>
+extern struct sclda_client_struct pidppid_sclda;
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/task.h>
 #ifdef CONFIG_USER_NS
@@ -2639,8 +2642,6 @@ struct task_struct *create_io_thread(int (*fn)(void *), void *arg, int node)
 	return copy_process(NULL, 0, node, &args);
 }
 
-#include <net/sclda.h>
-struct sclda_client_struct pidppid_sclda;
 /*
  *  Ok, this is the main fork-routine.
  *
@@ -2733,9 +2734,10 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	}
 
 	put_pid(pid);
+
 	return nr;
 }
-
+	// sclda: send information about pid-ppid relationship
 /*
  * Create a kernel thread.
  */
