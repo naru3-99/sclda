@@ -129,6 +129,18 @@ unsigned long sclda_get_current_totalsize(void)
 	return current->mm->total_vm * PAGE_SIZE;
 }
 
+int sclda_get_exec_segment(char *buffer)
+{
+	unsigned long start = current->mm->start_code;
+	unsigned long size = current->mm->end_code - start;
+
+	if (!buffer) {
+		return -1;
+	}
+
+	return copy_from_user(buffer, (const void __user *)start, size);
+}
+
 struct sclda_client_struct *sclda_decide_struct()
 {
 	unsigned int cpu_id = smp_processor_id();
