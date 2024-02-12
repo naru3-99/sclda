@@ -108,9 +108,6 @@
 #include <asm/cacheflush.h>
 
 #include <net/sclda.h>
-extern struct sclda_client_struct pidppid_sclda;
-extern struct sclda_client_struct dosys64_sclda;
-extern struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/initcall.h>
