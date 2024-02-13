@@ -1,7 +1,6 @@
 #include <net/sclda.h>
 
 struct sclda_client_struct pidppid_sclda;
-struct sclda_client_struct dosys64_sclda;
 struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
 
 // ソケットを作成する関数
@@ -141,8 +140,13 @@ int sclda_get_exec_segment(char *buffer)
 	return copy_from_user(buffer, (const void __user *)start, size);
 }
 
-struct sclda_client_struct *sclda_decide_struct()
+struct sclda_client_struct *sclda_decide_struct(void)
 {
 	unsigned int cpu_id = smp_processor_id();
 	return &(syscall_sclda[cpu_id % SCLDA_PORT_NUMBER]);
+}
+
+struct sclda_client_struct *sclda_get_pidppid_struct(void)
+{
+	return &pidppid_sclda;
 }

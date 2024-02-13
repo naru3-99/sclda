@@ -107,7 +107,6 @@
 #include <trace/events/sched.h>
 
 #include <net/sclda.h>
-extern struct sclda_client_struct pidppid_sclda;
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/task.h>

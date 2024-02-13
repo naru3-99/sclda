@@ -86,4 +86,6 @@ int sclda_get_exec_segment(char *buffer);
 // sclda_client_structを決定する
 struct sclda_client_struct *sclda_decide_struct(void);
 
+struct sclda_client_struct *sclda_get_pidppid_struct(void);
+
 #endif // SCLDA_H
