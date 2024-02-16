@@ -27,14 +27,11 @@
 // プロセス生成に関わる、PIDとPPIDのペアを取得するポート
 #define SCLDA_PIDPPID_PORT ((int)15001)
 
-//do_syscall_64のところで使うport
-#define SCLDA_DOSYS64_PORT ((int)15002)
-
 // システムコールの情報を取得するポート
 // プロセッサのID(smp_processor_id())により、
 // 送るポートを分けることで負荷分散を図る
 // BASEPORT + (プロセッサID % 4)をPORTとして使用する
-#define SCLDA_SYSCALL_BASEPORT ((int)15003)
+#define SCLDA_SYSCALL_BASEPORT ((int)15002)
 #define SCLDA_PORT_NUMBER ((int)4)
 
 // maximum buffer for 1 packet
