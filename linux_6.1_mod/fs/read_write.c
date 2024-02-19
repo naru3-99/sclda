@@ -673,20 +673,21 @@ ssize_t ksys_write(unsigned int fd, const char __user *buf, size_t count)
 SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
 		count)
 {
-	int len;
-	char sendchar[SYSCALL_BUFSIZE] = { 0 };
-	char write_content;
+	char write_content *;
 	write_content = kmalloc(count + 1, GFP_KERNEL);
-
 	copy_from_user(write_content, buf, count);
 
 	ssize_t ret = ksys_write(fd, buf, count);
 
+	char sendchar *;
+	sendchar = kmalloc(count + 100, GFP_KERNEL);
+	int len;
 	len = snprintf(sendchar, SYSCALL_BUFSIZE, "1%c%u%c%zu%c%zd%c%s",
 		       SCLDA_DELIMITER, fd, SCLDA_DELIMITER, count,
 		       SCLDA_DELIMITER, ret, SCLDA_DELIMITER, write_content);
-	sclda_send(sendchar, len, &syscall_sclda);
-
+	sclda_send_split(sendchar, len);
+	kfree(write_content);
+	kfree(sendchar);
 	return ret;
 }
 
