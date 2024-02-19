@@ -39,9 +39,6 @@
 // syscall_buffersize for additional info
 #define SCLDA_ADD_BUFSIZE ((int)1500)
 
-// pid, utime, ktime, spを送信する際のバッファ
-#define SCLDA_DOSYS64_BUFSIZE ((int)150)
-
 // ソケットなどをひとまとめにする構造体
 struct sclda_client_struct {
 	struct socket *sock;
