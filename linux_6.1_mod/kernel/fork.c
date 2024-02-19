@@ -2752,31 +2752,31 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 
 	put_pid(pid);
 
-	// sclda
-	// basic : pid,ppid,executable name
-	int basic_bufsize = 50;
-	char basic_buffer[basic_bufsize];
-	int basic_len = snprintf(basic_buffer, basic_bufsize, "%d%c%d%c%s%c",
-				 (int)nr, SCLDA_DELIMITER,
-				 sclda_get_current_pid(), SCLDA_DELIMITER,
-				 p->comm, SCLDA_DELIMITER);
-	// add : executable segment
-	unsigned long start = current->mm->start_code;
-	unsigned long size = current->mm->end_code - start;
-	char *add_buf = kmalloc(size, GFP_KERNEL);
-	if (!add_buf)
-		return -EINVAL;
-	int add_len = copy_from_user(add_buf, (const void __user *)start, size);
-	// send info
-	int msg_len = basic_len + add_len + 1;
-	char *send_msg = kmalloc(msg_len, GFP_KERNEL);
-	if (!send_msg)
-		return -EINVAL;
-	msg_len = snprintf(send_msg, msg_len, "%s%s", basic_buffer, add_buf);
+	// // sclda
+	// // basic : pid,ppid,executable name
+	// int basic_bufsize = 50;
+	// char basic_buffer[basic_bufsize];
+	// int basic_len = snprintf(basic_buffer, basic_bufsize, "%d%c%d%c%s%c",
+	// 			 (int)nr, SCLDA_DELIMITER,
+	// 			 sclda_get_current_pid(), SCLDA_DELIMITER,
+	// 			 p->comm, SCLDA_DELIMITER);
+	// // add : executable segment
+	// unsigned long start = current->mm->start_code;
+	// unsigned long size = current->mm->end_code - start;
+	// char *add_buf = kmalloc(size, GFP_KERNEL);
+	// if (!add_buf)
+	// 	return -EINVAL;
+	// int add_len = copy_from_user(add_buf, (const void __user *)start, size);
+	// // send info
+	// int msg_len = basic_len + add_len + 1;
+	// char *send_msg = kmalloc(msg_len, GFP_KERNEL);
+	// if (!send_msg)
+	// 	return -EINVAL;
+	// msg_len = snprintf(send_msg, msg_len, "%s%s", basic_buffer, add_buf);
 
-	sclda_send(send_msg, msg_len, sclda_get_pidppid_struct());
-	kfree(add_buf);
-	kfree(send_msg);
+	// sclda_send(send_msg, msg_len, sclda_get_pidppid_struct());
+	// kfree(add_buf);
+	// kfree(send_msg);
 
 	return nr;
 }
