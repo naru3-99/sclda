@@ -2,6 +2,8 @@
 
 struct sclda_client_struct pidppid_sclda;
 struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
+struct sclda_str_list sclda_strls_head;
+int is_sclda_init_finished = 0;
 
 // ソケットを作成する関数
 // only used for init_sclda_client
@@ -53,6 +55,8 @@ int init_all_sclda(void)
 				  SCLDA_SYSCALL_BASEPORT +
 					  (i % SCLDA_PORT_NUMBER));
 	}
+	is_sclda_init_finished = 1;
+	sclda_all_send_strls();
 	return 0;
 }
 
@@ -136,4 +140,63 @@ struct sclda_client_struct *sclda_decide_struct(void)
 struct sclda_client_struct *sclda_get_pidppid_struct(void)
 {
 	return &pidppid_sclda;
+}
+
+struct sclda_str_list sclda_add_string(const char *msg, int len)
+{
+	struct sclda_str_list *new_node =
+		kmalloc(sizeof(struct sclda_str_list), GFP_KERNEL);
+	if (!new_node)
+		return NULL;
+
+	new_node->str = kstrdup(str, GFP_KERNEL);
+	if (!new_node->str) {
+		kfree(new_node);
+		return NULL;
+	}
+	new_node->len = len;
+	new_node->next = NULL;
+
+	if (&sclda_strls_head == NULL) {
+		return new_node;
+	} else {
+		sclda_str_list *current_ptr = &sclda_strls_head;
+		while (current_ptr->next != NULL) {
+			current_ptr = current_ptr->next;
+		}
+		current_ptr->next = new_node;
+		return % sclda_strls_head;
+	}
+}
+
+void free_slcda_str_list(void)
+{
+	struct sclda_str_list *current_ptr = &sclda_strls_head;
+	while (current_ptr != NULL) {
+		struct sclda_str_list *next = current_ptr->next;
+		kfree(current_ptr->str);
+		kfree(current_ptr);
+		current_ptr = next;
+	}
+}
+
+void sclda_all_send_strls(void)
+{
+	struct sclda_str_list *curptr = &sclda_strls_head;
+	struct sclda_client_struct *pid_sclda = sclda_get_pidppid_struct();
+	while (curptr != NULL) {
+		sclda_send(curptr->str, curptr->len, pid_sclda);
+		curptr = curptr->next;
+	}
+	free_slcda_str_list();
+}
+
+struct sclda_str_list *get_sclda_str_list_head(void)
+{
+	return &sclda_strls_head;
+}
+
+int is_sclda_init_fin(void)
+{
+	return is_sclda_init_finished;
 }

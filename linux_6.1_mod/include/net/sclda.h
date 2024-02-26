@@ -38,6 +38,8 @@
 #define SCLDA_BUFSIZE ((int)1000)
 // syscall_buffersize for additional info
 #define SCLDA_ADD_BUFSIZE ((int)1500)
+// pidppid関連のバフサイズ
+#define SCLDA_PIDPPID_BUFSIZE ((int)50)
 
 // ソケットなどをひとまとめにする構造体
 struct sclda_client_struct {
@@ -45,6 +47,13 @@ struct sclda_client_struct {
 	struct sockaddr_in addr;
 	struct msghdr msg;
 	struct iov_iter iov_it;
+};
+
+// 文字列を保持するためのノードを定義
+struct sclda_str_list {
+	char *str;
+	int len;
+	struct sclda_str_list *next;
 };
 
 // sclda_client_structを初期化する関数
@@ -79,4 +88,9 @@ struct sclda_client_struct *sclda_decide_struct(void);
 
 struct sclda_client_struct *sclda_get_pidppid_struct(void);
 
+struct sclda_str_list *sclda_add_string(const char *, int);
+struct sclda_str_list *get_sclda_str_list_head(void);
+void free_slcda_str_list(void);
+void sclda_all_send_strls(void);
+int is_sclda_init_fin(void);
 #endif // SCLDA_H
