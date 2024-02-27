@@ -634,19 +634,17 @@ ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count)
 
 SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 {
-	// int len;
-	// char sendchar[SYSCALL_BUFSIZE] = { 0 };
-	// char read_content[800] = { 0 };
+	char *reading_content = kmalloc(count + 1, GFP_KERNEL);
+	if (!reading_content)
+		return EFAULT;
+
+	int len = copy_from_user(reading_content, buf, count);
 
 	ssize_t ret = ksys_read(fd, buf, count);
 
-	// copy_from_user(read_content, buf, count);
-	// len = snprintf(sendchar, SYSCALL_BUFSIZE, "0%c%u%c%p%c%zu%c%zd%c%s",
-	// 	       SCLDA_DELIMITER, fd,
-	// 		   SCLDA_DELIMITER, buf,
-	// 	       SCLDA_DELIMITER, count, SCLDA_DELIMITER, ret,
-	// 	       SCLDA_DELIMITER, read_content);
-	// sclda_send(sendchar, len, &syscall_sclda);
+	char* msg = kmalloc();
+
+
 	return ret;
 }
 

@@ -77,7 +77,7 @@ void sclda_send(char *buf, int len,
 
 // 大きいサイズの文字列を分割して送信するための追加関数
 // system-call関連情報を送信するときのみ使用する
-void sclda_send_split(char *msg, int msg_len)
+void __sclda_send_split(char *msg, int msg_len)
 {
 	size_t sent_bytes = 0;
 	size_t chunk_size;
@@ -108,6 +108,25 @@ void sclda_send_split(char *msg, int msg_len)
 		sent_bytes += chunk_size;
 	}
 	kfree(sending_msg);
+}
+
+void sclda_send_split(char *msg, int msg_len)
+{
+	// pid utimeは連続パケット送信のプロトコルで渡す
+	// ここで付加する情報：
+	// stime:kernel空間で消費した時間
+	// スタック・ヒープ・メモリ全体の現在の消費量
+	int add_bufsize = 200;
+	char add_str[add_bufsize];
+	add_bufsize = snprintf(add_str, add_bufsize, "%llu%c%lu%c%lu%c%lu%c",
+			       current->stime, SCLDA_DELIMITER,
+			       sclda_get_current_spsize(), SCLDA_DELIMITER,
+			       sclda_get_current_heapsize(), SCLDA_DELIMITER,
+			       sclda_get_current_totalsize(), SCLDA_DELIMITER);
+	int new_len = msg_len + add_bufsize + 1;
+	char *new_msg = kmalloc(new_len, GFP_KERNEL);
+	new_len = snprintf(new_msg, new_len, "%s%s", add_str, msg);
+	__sclda_send_split(new_msg, new_len);
 }
 
 //現在のPIDを返す関数
