@@ -127,6 +127,7 @@ void sclda_send_split(char *msg, int msg_len)
 	char *new_msg = kmalloc(new_len, GFP_KERNEL);
 	new_len = snprintf(new_msg, new_len, "%s%s", add_str, msg);
 	__sclda_send_split(new_msg, new_len);
+	kfree(new_msg);
 }
 
 //現在のPIDを返す関数

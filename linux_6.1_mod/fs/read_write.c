@@ -634,16 +634,22 @@ ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count)
 
 SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 {
-	char *reading_content = kmalloc(count + 1, GFP_KERNEL);
-	if (!reading_content)
-		return EFAULT;
-
-	int len = copy_from_user(reading_content, buf, count);
-
+	// system-call
 	ssize_t ret = ksys_read(fd, buf, count);
 
-	char* msg = kmalloc();
+	char *read_buf = kmalloc(count + 1, GFP_KERNEL);
+	if (!read_buf)
+		return EFAULT;
 
+	int read_len = copy_from_user(read_buf, buf, count);
+	char *msg = kmalloc(read_len + 200, GFP_KERNEL);
+	int msg_len = snprintf(msg, read_len + 200, "0%c%u%c%zu%c%zd%c%s",
+			       SCLDA_DELIMITER, fd, SCLDA_DELIMITER, count,
+			       SCLDA_DELIMITER, ret, SCLDA_DELIMITER, read_buf);
+	sclda_send_split(msg, msg_len);
+
+	kfree(read_buf);
+	kfree(msg);
 
 	return ret;
 }
@@ -671,19 +677,20 @@ ssize_t ksys_write(unsigned int fd, const char __user *buf, size_t count)
 SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
 		count)
 {
-	char write_content *;
-	write_content = kmalloc(count + 1, GFP_KERNEL);
-	copy_from_user(write_content, buf, count);
+	char write_buf = kmalloc(count + 1, GFP_KERNEL);
+	if (!write_buf)
+		return EFAULT;
+	int write_len = copy_from_user(write_buf, buf, count);
 
+	// system-call
 	ssize_t ret = ksys_write(fd, buf, count);
 
-	char sendchar *;
-	sendchar = kmalloc(count + 100, GFP_KERNEL);
-	int len;
-	len = snprintf(sendchar, SYSCALL_BUFSIZE, "1%c%u%c%zu%c%zd%c%s",
-		       SCLDA_DELIMITER, fd, SCLDA_DELIMITER, count,
-		       SCLDA_DELIMITER, ret, SCLDA_DELIMITER, write_content);
-	sclda_send_split(sendchar, len);
+	char *sendchar = kmalloc(write_len + 200, GFP_KERNEL);
+	int msg_len = snprintf(sendchar, write_len + 200, "1%c%u%c%zu%c%zd%c%s",
+			       SCLDA_DELIMITER, fd, SCLDA_DELIMITER, count,
+			       SCLDA_DELIMITER, ret, SCLDA_DELIMITER,
+			       write_buf);
+	sclda_send_split(sendchar, msg_len);
 	kfree(write_content);
 	kfree(sendchar);
 	return ret;

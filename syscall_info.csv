@@ -1,11 +1,4 @@
-# <syscall-name>,<number>,<content1>,<content2> ...
-#
-# <syscall-name> is not saved as a data:
-# just for easy understanding.
-#
-# <number> is ID of system-call
-# system-call ID can find in
-# /arch/x86/entry/syscalls/syscall_64.tbl
+<syscall-name>,<syscall-number>,<content1>,<content2> ...
 read,0,file_descripter,offset,retval,read_content,
 write,1,file_descripter,offset,retval,write_content,
 open,2,flags,mode,retval,filepath,
