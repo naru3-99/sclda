@@ -17,28 +17,18 @@
 
 #include <linux/smp.h>
 
-// パケット内のデータを分割するための制御文字
 #define SCLDA_DELIMITER ((char)0x05)
-
-// サーバーのIPアドレス
 #define SCLDA_SERVER_IP ((unsigned long int)0xc0a83801)
-
-// サーバーのポート番号
 // プロセス生成に関わる、PIDとPPIDのペアを取得するポート
 #define SCLDA_PIDPPID_PORT ((int)15001)
-
-// システムコールの情報を取得するポート
-// プロセッサのID(smp_processor_id())により、
-// 送るポートを分けることで負荷分散を図る
+// システムコールに関係する情報を取得する
 // BASEPORT + (プロセッサID % 4)をPORTとして使用する
 #define SCLDA_SYSCALL_BASEPORT ((int)15002)
 #define SCLDA_PORT_NUMBER ((int)4)
-
-// maximum buffer for 1 packet
-#define SCLDA_BUFSIZE ((int)1000)
-// syscall_buffersize for additional info
-#define SCLDA_ADD_BUFSIZE ((int)1500)
-// pidppid関連のバフサイズ
+// システムコールに関連する情報を送信する
+// chunksizeごとに文字列を分割して送信する
+#define SCLDA_CHUNKSIZE ((int)1000)
+// プロセス生成に関連する情報を送信する
 #define SCLDA_PIDPPID_BUFSIZE ((int)50)
 
 // ソケットなどをひとまとめにする構造体
@@ -56,8 +46,13 @@ struct sclda_str_list {
 	struct sclda_str_list *next;
 };
 
+// socketの作成を行う
+static int __sclda_create_socket(struct sclda_client_struct *);
+// socketの接続を行う
+static int __sclda_connect_socket(struct sclda_client_struct *, int);
+
 // sclda_client_structを初期化する関数
-int init_sclda_client(struct sclda_client_struct *, int);
+int _init_sclda_client(struct sclda_client_struct *, int);
 
 // sclda_client_structをすべて初期化する関数
 int init_all_sclda(void);
@@ -65,6 +60,8 @@ int init_all_sclda(void);
 // 文字列を送信する最も簡単な関数
 void sclda_send(char *, int, struct sclda_client_struct *);
 
+// 下実装
+void __sclda_send_split(char *, int);
 // 大きな文字列だった場合、分けて送信するということを行う
 // sclda_sendを用いて作成する
 // 基本的にはこちらを使って、文字列を送信する

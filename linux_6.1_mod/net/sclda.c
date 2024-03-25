@@ -5,19 +5,15 @@ struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
 struct sclda_str_list sclda_strls_head;
 int is_sclda_init_finished = 0;
 
-// ソケットを作成する関数
-// only used for init_sclda_client
-static int sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
+static int __sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
 {
 	int ret = sock_create_kern(&init_net, PF_INET, SOCK_DGRAM, IPPROTO_UDP,
 				   &(sclda_cs_ptr->sock));
 	return ret;
 }
 
-// ソケットを接続するための関数
-// only used for init_sclda_client
-static int sclda_connect_socket(struct sclda_client_struct *sclda_cs_ptr,
-				int port)
+static int __sclda_connect_socket(struct sclda_client_struct *sclda_cs_ptr,
+				  int port)
 {
 	sclda_cs_ptr->addr.sin_family = PF_INET;
 	sclda_cs_ptr->addr.sin_port = htons(port);
@@ -29,11 +25,10 @@ static int sclda_connect_socket(struct sclda_client_struct *sclda_cs_ptr,
 	return ret;
 }
 
-// sclda_client_structを初期化するための関数
-int init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
+int _init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
 {
-	if (sclda_create_socket(sclda_cs_ptr) < 0 ||
-	    sclda_connect_socket(sclda_cs_ptr, port) < 0) {
+	if (__sclda_create_socket(sclda_cs_ptr) < 0 ||
+	    __sclda_connect_socket(sclda_cs_ptr, port) < 0) {
 		return -1;
 	}
 
@@ -49,11 +44,11 @@ int init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
 int init_all_sclda(void)
 {
 	// init all sclda_client_struct
-	init_sclda_client(&pidppid_sclda, SCLDA_PIDPPID_PORT);
+	_init_sclda_client(&pidppid_sclda, SCLDA_PIDPPID_PORT);
 	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
-		init_sclda_client(&syscall_sclda[i],
-				  SCLDA_SYSCALL_BASEPORT +
-					  (i % SCLDA_PORT_NUMBER));
+		_init_sclda_client(&syscall_sclda[i],
+				   SCLDA_SYSCALL_BASEPORT +
+					   (i % SCLDA_PORT_NUMBER));
 	}
 	is_sclda_init_finished = 1;
 	sclda_all_send_strls();
@@ -75,44 +70,43 @@ void sclda_send(char *buf, int len,
 	mutex_unlock(&sclda_send_mutex);
 }
 
-// 大きいサイズの文字列を分割して送信するための追加関数
-// system-call関連情報を送信するときのみ使用する
 void __sclda_send_split(char *msg, int msg_len)
 {
+	// 大きいサイズの文字列を分割して送信する
+	// system-call関連情報を送信するときのみ使用する
 	size_t sent_bytes = 0;
 	size_t chunk_size;
 	struct sclda_client_struct *sclda_to_send = sclda_decide_struct();
 
+	// pid utimeはどのプロセスのシステムコールかを特定するために使用する
 	int pid = sclda_get_current_pid();
 	u64 utime = current->utime;
+	// 50あれば十分かな
+	char *pid_utime = kmalloc(50, GFP_KERNEL);
+	int header_len = snpritf(pid_utime, "%d%c%llu%c", pid, SCLDA_DELIMITER,
+				 utime, SCLDA_DELIMITER);
 
-	char *sending_msg;
-	sending_msg = kmalloc(SCLDA_ADD_BUFSIZE, GFP_KERNEL);
-
-	int header_len;
+	int packet_len = SCLDA_CHUNKSIZE + header_len + 1;
+	char *sending_msg = kmalloc(packet_len, GFP_KERNEL);
 
 	while (sent_bytes < msg_len) {
-		if ((msg_len - sent_bytes) < SCLDA_BUFSIZE) {
+		if ((msg_len - sent_bytes) < SCLDA_CHUNKSIZE) {
 			chunk_size = msg_len - sent_bytes;
 		} else {
-			chunk_size = SCLDA_BUFSIZE;
+			chunk_size = SCLDA_CHUNKSIZE;
 		}
-
-		header_len = snprintf(sending_msg, SCLDA_ADD_BUFSIZE,
-				      "%d%c%llu%c", pid, SCLDA_DELIMITER, utime,
-				      SCLDA_DELIMITER);
-		snprintf(sending_msg + header_len,
-			 SCLDA_ADD_BUFSIZE - header_len, "%.*s",
-			 (int)chunk_size, msg + sent_bytes);
-		sclda_send(sending_msg, SCLDA_ADD_BUFSIZE, sclda_to_send);
+		snprintf(sending_msg, packet_len, "%s%s", pid_utime,
+			 msg + sent_bytes);
+		sclda_send(sending_msg, packet_len, sclda_to_send);
 		sent_bytes += chunk_size;
 	}
 	kfree(sending_msg);
+	kfree(pid_utime);
 }
 
 void sclda_send_split(char *msg, int msg_len)
 {
-	// pid utimeは連続パケット送信のプロトコルで渡す
+	// pid utimeは__sclda_send_split関数で付加する
 	// ここで付加する情報：
 	// stime:kernel空間で消費した時間
 	// スタック・ヒープ・メモリ全体の現在の消費量
@@ -130,7 +124,6 @@ void sclda_send_split(char *msg, int msg_len)
 	kfree(new_msg);
 }
 
-//現在のPIDを返す関数
 int sclda_get_current_pid(void)
 {
 	return (int)pid_nr(get_task_pid(current, PIDTYPE_PID));
