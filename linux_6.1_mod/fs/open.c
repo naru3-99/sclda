@@ -1338,56 +1338,63 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	return do_sys_openat2(dfd, filename, &how);
 }
 
+// SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
+// {
+// 	char *kern_path = kmalloc(PATH_MAX, GFP_KERNEL);
+// 	if (!kern_path)
+// 		return -ENOMEM;
+
+// 	long copied = strncpy_from_user(kern_path, filename, PATH_MAX);
+// 	if (copied < 0 || copied == PATH_MAX) {
+// 		kfree(kern_path);
+// 		return -EFAULT;
+// 	}
+
+// 	if (force_o_largefile())
+// 		flags |= O_LARGEFILE;
+// 	long ret = do_sys_open(AT_FDCWD, filename, flags, mode);
+
+// 	int msg_len_max = 2000;
+// 	char *sending_msg = kmalloc(msg_len_max, GFP_KERNEL);
+// 	int len = snprintf(sending_msg, msg_len_max,
+// 			   "%llu%c2%c%d%c%hx%c%ld%c%s", current->stime,
+// 			   SCLDA_DELIMITER SCLDA_DELIMITER, flags,
+// 			   SCLDA_DELIMITER, mode, SCLDA_DELIMITER, ret,
+// 			   SCLDA_DELIMITER);
+
+// 	if ((copied + (long)len) < (long)msg_len_max) {
+// 		len = snprintf(sending_msg + len, msg_len_max - len, "%s",
+// 			       kern_path);
+// 		sclda_send_split(sending_msg, len);
+// 	} else {
+// 		int required_size = len + strlen(kern_path) + 1;
+// 		char *new_sending_msg = kmalloc(required_size, GFP_KERNEL);
+
+// 		if (!new_sending_msg) {
+// 			kfree(sending_msg);
+// 			kfree(kern_path);
+// 			return -ENOMEM;
+// 		}
+
+// 		int new_len = snprintf(new_sending_msg, required_size, "%s%s",
+// 				       sending_msg, kern_path);
+// 		sclda_send_split(new_sending_msg, new_len);
+// 		kfree(new_sending_msg);
+// 	}
+
+// 	sclda_send_split(sending_msg, len);
+
+// 	kfree(kern_path);
+// 	kfree(sending_msg);
+
+// 	return ret;
+// }
+
 SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
 {
-	char *kern_path = kmalloc(PATH_MAX, GFP_KERNEL);
-	if (!kern_path)
-		return -ENOMEM;
-
-	long copied = strncpy_from_user(kern_path, filename, PATH_MAX);
-	if (copied < 0 || copied == PATH_MAX) {
-		kfree(kern_path);
-		return -EFAULT;
-	}
-
 	if (force_o_largefile())
 		flags |= O_LARGEFILE;
-	long ret = do_sys_open(AT_FDCWD, filename, flags, mode);
-
-	int msg_len_max = 2000;
-	char *sending_msg = kmalloc(msg_len_max, GFP_KERNEL);
-	int len = snprintf(sending_msg, msg_len_max,
-			   "%llu%c2%c%d%c%hx%c%ld%c%s", current->stime,
-			   SCLDA_DELIMITER SCLDA_DELIMITER, flags,
-			   SCLDA_DELIMITER, mode, SCLDA_DELIMITER, ret,
-			   SCLDA_DELIMITER);
-
-	if ((copied + (long)len) < (long)msg_len_max) {
-		len = snprintf(sending_msg + len, msg_len_max - len, "%s",
-			       kern_path);
-		sclda_send_split(sending_msg, len);
-	} else {
-		int required_size = len + strlen(kern_path) + 1;
-		char *new_sending_msg = kmalloc(required_size, GFP_KERNEL);
-
-		if (!new_sending_msg) {
-			kfree(sending_msg);
-			kfree(kern_path);
-			return -ENOMEM;
-		}
-
-		int new_len = snprintf(new_sending_msg, required_size, "%s%s",
-				       sending_msg, kern_path);
-		sclda_send_split(new_sending_msg, new_len);
-		kfree(new_sending_msg);
-	}
-
-	sclda_send_split(sending_msg, len);
-
-	kfree(kern_path);
-	kfree(sending_msg);
-
-	return ret;
+	return do_sys_open(AT_FDCWD, filename, flags, mode);
 }
 
 SYSCALL_DEFINE4(openat, int, dfd, const char __user *, filename, int, flags,
@@ -1493,21 +1500,35 @@ EXPORT_SYMBOL(filp_close);
  * releasing the fd. This ensures that one clone task can't release
  * an fd while another clone is opening it.
  */
+// SYSCALL_DEFINE1(close, unsigned int, fd)
+// {
+// 	int retval = close_fd(fd);
+
+// 	/* can't restart close syscall because file table entry was cleared */
+// 	if (unlikely(retval == -ERESTARTSYS || retval == -ERESTARTNOINTR ||
+// 		     retval == -ERESTARTNOHAND ||
+// 		     retval == -ERESTART_RESTARTBLOCK))
+// 		retval = -EINTR;
+
+// 	// int len;
+// 	// char sendchar[SYSCALL_BUFSIZE] = { 0 };
+// 	// len = snprintf(sendchar, SYSCALL_BUFSIZE, "3%c%u%c%d", SCLDA_DELIMITER,
+// 	// 	       fd, SCLDA_DELIMITER, retval);
+// 	// sclda_send(sendchar, len, &syscall_sclda);
+
+// 	return retval;
+// }
+
 SYSCALL_DEFINE1(close, unsigned int, fd)
 {
 	int retval = close_fd(fd);
 
 	/* can't restart close syscall because file table entry was cleared */
-	if (unlikely(retval == -ERESTARTSYS || retval == -ERESTARTNOINTR ||
+	if (unlikely(retval == -ERESTARTSYS ||
+		     retval == -ERESTARTNOINTR ||
 		     retval == -ERESTARTNOHAND ||
 		     retval == -ERESTART_RESTARTBLOCK))
 		retval = -EINTR;
-
-	// int len;
-	// char sendchar[SYSCALL_BUFSIZE] = { 0 };
-	// len = snprintf(sendchar, SYSCALL_BUFSIZE, "3%c%u%c%d", SCLDA_DELIMITER,
-	// 	       fd, SCLDA_DELIMITER, retval);
-	// sclda_send(sendchar, len, &syscall_sclda);
 
 	return retval;
 }

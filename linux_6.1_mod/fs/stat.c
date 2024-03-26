@@ -317,31 +317,31 @@ static int cp_old_stat(struct kstat *stat,
 	return copy_to_user(statbuf, &tmp, sizeof(tmp)) ? -EFAULT : 0;
 }
 
-int old_kernel_stat_to_string(const struct __old_kernel_stat *stat,
-			      char *buffer, size_t buffer_size)
-{
-#ifdef __i386__
-	return snprintf(buffer, buffer_size,
-			"%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%lu%c%lu%c%lu%c%lu",
-			stat->st_dev, SCLDA_DELIMITER, stat->st_ino,
-			SCLDA_DELIMITER, stat->st_mode, SCLDA_DELIMITER,
-			stat->st_nlink, SCLDA_DELIMITER, stat->st_uid,
-			SCLDA_DELIMITER, stat->st_gid, SCLDA_DELIMITER,
-			stat->st_rdev, SCLDA_DELIMITER, stat->st_size,
-			SCLDA_DELIMITER, stat->st_atime, SCLDA_DELIMITER,
-			stat->st_mtime, SCLDA_DELIMITER, stat->st_ctime);
-#else
-	return snprintf(buffer, buffer_size,
-			"%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%u%c%u%c%u%c%u",
-			stat->st_dev, SCLDA_DELIMITER, stat->st_ino,
-			SCLDA_DELIMITER, stat->st_mode, SCLDA_DELIMITER,
-			stat->st_nlink, SCLDA_DELIMITER, stat->st_uid,
-			SCLDA_DELIMITER, stat->st_gid, SCLDA_DELIMITER,
-			stat->st_rdev, SCLDA_DELIMITER, stat->st_size,
-			SCLDA_DELIMITER, stat->st_atime, SCLDA_DELIMITER,
-			stat->st_mtime, SCLDA_DELIMITER, stat->st_ctime);
-#endif
-}
+// int old_kernel_stat_to_string(const struct __old_kernel_stat *stat,
+// 			      char *buffer, size_t buffer_size)
+// {
+// #ifdef __i386__
+// 	return snprintf(buffer, buffer_size,
+// 			"%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%lu%c%lu%c%lu%c%lu",
+// 			stat->st_dev, SCLDA_DELIMITER, stat->st_ino,
+// 			SCLDA_DELIMITER, stat->st_mode, SCLDA_DELIMITER,
+// 			stat->st_nlink, SCLDA_DELIMITER, stat->st_uid,
+// 			SCLDA_DELIMITER, stat->st_gid, SCLDA_DELIMITER,
+// 			stat->st_rdev, SCLDA_DELIMITER, stat->st_size,
+// 			SCLDA_DELIMITER, stat->st_atime, SCLDA_DELIMITER,
+// 			stat->st_mtime, SCLDA_DELIMITER, stat->st_ctime);
+// #else
+// 	return snprintf(buffer, buffer_size,
+// 			"%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%u%c%u%c%u%c%u",
+// 			stat->st_dev, SCLDA_DELIMITER, stat->st_ino,
+// 			SCLDA_DELIMITER, stat->st_mode, SCLDA_DELIMITER,
+// 			stat->st_nlink, SCLDA_DELIMITER, stat->st_uid,
+// 			SCLDA_DELIMITER, stat->st_gid, SCLDA_DELIMITER,
+// 			stat->st_rdev, SCLDA_DELIMITER, stat->st_size,
+// 			SCLDA_DELIMITER, stat->st_atime, SCLDA_DELIMITER,
+// 			stat->st_mtime, SCLDA_DELIMITER, stat->st_ctime);
+// #endif
+// }
 
 // SYSCALL_DEFINE2(stat, const char __user *, filename,
 // 		struct __old_kernel_stat __user *, statbuf)
