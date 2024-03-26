@@ -634,23 +634,43 @@ ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count)
 
 SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 {
-	// system-call
 	ssize_t ret = ksys_read(fd, buf, count);
+	if (ret >= 0) {
+		// システムコール呼び出しが成功した場合
+		// システムコールで読み込んだ情報を取得
+		char *read_buf = kmalloc(ret + 1, GFP_KERNEL);
+		if (!read_buf)
+			return -ENOMEM;
+		memcpy(read_buf, buf, ret);
+		kernel_buf[ret] = '\0';
+		// その他情報をまとめ、送信する
+		// unsigned int とsize_tとssize_t
+		// を文字列にするため、100あれば大丈夫
+		int msg_bufsize = ret + 101;
+		char *msg_buf = kmalloc(msg_bufsize, GFP_KERNEL);
+		if (!msg_buf) {
+			kfree(read_buf);
+			return -ENOMEM;
+		}
+		int msg_len = snprintf(msg_buf, msg_bufsize,
+				       "0%c%zd%c%u%c%zu%c%s", SCLDA_DELIMITER,
+				       ret, SCLDA_DELIMITER, fd,
+				       SCLDA_DELIMITER, count, SCLDA_DELIMITER,
+				       read_buf);
+		sclda_send_split(msg_buf, msg_len);
 
-	char *read_buf = kmalloc(count + 1, GFP_KERNEL);
-	if (!read_buf)
-		return EFAULT;
-
-	int read_len = copy_from_user(read_buf, buf, count);
-	char *msg = kmalloc(read_len + 200, GFP_KERNEL);
-	int msg_len = snprintf(msg, read_len + 200, "0%c%u%c%zu%c%zd%c%s",
-			       SCLDA_DELIMITER, fd, SCLDA_DELIMITER, count,
-			       SCLDA_DELIMITER, ret, SCLDA_DELIMITER, read_buf);
-	sclda_send_split(msg, msg_len);
-
-	kfree(read_buf);
-	kfree(msg);
-
+		kfree(read_buf);
+		kfree(msg_buf);
+	} else {
+		// 呼び出しが失敗した場合
+		int msg_bufsize = 150;
+		char *msg_buf[msg_bufsize];
+		int msg_len = snprintf(msg_buf, msg_bufsize,
+				       "0%c%zd%c%u%c%zu%cNULL", SCLDA_DELIMITER,
+				       ret, SCLDA_DELIMITER, fd,
+				       SCLDA_DELIMITER, count, SCLDA_DELIMITER);
+		sclda_send_split(msg_buf, msg_len);
+	}
 	return ret;
 }
 
@@ -677,22 +697,22 @@ ssize_t ksys_write(unsigned int fd, const char __user *buf, size_t count)
 SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
 		count)
 {
-	char write_buf = kmalloc(count + 1, GFP_KERNEL);
-	if (!write_buf)
-		return EFAULT;
-	int write_len = copy_from_user(write_buf, buf, count);
+	// char write_buf = kmalloc(count + 1, GFP_KERNEL);
+	// if (!write_buf)
+	// 	return EFAULT;
+	// int write_len = copy_from_user(write_buf, buf, count);
 
 	// system-call
 	ssize_t ret = ksys_write(fd, buf, count);
 
-	char *sendchar = kmalloc(write_len + 200, GFP_KERNEL);
-	int msg_len = snprintf(sendchar, write_len + 200, "1%c%u%c%zu%c%zd%c%s",
-			       SCLDA_DELIMITER, fd, SCLDA_DELIMITER, count,
-			       SCLDA_DELIMITER, ret, SCLDA_DELIMITER,
-			       write_buf);
-	sclda_send_split(sendchar, msg_len);
-	kfree(write_content);
-	kfree(sendchar);
+	// char *sendchar = kmalloc(write_len + 200, GFP_KERNEL);
+	// int msg_len = snprintf(sendchar, write_len + 200, "1%c%u%c%zu%c%zd%c%s",
+	// 		       SCLDA_DELIMITER, fd, SCLDA_DELIMITER, count,
+	// 		       SCLDA_DELIMITER, ret, SCLDA_DELIMITER,
+	// 		       write_buf);
+	// sclda_send_split(sendchar, msg_len);
+	// kfree(write_content);
+	// kfree(sendchar);
 	return ret;
 }
 
