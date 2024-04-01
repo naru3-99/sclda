@@ -47,9 +47,9 @@ struct sclda_str_list {
 };
 
 // socketの作成を行う
-static int __sclda_create_socket(struct sclda_client_struct *);
+int __sclda_create_socket(struct sclda_client_struct *);
 // socketの接続を行う
-static int __sclda_connect_socket(struct sclda_client_struct *, int);
+int __sclda_connect_socket(struct sclda_client_struct *, int);
 
 // sclda_client_structを初期化する関数
 int _init_sclda_client(struct sclda_client_struct *, int);

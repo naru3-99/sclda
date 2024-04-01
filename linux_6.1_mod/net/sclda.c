@@ -5,15 +5,14 @@ struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
 struct sclda_str_list sclda_strls_head;
 int is_sclda_init_finished = 0;
 
-static int __sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
+int __sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
 {
 	int ret = sock_create_kern(&init_net, PF_INET, SOCK_DGRAM, IPPROTO_UDP,
 				   &(sclda_cs_ptr->sock));
 	return ret;
 }
 
-static int __sclda_connect_socket(struct sclda_client_struct *sclda_cs_ptr,
-				  int port)
+int __sclda_connect_socket(struct sclda_client_struct *sclda_cs_ptr, int port)
 {
 	sclda_cs_ptr->addr.sin_family = PF_INET;
 	sclda_cs_ptr->addr.sin_port = htons(port);
