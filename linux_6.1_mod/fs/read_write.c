@@ -664,7 +664,7 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 	} else {
 		// 呼び出しが失敗した場合
 		int msg_bufsize = 150;
-		char *msg_buf[msg_bufsize];
+		char msg_buf[msg_bufsize];
 		int msg_len = snprintf(msg_buf, msg_bufsize,
 				       "0%c%zd%c%u%c%zu%cNULL", SCLDA_DELIMITER,
 				       ret, SCLDA_DELIMITER, fd,
