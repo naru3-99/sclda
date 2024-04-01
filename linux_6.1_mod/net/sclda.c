@@ -2,7 +2,7 @@
 
 struct sclda_client_struct pidppid_sclda;
 struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
-struct sclda_str_list sclda_strls_head;
+struct sclda_str_list *sclda_strls_head;
 int is_sclda_init_finished = 0;
 
 static int __sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
@@ -83,7 +83,7 @@ void __sclda_send_split(char *msg, int msg_len)
 	u64 utime = current->utime;
 	// 50あれば十分かな
 	char *pid_utime = kmalloc(50, GFP_KERNEL);
-	int header_len = snpritf(pid_utime, "%d%c%llu%c", pid, SCLDA_DELIMITER,
+	int header_len = snprintf(pid_utime, "%d%c%llu%c", pid, SCLDA_DELIMITER,
 				 utime, SCLDA_DELIMITER);
 
 	int packet_len = SCLDA_CHUNKSIZE + header_len + 1;
@@ -155,14 +155,14 @@ struct sclda_client_struct *sclda_get_pidppid_struct(void)
 	return &pidppid_sclda;
 }
 
-struct sclda_str_list sclda_add_string(const char *msg, int len)
+struct sclda_str_list *sclda_add_string(const char *msg, int len)
 {
 	struct sclda_str_list *new_node =
 		kmalloc(sizeof(struct sclda_str_list), GFP_KERNEL);
 	if (!new_node)
 		return NULL;
 
-	new_node->str = kstrdup(str, GFP_KERNEL);
+	new_node->str = kstrdup(msg, GFP_KERNEL);
 	if (!new_node->str) {
 		kfree(new_node);
 		return NULL;
@@ -173,12 +173,12 @@ struct sclda_str_list sclda_add_string(const char *msg, int len)
 	if (&sclda_strls_head == NULL) {
 		return new_node;
 	} else {
-		sclda_str_list *current_ptr = &sclda_strls_head;
+		struct sclda_str_list *current_ptr = sclda_strls_head;
 		while (current_ptr->next != NULL) {
 			current_ptr = current_ptr->next;
 		}
 		current_ptr->next = new_node;
-		return % sclda_strls_head;
+		return sclda_strls_head;
 	}
 }
 
