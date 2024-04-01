@@ -642,7 +642,7 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 		if (!read_buf)
 			return -ENOMEM;
 		memcpy(read_buf, buf, ret);
-		kernel_buf[ret] = '\0';
+		read_buf[ret] = '\0';
 		// その他情報をまとめ、送信する
 		// unsigned int とsize_tとssize_t
 		// を文字列にするため、100あれば大丈夫
