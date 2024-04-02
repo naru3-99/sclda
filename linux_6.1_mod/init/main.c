@@ -1522,6 +1522,8 @@ static int __ref kernel_init(void *unused)
 
 	// init all sclda_client_struct
 	init_all_sclda();
+	sclda_all_send_strls();
+	free_slcda_str_list();
 
 	/* need to finish all async __init code before freeing the memory */
 	async_synchronize_full();

@@ -29,7 +29,7 @@
 // chunksizeごとに文字列を分割して送信する
 #define SCLDA_CHUNKSIZE ((int)1200)
 // プロセス生成に関連する情報を送信する
-#define SCLDA_PIDPPID_BUFSIZE ((int)80)
+#define SCLDA_PIDPPID_BUFSIZE ((int)100)
 
 // ソケットなどをひとまとめにする構造体
 struct sclda_client_struct {
@@ -41,7 +41,7 @@ struct sclda_client_struct {
 
 // 文字列を保持するためのノードを定義
 struct sclda_str_list {
-	char *str;
+	char str[SCLDA_PIDPPID_BUFSIZE];
 	int len;
 	struct sclda_str_list *next;
 };
@@ -52,7 +52,7 @@ int __sclda_create_socket(struct sclda_client_struct *);
 int __sclda_connect_socket(struct sclda_client_struct *, int);
 
 // sclda_client_structを初期化する関数
-int _init_sclda_client(struct sclda_client_struct *, int);
+int __init_sclda_client(struct sclda_client_struct *, int);
 
 // sclda_client_structをすべて初期化する関数
 int init_all_sclda(void);
@@ -86,8 +86,8 @@ struct sclda_client_struct *sclda_decide_struct(void);
 struct sclda_client_struct *sclda_get_pidppid_struct(void);
 
 struct sclda_str_list *sclda_add_string(const char *, int);
-struct sclda_str_list *get_sclda_str_list_head(void);
 void free_slcda_str_list(void);
 void sclda_all_send_strls(void);
+struct sclda_str_list *get_sclda_str_list_head(void);
 int is_sclda_init_fin(void);
 #endif // SCLDA_H

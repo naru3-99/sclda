@@ -2,8 +2,7 @@
 
 struct sclda_client_struct pidppid_sclda;
 struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
-struct sclda_str_list sclda_strls_head;
-int is_sclda_init_finished = 0;
+struct sclda_str_list sclda_strls_head = { NULL, 0, NULL };
 
 int __sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
 {
@@ -24,7 +23,7 @@ int __sclda_connect_socket(struct sclda_client_struct *sclda_cs_ptr, int port)
 	return ret;
 }
 
-int _init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
+int __init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
 {
 	if (__sclda_create_socket(sclda_cs_ptr) < 0 ||
 	    __sclda_connect_socket(sclda_cs_ptr, port) < 0) {
@@ -43,14 +42,12 @@ int _init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
 int init_all_sclda(void)
 {
 	// init all sclda_client_struct
-	_init_sclda_client(&pidppid_sclda, SCLDA_PIDPPID_PORT);
+	__init_sclda_client(&pidppid_sclda, SCLDA_PIDPPID_PORT);
 	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
 		_init_sclda_client(&syscall_sclda[i],
 				   SCLDA_SYSCALL_BASEPORT +
 					   (i % SCLDA_PORT_NUMBER));
 	}
-	is_sclda_init_finished = 1;
-	sclda_all_send_strls();
 	return 0;
 }
 
@@ -169,7 +166,7 @@ struct sclda_str_list *sclda_add_string(const char *msg, int len)
 	new_node->len = len;
 	new_node->next = NULL;
 
-	if (&sclda_strls_head == NULL) {
+	if (is_sclda_init_fin()) {
 		return new_node;
 	} else {
 		struct sclda_str_list *current_ptr = &sclda_strls_head;
@@ -200,7 +197,6 @@ void sclda_all_send_strls(void)
 		sclda_send(curptr->str, curptr->len, pid_sclda);
 		curptr = curptr->next;
 	}
-	free_slcda_str_list();
 }
 
 struct sclda_str_list *get_sclda_str_list_head(void)
@@ -210,5 +206,5 @@ struct sclda_str_list *get_sclda_str_list_head(void)
 
 int is_sclda_init_fin(void)
 {
-	return is_sclda_init_finished;
+	return (sclda_strls_head.next == NULL);
 }
