@@ -57,6 +57,9 @@ int __init_sclda_client(struct sclda_client_struct *, int);
 // sclda_client_structをすべて初期化する関数
 int init_all_sclda(void);
 
+// scldaに関連するすべての初期化処理を行う
+static int __init sclda_init(void);
+
 // 文字列を送信する最も簡単な関数
 void sclda_send(char *, int, struct sclda_client_struct *);
 

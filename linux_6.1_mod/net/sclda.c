@@ -1,4 +1,5 @@
 #include <net/sclda.h>
+#include <linux/init.h>
 
 struct sclda_client_struct pidppid_sclda;
 struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
@@ -51,6 +52,16 @@ int init_all_sclda(void)
 	}
 	return 0;
 }
+
+static int __init sclda_init(void)
+{
+	init_all_sclda();
+	sclda_all_send_strls();
+	free_sclda_str_list();
+	return 0;
+}
+
+late_initcall(sclda_init);
 
 // 文字列を送信するための最もかんたんな実装
 static DEFINE_MUTEX(sclda_send_mutex);
