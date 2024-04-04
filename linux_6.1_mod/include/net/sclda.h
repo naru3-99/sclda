@@ -85,7 +85,7 @@ struct sclda_client_struct *sclda_decide_struct(void);
 
 struct sclda_client_struct *sclda_get_pidppid_struct(void);
 
-struct sclda_str_list *sclda_add_string(const char *, int);
+void sclda_add_string(const char *, int);
 void free_slcda_str_list(void);
 void sclda_all_send_strls(void);
 struct sclda_str_list *get_sclda_str_list_head(void);

@@ -152,7 +152,7 @@ struct sclda_client_struct *sclda_get_pidppid_struct(void)
 	return &pidppid_sclda;
 }
 
-struct sclda_str_list *sclda_add_string(const char *msg, int len)
+void sclda_add_string(const char *msg, int len)
 {
 	struct sclda_str_list *new_node =
 		kmalloc(sizeof(struct sclda_str_list), GFP_KERNEL);
@@ -163,16 +163,11 @@ struct sclda_str_list *sclda_add_string(const char *msg, int len)
 	new_node->len = len;
 	new_node->next = NULL;
 
-	if (is_sclda_init_fin()) {
-		return new_node;
-	} else {
-		struct sclda_str_list *current_ptr = &sclda_strls_head;
-		while (current_ptr->next != NULL) {
-			current_ptr = current_ptr->next;
-		}
-		current_ptr->next = new_node;
-		return &sclda_strls_head;
+	struct sclda_str_list *current_ptr = &sclda_strls_head;
+	while (current_ptr->next != NULL) {
+		current_ptr = current_ptr->next;
 	}
+	current_ptr->next = new_node;
 }
 
 void free_slcda_str_list(void)
