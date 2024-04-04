@@ -58,7 +58,7 @@ int init_all_sclda(void)
 static int __init sclda_init(void)
 {
 	init_all_sclda();
-	// sclda_all_send_strls();
+	sclda_all_send_strls();
 	return 0;
 }
 
