@@ -170,7 +170,7 @@ void sclda_add_string(const char *msg, int len)
 	current_ptr->next = new_node;
 }
 
-void free_slcda_str_list(void)
+void free_sclda_str_list(void)
 {
 	struct sclda_str_list *current_ptr = &sclda_strls_head;
 	while (current_ptr != NULL) {

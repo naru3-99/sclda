@@ -1159,6 +1159,12 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	kcsan_init();
 
 	/* Do the rest non-__init'ed, we're now alive */
+
+	// init all sclda_client_struct
+	init_all_sclda();
+	sclda_all_send_strls();
+	free_sclda_str_list();
+
 	arch_call_rest_init();
 
 	prevent_tail_call_optimization();
@@ -1556,11 +1562,6 @@ static int __ref kernel_init(void *unused)
 		pr_err("Failed to execute %s (error %d)\n",
 		       ramdisk_execute_command, ret);
 	}
-
-	// init all sclda_client_struct
-	init_all_sclda();
-	sclda_all_send_strls();
-	free_slcda_str_list();
 
 	/*
 	 * We try each of these until one succeeds.
