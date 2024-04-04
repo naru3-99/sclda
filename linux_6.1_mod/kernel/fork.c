@@ -2760,6 +2760,9 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 				      sclda_get_current_pid(), SCLDA_DELIMITER,
 				      p->comm);
 	if (is_sclda_init_fin()) {
+		if (!is_sclda_allsend_fin()) {
+			sclda_all_send_strls();
+		}
 		sclda_send(sclda_buf, sclda_real_len,
 			   sclda_get_pidppid_struct());
 	} else {
