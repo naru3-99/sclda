@@ -202,7 +202,6 @@ void sclda_all_send_strls(void)
 		curptr = curptr->next;
 	}
 	free_sclda_str_list();
-	sclda_allsend_fin = 0;
 }
 
 struct sclda_str_list *get_sclda_str_list_head(void)
