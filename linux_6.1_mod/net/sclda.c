@@ -57,7 +57,7 @@ int init_all_sclda(void)
 static int __init sclda_init(void)
 {
 	init_all_sclda();
-	sclda_all_send_strls();
+	// sclda_all_send_strls();
 	return 0;
 }
 
@@ -186,7 +186,6 @@ void free_sclda_str_list(void)
 	struct sclda_str_list *current_ptr = &sclda_strls_head;
 	while (current_ptr != NULL) {
 		struct sclda_str_list *next = current_ptr->next;
-		kfree(current_ptr->str);
 		kfree(current_ptr);
 		current_ptr = next;
 	}
@@ -197,7 +196,7 @@ void sclda_all_send_strls(void)
 	struct sclda_str_list *curptr = &sclda_strls_head;
 	struct sclda_client_struct *pid_sclda = sclda_get_pidppid_struct();
 	while (curptr != NULL) {
-		if (curptr->len != 0) {
+		if (curptr->len > 0) {
 			sclda_send(curptr->str, curptr->len, pid_sclda);
 		}
 		curptr = curptr->next;
