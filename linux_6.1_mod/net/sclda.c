@@ -2,7 +2,8 @@
 
 struct sclda_client_struct pidppid_sclda;
 struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
-struct sclda_str_list sclda_strls_head = { NULL, 0, NULL };
+struct sclda_str_list sclda_strls_head = { (char *)NULL, 0,
+					   (struct sclda_str_list *)NULL };
 
 int __sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
 {
@@ -44,9 +45,9 @@ int init_all_sclda(void)
 	// init all sclda_client_struct
 	__init_sclda_client(&pidppid_sclda, SCLDA_PIDPPID_PORT);
 	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
-		_init_sclda_client(&syscall_sclda[i],
-				   SCLDA_SYSCALL_BASEPORT +
-					   (i % SCLDA_PORT_NUMBER));
+		__init_sclda_client(&syscall_sclda[i],
+				    SCLDA_SYSCALL_BASEPORT +
+					    (i % SCLDA_PORT_NUMBER));
 	}
 	return 0;
 }
@@ -158,11 +159,7 @@ struct sclda_str_list *sclda_add_string(const char *msg, int len)
 	if (!new_node)
 		return NULL;
 
-	new_node->str = kstrdup(msg, GFP_KERNEL);
-	if (!new_node->str) {
-		kfree(new_node);
-		return NULL;
-	}
+	strlcpy(new_node->str, msg, SCLDA_PIDPPID_BUFSIZE);
 	new_node->len = len;
 	new_node->next = NULL;
 

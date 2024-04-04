@@ -29,7 +29,7 @@
 // chunksizeごとに文字列を分割して送信する
 #define SCLDA_CHUNKSIZE ((int)1200)
 // プロセス生成に関連する情報を送信する
-#define SCLDA_PIDPPID_BUFSIZE ((int)100)
+#define SCLDA_PIDPPID_BUFSIZE ((int)200)
 
 // ソケットなどをひとまとめにする構造体
 struct sclda_client_struct {
