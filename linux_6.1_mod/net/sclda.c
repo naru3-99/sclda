@@ -48,8 +48,7 @@ int init_all_sclda(void)
 	__init_sclda_client(&pidppid_sclda, SCLDA_PIDPPID_PORT);
 	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
 		__init_sclda_client(&syscall_sclda[i],
-				    SCLDA_SYSCALL_BASEPORT +
-					    (i % SCLDA_PORT_NUMBER));
+				    SCLDA_SYSCALL_BASEPORT + i);
 	}
 	sclda_init_fin = 0;
 	return 0;
