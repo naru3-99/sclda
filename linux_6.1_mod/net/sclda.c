@@ -16,7 +16,7 @@ int __sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
 
 int __sclda_connect_socket(struct sclda_client_struct *sclda_cs_ptr, int port)
 {
-	sclda_cs_ptr->addr.sin_family = AF_INET;
+	sclda_cs_ptr->addr.sin_family = PF_INET;
 	sclda_cs_ptr->addr.sin_port = htons(port);
 	sclda_cs_ptr->addr.sin_addr.s_addr = htonl(SCLDA_SERVER_IP);
 
