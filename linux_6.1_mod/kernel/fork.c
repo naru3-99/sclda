@@ -2755,11 +2755,12 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	// sclda
 	// basic : pid,ppid,executable name
 
-	// char sclda_buf[SCLDA_PIDPPID_BUFSIZE];
-	// int sclda_real_len = snprintf(sclda_buf, SCLDA_PIDPPID_BUFSIZE,
-	// 			      "%d%c%d%c%s", (int)nr, SCLDA_DELIMITER,
-	// 			      sclda_get_current_pid(), SCLDA_DELIMITER,
-	// 			      p->comm);
+	char sclda_buf[SCLDA_PIDPPID_BUFSIZE];
+	int sclda_real_len = snprintf(sclda_buf, SCLDA_PIDPPID_BUFSIZE,
+				      "%d%c%d%c%s", (int)nr, SCLDA_DELIMITER,
+				      sclda_get_current_pid(), SCLDA_DELIMITER,
+				      p->comm);
+	sclda_add_string(sclda_buf, sclda_real_len);
 	// if (is_sclda_init_fin()) {
 	// 	sclda_send(sclda_buf, sclda_real_len,
 	// 		   sclda_get_pidppid_struct());
