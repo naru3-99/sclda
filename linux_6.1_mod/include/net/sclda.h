@@ -93,5 +93,4 @@ void free_sclda_str_list(void);
 void sclda_all_send_strls(void);
 struct sclda_str_list *get_sclda_str_list_head(void);
 int is_sclda_init_fin(void);
-int is_sclda_allsend_fin(void);
 #endif // SCLDA_H

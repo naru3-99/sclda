@@ -6,7 +6,6 @@ struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
 struct sclda_str_list sclda_strls_head = { "\0", 0,
 					   (struct sclda_str_list *)NULL };
 int sclda_init_fin = 1;
-int sclda_allsend_fin = 1;
 
 int __sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
 {
@@ -17,13 +16,13 @@ int __sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
 
 int __sclda_connect_socket(struct sclda_client_struct *sclda_cs_ptr, int port)
 {
-	sclda_cs_ptr->addr.sin_family = PF_INET;
+	sclda_cs_ptr->addr.sin_family = AF_INET;
 	sclda_cs_ptr->addr.sin_port = htons(port);
 	sclda_cs_ptr->addr.sin_addr.s_addr = htonl(SCLDA_SERVER_IP);
 
 	int ret = kernel_connect(sclda_cs_ptr->sock,
 				 (struct sockaddr *)(&(sclda_cs_ptr->addr)),
-				 sizeof(struct sockaddr), 0);
+				 sizeof(struct sockaddr_in), 0);
 	return ret;
 }
 
@@ -59,6 +58,7 @@ int init_all_sclda(void)
 static int __init sclda_init(void)
 {
 	init_all_sclda();
+	// sclda_all_send_strls();
 	return 0;
 }
 
@@ -213,9 +213,4 @@ struct sclda_str_list *get_sclda_str_list_head(void)
 int is_sclda_init_fin(void)
 {
 	return sclda_init_fin;
-}
-
-int is_sclda_allsend_fin(void)
-{
-	return sclda_allsend_fin;
 }
