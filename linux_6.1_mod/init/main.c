@@ -1520,10 +1520,10 @@ static int __ref kernel_init(void *unused)
 
 	kernel_init_freeable();
 
-	// init all sclda_client_struct
-	init_all_sclda();
-	sclda_all_send_strls();
-	free_slcda_str_list();
+	// // init all sclda_client_struct
+	// init_all_sclda();
+	// sclda_all_send_strls();
+	// free_slcda_str_list();
 
 	/* need to finish all async __init code before freeing the memory */
 	async_synchronize_full();
@@ -1556,6 +1556,11 @@ static int __ref kernel_init(void *unused)
 		pr_err("Failed to execute %s (error %d)\n",
 		       ramdisk_execute_command, ret);
 	}
+
+	// init all sclda_client_struct
+	init_all_sclda();
+	sclda_all_send_strls();
+	free_slcda_str_list();
 
 	/*
 	 * We try each of these until one succeeds.
