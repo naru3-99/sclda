@@ -57,9 +57,16 @@ int init_all_sclda(void)
 static int __init sclda_init(void)
 {
 	init_all_sclda();
-	sclda_send("aaaa\0", 5, sclda_get_pidppid_struct());
-	printk(KERN_INFO "AAAAAAAAA");
 	// sclda_all_send_strls();
+	struct sclda_str_list *curptr = &sclda_strls_head;
+	struct sclda_client_struct *pid_sclda = sclda_get_pidppid_struct();
+	while (curptr != NULL) {
+		if (curptr->len > 0) {
+			printk(KERN_INFO "%s", curptr->str);
+		}
+		curptr = curptr->next;
+	}
+
 	return 0;
 }
 
@@ -70,9 +77,8 @@ static DEFINE_MUTEX(sclda_send_mutex);
 void sclda_send(char *buf, int len,
 		struct sclda_client_struct *sclda_struct_ptr)
 {
-	static struct kvec iov;
-
 	mutex_lock(&sclda_send_mutex);
+	struct kvec iov;
 	iov.iov_base = buf;
 	iov.iov_len = len;
 	kernel_sendmsg(sclda_struct_ptr->sock, &(sclda_struct_ptr->msg), &iov,
