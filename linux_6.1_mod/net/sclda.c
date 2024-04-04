@@ -198,7 +198,9 @@ void sclda_all_send_strls(void)
 	struct sclda_str_list *curptr = &sclda_strls_head;
 	struct sclda_client_struct *pid_sclda = sclda_get_pidppid_struct();
 	while (curptr != NULL) {
-		sclda_send(curptr->str, curptr->len, pid_sclda);
+		if (curptr->len != 0) {
+			sclda_send(curptr->str, curptr->len, pid_sclda);
+		}
 		curptr = curptr->next;
 	}
 	free_sclda_str_list();
