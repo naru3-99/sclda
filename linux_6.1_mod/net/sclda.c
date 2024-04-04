@@ -30,6 +30,7 @@ int __init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
 {
 	if (__sclda_create_socket(sclda_cs_ptr) < 0 ||
 	    __sclda_connect_socket(sclda_cs_ptr, port) < 0) {
+		printk(KERN_INFO "SCLDA_ERROR %d", port);
 		return -1;
 	}
 
