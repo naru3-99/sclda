@@ -57,15 +57,15 @@ int init_all_sclda(void)
 static int __init sclda_init(void)
 {
 	init_all_sclda();
-	// sclda_all_send_strls();
-	struct sclda_str_list *curptr = &sclda_strls_head;
-	struct sclda_client_struct *pid_sclda = sclda_get_pidppid_struct();
-	while (curptr != NULL) {
-		if (curptr->len > 0) {
-			printk(KERN_INFO "%s", curptr->str);
-		}
-		curptr = curptr->next;
-	}
+	sclda_all_send_strls();
+	// struct sclda_str_list *curptr = &sclda_strls_head;
+	// struct sclda_client_struct *pid_sclda = sclda_get_pidppid_struct();
+	// while (curptr != NULL) {
+	// 	if (curptr->len > 0) {
+	// 		printk(KERN_INFO "pidppid %s %d", curptr->str,curptr->len);
+	// 	}
+	// 	curptr = curptr->next;
+	// }
 
 	return 0;
 }
@@ -189,15 +189,15 @@ void sclda_add_string(const char *msg, int len)
 	current_ptr->next = new_node;
 }
 
-void free_sclda_str_list(void)
-{
-	struct sclda_str_list *current_ptr = &sclda_strls_head;
-	while (current_ptr != NULL) {
-		struct sclda_str_list *next = current_ptr->next;
-		kfree(current_ptr);
-		current_ptr = next;
-	}
-}
+// void free_sclda_str_list(void)
+// {
+// 	struct sclda_str_list *current_ptr = &sclda_strls_head;
+// 	while (current_ptr != NULL) {
+// 		struct sclda_str_list *next = current_ptr->next;
+// 		kfree(current_ptr);
+// 		current_ptr = next;
+// 	}
+// }
 
 void sclda_all_send_strls(void)
 {
@@ -207,9 +207,10 @@ void sclda_all_send_strls(void)
 		if (curptr->len > 0) {
 			sclda_send(curptr->str, curptr->len, pid_sclda);
 		}
-		curptr = curptr->next;
+		struct sclda_str_list *next = curptr->next;
+		kfree(curptr);
+		curptr = next;
 	}
-	free_sclda_str_list();
 }
 
 struct sclda_str_list *get_sclda_str_list_head(void)
