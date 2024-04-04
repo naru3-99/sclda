@@ -5,7 +5,7 @@ struct sclda_client_struct pidppid_sclda;
 struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
 struct sclda_str_list sclda_strls_head = { "\0", 0,
 					   (struct sclda_str_list *)NULL };
-int sclda_init_fin = 1;
+int sclda_init_fin = 0;
 
 int __sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
 {
@@ -50,7 +50,7 @@ int init_all_sclda(void)
 		__init_sclda_client(&syscall_sclda[i],
 				    SCLDA_SYSCALL_BASEPORT + i);
 	}
-	sclda_init_fin = 0;
+	sclda_init_fin = 1;
 	return 0;
 }
 
