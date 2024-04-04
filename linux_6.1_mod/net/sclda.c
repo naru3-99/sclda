@@ -188,14 +188,14 @@ void sclda_add_string(const char *msg, int len)
 
 void sclda_all_send_strls(void)
 {
-	struct sclda_str_list *curptr = &sclda_strls_head;
+	struct sclda_str_list *curptr = sclda_strls_head.next;
 	struct sclda_client_struct *pid_sclda = sclda_get_pidppid_struct();
 	while (curptr != NULL) {
 		if (curptr->len > 0) {
 			__sclda_send(curptr->str, curptr->len, pid_sclda);
 		}
 		struct sclda_str_list *next = curptr->next;
-		// kfree(curptr);
+		kfree(curptr);
 		curptr = next;
 	}
 }
