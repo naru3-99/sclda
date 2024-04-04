@@ -57,6 +57,7 @@ int init_all_sclda(void)
 static int __init sclda_init(void)
 {
 	init_all_sclda();
+	sclda_send("aaaa", 4, sclda_get_pidppid_struct());
 	// sclda_all_send_strls();
 	return 0;
 }
