@@ -30,6 +30,6 @@ mv ./temp2 ./.config
 
 make localmodconfig
 make -j$(nproc)
-# sudo make modules_install
-# sudo make install
+sudo make modules_install
+sudo make install
 # sudo reboot
