@@ -3,7 +3,7 @@
 
 struct sclda_client_struct pidppid_sclda;
 struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
-struct sclda_str_list sclda_strls_head = { "\0", 0,
+struct sclda_str_list sclda_strls_head = { "\0", 1,
 					   (struct sclda_str_list *)NULL };
 int sclda_init_fin = 0;
 
@@ -58,6 +58,7 @@ static int __init sclda_init(void)
 {
 	init_all_sclda();
 	sclda_send("aaaa", 4, sclda_get_pidppid_struct());
+	printk(KERN_INFO "AAAAAAAAA")
 	// sclda_all_send_strls();
 	return 0;
 }
