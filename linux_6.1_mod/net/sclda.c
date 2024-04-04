@@ -195,7 +195,7 @@ void sclda_all_send_strls(void)
 			__sclda_send(curptr->str, curptr->len, pid_sclda);
 		}
 		struct sclda_str_list *next = curptr->next;
-		kfree(curptr);
+		// kfree(curptr);
 		curptr = next;
 	}
 }
