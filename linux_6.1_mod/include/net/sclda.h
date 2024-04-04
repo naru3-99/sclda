@@ -58,6 +58,7 @@ int __init_sclda_client(struct sclda_client_struct *, int);
 int init_all_sclda(void);
 
 // 文字列を送信する最も簡単な関数
+void __sclda_send(char *, int, struct sclda_client_struct *);
 void sclda_send(char *, int, struct sclda_client_struct *);
 
 // 下実装
@@ -86,7 +87,6 @@ struct sclda_client_struct *sclda_decide_struct(void);
 struct sclda_client_struct *sclda_get_pidppid_struct(void);
 
 void sclda_add_string(const char *, int);
-// void free_sclda_str_list(void);
 void sclda_all_send_strls(void);
 struct sclda_str_list *get_sclda_str_list_head(void);
 int is_sclda_init_fin(void);

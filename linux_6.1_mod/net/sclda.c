@@ -58,15 +58,6 @@ static int __init sclda_init(void)
 {
 	init_all_sclda();
 	sclda_all_send_strls();
-	// struct sclda_str_list *curptr = &sclda_strls_head;
-	// struct sclda_client_struct *pid_sclda = sclda_get_pidppid_struct();
-	// while (curptr != NULL) {
-	// 	if (curptr->len > 0) {
-	// 		printk(KERN_INFO "pidppid %s %d", curptr->str,curptr->len);
-	// 	}
-	// 	curptr = curptr->next;
-	// }
-
 	return 0;
 }
 
@@ -74,15 +65,21 @@ late_initcall(sclda_init);
 
 // 文字列を送信するための最もかんたんな実装
 static DEFINE_MUTEX(sclda_send_mutex);
-void sclda_send(char *buf, int len,
-		struct sclda_client_struct *sclda_struct_ptr)
+void __sclda_send(char *buf, int len,
+		  struct sclda_client_struct *sclda_struct_ptr)
 {
-	mutex_lock(&sclda_send_mutex);
 	struct kvec iov;
 	iov.iov_base = buf;
 	iov.iov_len = len;
 	kernel_sendmsg(sclda_struct_ptr->sock, &(sclda_struct_ptr->msg), &iov,
 		       1, len);
+}
+
+void sclda_send(char *buf, int len,
+		struct sclda_client_struct *sclda_struct_ptr)
+{
+	mutex_lock(&sclda_send_mutex);
+	__sclda_send(buf, len, sclda_struct_ptr);
 	mutex_unlock(&sclda_send_mutex);
 }
 
@@ -189,23 +186,13 @@ void sclda_add_string(const char *msg, int len)
 	current_ptr->next = new_node;
 }
 
-// void free_sclda_str_list(void)
-// {
-// 	struct sclda_str_list *current_ptr = &sclda_strls_head;
-// 	while (current_ptr != NULL) {
-// 		struct sclda_str_list *next = current_ptr->next;
-// 		kfree(current_ptr);
-// 		current_ptr = next;
-// 	}
-// }
-
 void sclda_all_send_strls(void)
 {
 	struct sclda_str_list *curptr = &sclda_strls_head;
 	struct sclda_client_struct *pid_sclda = sclda_get_pidppid_struct();
 	while (curptr != NULL) {
 		if (curptr->len > 0) {
-			sclda_send(curptr->str, curptr->len, pid_sclda);
+			__sclda_send(curptr->str, curptr->len, pid_sclda);
 		}
 		struct sclda_str_list *next = curptr->next;
 		kfree(curptr);
