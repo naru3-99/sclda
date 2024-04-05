@@ -64,22 +64,23 @@ int sclda_init(void)
 
 // 文字列を送信するための最もかんたんな実装
 static DEFINE_MUTEX(sclda_send_mutex);
-void __sclda_send(char *buf, int len,
-		  struct sclda_client_struct *sclda_struct_ptr)
+int __sclda_send(char *buf, int len,
+		 struct sclda_client_struct *sclda_struct_ptr)
 {
 	struct kvec iov;
 	iov.iov_base = buf;
 	iov.iov_len = len;
-	kernel_sendmsg(sclda_struct_ptr->sock, &(sclda_struct_ptr->msg), &iov,
-		       1, len);
+	return kernel_sendmsg(sclda_struct_ptr->sock, &(sclda_struct_ptr->msg),
+			      &iov, 1, len);
 }
 
-void sclda_send(char *buf, int len,
-		struct sclda_client_struct *sclda_struct_ptr)
+int sclda_send(char *buf, int len, struct sclda_client_struct *sclda_struct_ptr)
 {
+	int ret;
 	mutex_lock(&sclda_send_mutex);
-	__sclda_send(buf, len, sclda_struct_ptr);
+	ret = __sclda_send(buf, len, sclda_struct_ptr);
 	mutex_unlock(&sclda_send_mutex);
+	return ret;
 }
 
 void __sclda_send_split(char *msg, int msg_len)
