@@ -2773,7 +2773,7 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	}
 	// 初期化はされたがallsendできていない場合
 	int count;
-	count = sclda_send("start\0", 6, &pidppid_sclda);
+	count = sclda_send("start\0", 6, sclda_get_pidppid_struct());
 	if (count <= 0) {
 		// まだ送信できない場合
 		sclda_add_string(sclda_buf, sclda_real_len);
