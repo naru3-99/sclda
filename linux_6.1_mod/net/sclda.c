@@ -31,7 +31,7 @@ int __init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
 {
 	if (__sclda_create_socket(sclda_cs_ptr) < 0 ||
 	    __sclda_connect_socket(sclda_cs_ptr, port) < 0) {
-		printk(KERN_INFO "SCLDA_ERROR %d", port);
+		printk(KERN_INFO "SCLDA_ERROR socket_create_error: %d", port);
 		return -1;
 	}
 
@@ -46,7 +46,6 @@ int __init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
 
 int init_all_sclda(void)
 {
-	// init all sclda_client_struct
 	__init_sclda_client(&pidppid_sclda, SCLDA_PIDPPID_PORT);
 	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
 		__init_sclda_client(&syscall_sclda[i],
@@ -56,25 +55,14 @@ int init_all_sclda(void)
 	return 0;
 }
 
-static int sclda_init_kernel_thread(void *data)
+static int __init sclda_init(void)
 {
 	init_all_sclda();
 	sclda_all_send_strls();
 	return 0;
 }
 
-static int __init sclda_init(void)
-{
-	struct task_struct *thread;
-	thread = kthread_run(sclda_init_kernel_thread, NULL,
-			     "sclda_init_thread");
-	if (IS_ERR(thread)) {
-		return PTR_ERR(thread);
-	}
-	return 0;
-}
-
-late_initcall(sclda_init);
+late_initcall_sync(sclda_init);
 
 // 文字列を送信するための最もかんたんな実装
 static DEFINE_MUTEX(sclda_send_mutex);
