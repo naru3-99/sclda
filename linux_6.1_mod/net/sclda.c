@@ -1,5 +1,6 @@
 #include <net/sclda.h>
 #include <linux/init.h>
+#include <linux/kthread.h> // kthread_create(), kthread_run(), wake_up_process()
 
 struct sclda_client_struct pidppid_sclda;
 struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
@@ -55,10 +56,21 @@ int init_all_sclda(void)
 	return 0;
 }
 
-static int __init sclda_init(void)
+static int sclda_init_kernel_thread(void *data)
 {
 	init_all_sclda();
 	sclda_all_send_strls();
+	return 0;
+}
+
+static int __init sclda_init(void)
+{
+	struct task_struct *thread;
+	thread = kthread_run(sclda_init_kernel_thread, NULL,
+			     "sclda_init_thread");
+	if (IS_ERR(thread)) {
+		return PTR_ERR(thread);
+	}
 	return 0;
 }
 
