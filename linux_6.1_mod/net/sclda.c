@@ -174,7 +174,7 @@ void sclda_add_string(const char *msg, int len)
 	if (!new_node)
 		return;
 
-	new_node->str = kstrdup(msg, GFP_KERNEL);
+	strlcpy(new_node->str, msg, SCLDA_PIDPPID_BUFSIZE);
 	new_node->len = len;
 	new_node->next = NULL;
 
@@ -192,7 +192,6 @@ void sclda_all_send_strls(void)
 	while (curptr != NULL) {
 		sclda_send(curptr->str, curptr->len, &pidppid_sclda);
 		next = curptr->next;
-		kfree(curptr->str);
 		kfree(curptr);
 		curptr = next;
 	}

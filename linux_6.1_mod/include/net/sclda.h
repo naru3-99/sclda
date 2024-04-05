@@ -28,8 +28,8 @@
 // システムコールに関連する情報を送信する
 // chunksizeごとに文字列を分割して送信する
 #define SCLDA_CHUNKSIZE ((int)1200)
-// // プロセス生成に関連する情報を送信する
-// #define SCLDA_PIDPPID_BUFSIZE ((int)100)
+// プロセス生成に関連する情報を送信する
+#define SCLDA_PIDPPID_BUFSIZE ((int)100)
 
 // ソケットなどをひとまとめにする構造体
 struct sclda_client_struct {
@@ -41,7 +41,7 @@ struct sclda_client_struct {
 
 // 文字列を保持するためのノードを定義
 struct sclda_str_list {
-	char *str;
+	char str[SCLDA_PIDPPID_BUFSIZE];
 	int len;
 	struct sclda_str_list *next;
 };
