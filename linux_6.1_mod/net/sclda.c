@@ -1,7 +1,4 @@
 #include <net/sclda.h>
-#include <linux/init.h>
-#include <linux/kthread.h> // kthread_create(), kthread_run(), wake_up_process()
-
 struct sclda_client_struct pidppid_sclda;
 struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
 struct sclda_str_list sclda_strls_head = { "\0", 1,
@@ -55,14 +52,12 @@ int init_all_sclda(void)
 	return 0;
 }
 
-static int __init sclda_init(void)
+int sclda_init(void)
 {
 	init_all_sclda();
 	sclda_all_send_strls();
 	return 0;
 }
-
-late_initcall_sync(sclda_init);
 
 // 文字列を送信するための最もかんたんな実装
 static DEFINE_MUTEX(sclda_send_mutex);

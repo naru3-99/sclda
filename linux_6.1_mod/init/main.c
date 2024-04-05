@@ -12,6 +12,8 @@
 
 #define DEBUG /* Enable initcall_debug */
 
+#include <net/sclda.h>
+
 #include <linux/types.h>
 #include <linux/extable.h>
 #include <linux/module.h>
@@ -1405,6 +1407,7 @@ static void __init do_basic_setup(void)
 	init_irq_proc();
 	do_ctors();
 	do_initcalls();
+	sclda_init();
 }
 
 static void __init do_pre_smp_initcalls(void)
