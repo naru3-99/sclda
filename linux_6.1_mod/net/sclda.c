@@ -162,6 +162,7 @@ struct sclda_client_struct *sclda_get_pidppid_struct(void)
 	return &pidppid_sclda;
 }
 
+static DEFINE_MUTEX(sclda_addstr_mutex);
 void sclda_add_string(const char *msg, int len)
 {
 	struct sclda_str_list *new_node =
@@ -173,11 +174,13 @@ void sclda_add_string(const char *msg, int len)
 	new_node->len = len;
 	new_node->next = NULL;
 
+	mutex_lock(sclda_addstr_mutex);
 	struct sclda_str_list *current_ptr = &sclda_strls_head;
 	while (current_ptr->next != NULL) {
 		current_ptr = current_ptr->next;
 	}
 	current_ptr->next = new_node;
+	mutex_unlock(sclda_addstr_mutex);
 }
 
 void sclda_all_send_strls(void)
