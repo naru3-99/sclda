@@ -1407,7 +1407,6 @@ static void __init do_basic_setup(void)
 	init_irq_proc();
 	do_ctors();
 	do_initcalls();
-	sclda_init();
 }
 
 static void __init do_pre_smp_initcalls(void)
@@ -1657,4 +1656,5 @@ static noinline void __init kernel_init_freeable(void)
 	 */
 
 	integrity_load_keys();
+	sclda_init();
 }
