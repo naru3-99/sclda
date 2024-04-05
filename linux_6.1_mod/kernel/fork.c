@@ -2760,13 +2760,28 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 				      "%d%c%d%c%s", (int)nr, SCLDA_DELIMITER,
 				      sclda_get_current_pid(), SCLDA_DELIMITER,
 				      p->comm);
-	if (is_sclda_init_fin()) {
+	// まだ初期化されていない場合
+	if (!is_sclda_init_fin()) {
+		sclda_add_string(sclda_buf, sclda_real_len);
+		return nr;
+	}
+	// 初期化され、allsendも終わった場合
+	if (is_sclda_allsend_fin()) {
 		sclda_send(sclda_buf, sclda_real_len,
 			   sclda_get_pidppid_struct());
-	} else {
-		sclda_add_string(sclda_buf, sclda_real_len);
+		return nr;
 	}
-
+	// 初期化はされたがallsendできていない場合
+	int count;
+	count = sclda_send("start\0", 6, &pidppid_sclda);
+	if (count <= 0) {
+		// まだ送信できない場合
+		sclda_add_string(sclda_buf, sclda_real_len);
+		return nr;
+	}
+	// 送信可能になったため、allsendする
+	sclda_all_send_strls();
+	sclda_send(sclda_buf, sclda_real_len, sclda_get_pidppid_struct());
 	return nr;
 }
 /*

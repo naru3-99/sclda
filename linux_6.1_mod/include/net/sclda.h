@@ -55,7 +55,6 @@ int __sclda_connect_socket(struct sclda_client_struct *, int);
 int __init_sclda_client(struct sclda_client_struct *, int);
 
 // sclda_client_structをすべて初期化する関数
-int init_all_sclda(void);
 int sclda_init(void);
 
 // 文字列を送信する最も簡単な関数
@@ -91,4 +90,5 @@ void sclda_add_string(const char *, int);
 void sclda_all_send_strls(void);
 struct sclda_str_list *get_sclda_str_list_head(void);
 int is_sclda_init_fin(void);
+int is_sclda_allsend_fin(void);
 #endif // SCLDA_H
