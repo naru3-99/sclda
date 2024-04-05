@@ -189,9 +189,8 @@ void sclda_all_send_strls(void)
 	struct sclda_str_list *curptr = sclda_strls_head.next;
 	struct sclda_str_list *next;
 	while (curptr != NULL) {
-		if (curptr->len > 0) {
-			sclda_send(curptr->str, curptr->len, &pidppid_sclda);
-		}
+		printk(KERN_INFO "SCLDA_LOG %d %s", curptr->len, curptr->str);
+		sclda_send(curptr->str, curptr->len, &pidppid_sclda);
 		next = curptr->next;
 		kfree(curptr);
 		curptr = next;
