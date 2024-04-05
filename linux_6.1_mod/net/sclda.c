@@ -32,7 +32,7 @@ int __init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
 	}
 	if (__sclda_connect_socket(sclda_cs_ptr, port) < 0) {
 		printk(KERN_INFO "SCLDA_ERROR socket_connect_error: %d", port);
-		return -1;
+		// return -1;
 	}
 
 	sclda_cs_ptr->msg.msg_name = &(sclda_cs_ptr->addr);
