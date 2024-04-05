@@ -1,4 +1,5 @@
 #include <net/sclda.h>
+
 struct sclda_client_struct pidppid_sclda;
 struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
 struct sclda_str_list sclda_strls_head = { "\0", 1,
@@ -173,7 +174,7 @@ void sclda_add_string(const char *msg, int len)
 	if (!new_node)
 		return;
 
-	strlcpy(new_node->str, msg, SCLDA_PIDPPID_BUFSIZE);
+	new_node->str = kstrdup(msg, GFP_KERNEL);
 	new_node->len = len;
 	new_node->next = NULL;
 
@@ -189,9 +190,9 @@ void sclda_all_send_strls(void)
 	struct sclda_str_list *curptr = sclda_strls_head.next;
 	struct sclda_str_list *next;
 	while (curptr != NULL) {
-		printk(KERN_INFO "SCLDA_LOG %d %s", curptr->len, curptr->str);
 		sclda_send(curptr->str, curptr->len, &pidppid_sclda);
 		next = curptr->next;
+		kfree(curptr->str);
 		kfree(curptr);
 		curptr = next;
 	}
