@@ -59,3 +59,4 @@ langMorphDA配下のdynamic_analysis/hostがsclda_host、/guestがsclda_guestに
 - (DONE) PIDとPPIDのペア、及びプロセスのもとになった実行可能ファイルの名前をUDP通信を用いて送信 (kernel/fork.c)
   - (未解決・パッチ済み)pid = 700くらいまで、なぜかパケットを送信できない
     - 送信できるようになるまで待つ
+- (YET) 各システムコールに改造を施す
