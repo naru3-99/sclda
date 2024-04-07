@@ -634,44 +634,43 @@ ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count)
 
 SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 {
-	ssize_t ret = ksys_read(fd, buf, count);
-	if (ret >= 0) {
-		// システムコール呼び出しが成功した場合
-		// システムコールで読み込んだ情報を取得
-		char *read_buf = kmalloc(ret + 1, GFP_KERNEL);
-		if (!read_buf)
-			return ret;
-		memcpy(read_buf, buf, ret);
-		read_buf[ret] = '\0';
-		// その他情報をまとめ、送信する
-		// unsigned int とsize_tとssize_t
-		// を文字列にするため、100あれば大丈夫
-		int msg_bufsize = ret + 101;
-		char *msg_buf = kmalloc(msg_bufsize, GFP_KERNEL);
-		if (!msg_buf) {
-			kfree(read_buf);
-			return ret;
-		}
-		int msg_len = snprintf(msg_buf, msg_bufsize,
-				       "0%c%zd%c%u%c%zu%c%s", SCLDA_DELIMITER,
-				       ret, SCLDA_DELIMITER, fd,
-				       SCLDA_DELIMITER, count, SCLDA_DELIMITER,
-				       read_buf);
-		sclda_send_split(msg_buf, msg_len);
-
-		kfree(read_buf);
-		kfree(msg_buf);
-	} else {
+	ssize_t ret;
+	ret = ksys_read(fd, buf, count);
+	if (ret < 0) {
 		// 呼び出しが失敗した場合
-		int msg_bufsize = 150;
-		char msg_buf[msg_bufsize];
-		int msg_len = snprintf(msg_buf, msg_bufsize,
-				       "0%c%zd%c%u%c%zu%cNULL", SCLDA_DELIMITER,
-				       ret, SCLDA_DELIMITER, fd,
-				       SCLDA_DELIMITER, count, SCLDA_DELIMITER);
+		int msg_len;
+		char msg_buf[100];
+		msg_len = snprintf(msg_buf, 100, "0%c%zd%c%u%c%zu%cNULL",
+				   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, fd,
+				   SCLDA_DELIMITER, count, SCLDA_DELIMITER);
 		sclda_send_split(msg_buf, msg_len);
+		return ret;
 	}
-	return ret;
+	// システムコール呼び出しが成功した場合
+	// システムコールで読み込んだ情報を取得
+	char *read_buf;
+	read_buf = kmalloc(count + 1, GFP_KERNEL);
+	if (!read_buf)
+		return ret;
+	copy_from_user(read_buf, buf, count);
+
+	// その他情報をまとめ、送信する
+	int msg_bufsize;
+	msg_bufsize = ret + 101;
+	char *msg_buf;
+	msg_buf = kmalloc(msg_bufsize, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(read_buf);
+		return ret;
+	}
+	int msg_len;
+	msg_len = snprintf(msg_buf, msg_bufsize, "0%c%zd%c%u%c%zu%c%s",
+			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, count, SCLDA_DELIMITER, read_buf);
+	sclda_send_split(msg_buf, msg_len);
+
+	kfree(read_buf);
+	kfree(msg_buf);
 }
 
 ssize_t ksys_write(unsigned int fd, const char __user *buf, size_t count)
