@@ -81,8 +81,6 @@ void __sclda_send_split(char *msg, int msg_len)
 {
 	// 大きいサイズの文字列を分割して送信する
 	// system-call関連情報を送信するときのみ使用する
-	size_t sent_bytes = 0;
-	size_t chunk_size;
 	struct sclda_client_struct *sclda_to_send = sclda_decide_struct();
 
 	// pid utimeはどのプロセスのシステムコールかを特定するために使用する
@@ -93,18 +91,28 @@ void __sclda_send_split(char *msg, int msg_len)
 	int header_len = snprintf(pid_utime, 50, "%d%c%llu%c", pid,
 				  SCLDA_DELIMITER, utime, SCLDA_DELIMITER);
 
-	int packet_len = SCLDA_CHUNKSIZE + header_len + 1;
-	char *sending_msg = kmalloc(packet_len, GFP_KERNEL);
+	size_t sent_bytes = 0;
+	size_t chunk_size;
+	int max_packet_len = SCLDA_CHUNKSIZE + header_len + 1;
 
+	char *sending_msg;
+	sending_msg = kmalloc(max_packet_len, GFP_KERNEL);
+	if (!sending_msg) {
+		printk(KERN_INFO "SCLDA_ERROR %s%s", pid_utime, msg);
+		return;
+	}
+
+	int real_size;
 	while (sent_bytes < msg_len) {
 		if ((msg_len - sent_bytes) < SCLDA_CHUNKSIZE) {
 			chunk_size = msg_len - sent_bytes;
 		} else {
 			chunk_size = SCLDA_CHUNKSIZE;
 		}
-		snprintf(sending_msg, packet_len, "%s%s", pid_utime,
-			 msg + sent_bytes);
-		sclda_send(sending_msg, packet_len, sclda_to_send);
+		real_size = snprintf(sending_msg, max_packet_len, "%s%.*s",
+				     pid_utime, (int)chunk_size,
+				     msg + sent_bytes);
+		sclda_send(sending_msg, real_size, sclda_to_send);
 		sent_bytes += chunk_size;
 	}
 	kfree(sending_msg);
