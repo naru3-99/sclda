@@ -42,11 +42,11 @@ struct sclda_client_struct {
 	struct iov_iter iov_it;
 };
 
-// 
-struct sclda_pidinfo_ls {
+// 文字列を保持するためのノードを定義
+struct sclda_str_list {
 	char str[SCLDA_PIDPPID_BUFSIZE];
 	int len;
-	struct sclda_pidinfo_ls *next;
+	struct sclda_str_list *next;
 };
 
 // socketの作成を行う
@@ -91,7 +91,7 @@ struct sclda_client_struct *sclda_get_pidppid_struct(void);
 
 void sclda_add_string(const char *, int);
 void sclda_all_send_strls(void);
-struct sclda_pidinfo_ls *get_sclda_pidinfo_ls_head(void);
+struct sclda_str_list *get_sclda_str_list_head(void);
 int is_sclda_init_fin(void);
 int is_sclda_allsend_fin(void);
 #endif // SCLDA_H
