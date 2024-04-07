@@ -670,10 +670,6 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 
 	// kfree(read_buf);
 	// kfree(msg_buf);
-	if (sclda_get_current_pid() > 700) {
-		int sent_byte = sclda_send("aaaaa\0", 6, sclda_decide_struct());
-		printk(KERN_INFO "SCLDA_READ %d %zd", sent_byte, ret);
-	}
 	return ret;
 }
 
