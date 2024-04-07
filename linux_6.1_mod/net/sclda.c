@@ -2,8 +2,8 @@
 
 struct sclda_client_struct pidppid_sclda;
 struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
-struct sclda_str_list sclda_strls_head = { "\0", 1,
-					   (struct sclda_str_list *)NULL };
+struct sclda_pidinfo_ls sclda_strls_head = { "\0", 1,
+					   (struct sclda_pidinfo_ls *)NULL };
 int sclda_init_fin = 0;
 int sclda_allsend_fin = 0;
 
@@ -174,8 +174,8 @@ struct sclda_client_struct *sclda_get_pidppid_struct(void)
 static DEFINE_MUTEX(sclda_addstr_mutex);
 void sclda_add_string(const char *msg, int len)
 {
-	struct sclda_str_list *new_node =
-		kmalloc(sizeof(struct sclda_str_list), GFP_KERNEL);
+	struct sclda_pidinfo_ls *new_node =
+		kmalloc(sizeof(struct sclda_pidinfo_ls), GFP_KERNEL);
 	if (!new_node)
 		return;
 
@@ -184,7 +184,7 @@ void sclda_add_string(const char *msg, int len)
 	new_node->next = NULL;
 
 	mutex_lock(&sclda_addstr_mutex);
-	struct sclda_str_list *current_ptr = &sclda_strls_head;
+	struct sclda_pidinfo_ls *current_ptr = &sclda_strls_head;
 	while (current_ptr->next != NULL) {
 		current_ptr = current_ptr->next;
 	}
@@ -194,8 +194,8 @@ void sclda_add_string(const char *msg, int len)
 
 void sclda_all_send_strls(void)
 {
-	struct sclda_str_list *curptr = sclda_strls_head.next;
-	struct sclda_str_list *next;
+	struct sclda_pidinfo_ls *curptr = sclda_strls_head.next;
+	struct sclda_pidinfo_ls *next;
 	while (curptr != NULL) {
 		sclda_send(curptr->str, curptr->len, &pidppid_sclda);
 		next = curptr->next;
@@ -205,7 +205,7 @@ void sclda_all_send_strls(void)
 	sclda_allsend_fin = 1;
 }
 
-struct sclda_str_list *get_sclda_str_list_head(void)
+struct sclda_pidinfo_ls *get_sclda_pidinfo_ls_head(void)
 {
 	return &sclda_strls_head;
 }
