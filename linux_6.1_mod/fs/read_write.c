@@ -634,8 +634,7 @@ ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count)
 
 SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 {
-	ssize_t ret;
-	ret = ksys_read(fd, buf, count);
+	ssize_t ret = ksys_read(fd, buf, count);
 	if (ret < 0) {
 		// 呼び出しが失敗した場合
 		int msg_len;
@@ -648,11 +647,11 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 	}
 	// システムコール呼び出しが成功した場合
 	// システムコールで読み込んだ情報を取得
-	char *read_buf;
-	read_buf = kmalloc(count + 1, GFP_KERNEL);
+	int read_len;
+	char *read_buf = kmalloc(count + 1, GFP_KERNEL);
 	if (!read_buf)
 		return ret;
-	copy_from_user(read_buf, buf, count);
+	read_len = copy_from_user(read_buf, buf, count);
 
 	// その他情報をまとめ、送信する
 	int msg_bufsize;
@@ -671,6 +670,7 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 
 	kfree(read_buf);
 	kfree(msg_buf);
+	return ret;
 }
 
 ssize_t ksys_write(unsigned int fd, const char __user *buf, size_t count)
