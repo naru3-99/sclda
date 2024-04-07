@@ -28,6 +28,9 @@
 // システムコールに関連する情報を送信する
 // chunksizeごとに文字列を分割して送信する
 #define SCLDA_CHUNKSIZE ((int)1200)
+// 付加情報（stime、スタック・ヒープ・メモリ全体の消費量）
+// を付与するためのバッファサイズ
+#define SCLDA_ADD_BUFSIZE ((int)200)
 // プロセス生成に関連する情報を送信する
 #define SCLDA_PIDPPID_BUFSIZE ((int)100)
 

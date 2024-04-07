@@ -89,7 +89,7 @@ void __sclda_send_split(char *msg, int msg_len)
 	int pid = sclda_get_current_pid();
 	u64 utime = current->utime;
 	// 50あれば十分かな
-	char *pid_utime = kmalloc(50, GFP_KERNEL);
+	char pid_utime[50];
 	int header_len = snprintf(pid_utime, 50, "%d%c%llu%c", pid,
 				  SCLDA_DELIMITER, utime, SCLDA_DELIMITER);
 
@@ -108,7 +108,6 @@ void __sclda_send_split(char *msg, int msg_len)
 		sent_bytes += chunk_size;
 	}
 	kfree(sending_msg);
-	kfree(pid_utime);
 }
 
 void sclda_send_split(char *msg, int msg_len)
@@ -117,15 +116,17 @@ void sclda_send_split(char *msg, int msg_len)
 	// ここで付加する情報：
 	// stime:kernel空間で消費した時間
 	// スタック・ヒープ・メモリ全体の現在の消費量
-	int add_bufsize = 200;
-	char add_str[add_bufsize];
-	add_bufsize = snprintf(add_str, add_bufsize, "%llu%c%lu%c%lu%c%lu%c",
-			       current->stime, SCLDA_DELIMITER,
-			       sclda_get_current_spsize(), SCLDA_DELIMITER,
-			       sclda_get_current_heapsize(), SCLDA_DELIMITER,
-			       sclda_get_current_totalsize(), SCLDA_DELIMITER);
-	int new_len = msg_len + add_bufsize + 1;
-	char *new_msg = kmalloc(new_len, GFP_KERNEL);
+	int add_len;
+	char add_str[SCLDA_ADD_BUFSIZE];
+	add_len = snprintf(add_str, SCLDA_ADD_BUFSIZE, "%llu%c%lu%c%lu%c%lu%c",
+			   current->stime, SCLDA_DELIMITER,
+			   sclda_get_current_spsize(), SCLDA_DELIMITER,
+			   sclda_get_current_heapsize(), SCLDA_DELIMITER,
+			   sclda_get_current_totalsize(), SCLDA_DELIMITER);
+	int new_len;
+	new_len = msg_len + SCLDA_ADD_BUFSIZE + 1;
+	char *new_msg;
+	new_msg = kmalloc(new_len, GFP_KERNEL);
 	new_len = snprintf(new_msg, new_len, "%s%s", add_str, msg);
 	__sclda_send_split(new_msg, new_len);
 	kfree(new_msg);
