@@ -186,10 +186,13 @@ int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 				       all_msg + sent_bytes);
 		ret = sclda_send_mutex(sending_msg, packet_size, sclda_to_send);
 		if (ret < 0) {
+			kfree(all_msg);
+			kfree(sending_msg);
 			return ret;
 		}
 		sent_bytes += chunk_size;
 	}
+	kfree(all_msg);
 	kfree(sending_msg);
 	return ret;
 }
