@@ -97,6 +97,8 @@ void sclda_syscallinfo_init(struct sclda_syscallinfo_struct *ptr, char *msg,
 			    int len)
 {
 	ptr = kmalloc(sizeof(struct sclda_syscallinfo_struct), GFP_KERNEL);
+	ptr->syscall_msg = kmalloc(len, GFP_KERNEL);
+	
 	// stime, memory usage
 	ptr->stime_memory_len = snprintf(
 		ptr->stime_memory_msg, SCLDA_STIME_MEMORY_SIZE,
@@ -180,6 +182,9 @@ int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 				       ptr->pid_utime_msg, (int)chunk_size,
 				       all_msg + sent_bytes);
 		ret = sclda_send_mutex(sending_msg, real_size, sclda_to_send);
+		if (ret < 0) {
+			return ret;
+		}
 		sent_bytes += chunk_size;
 	}
 	kfree(sending_msg);

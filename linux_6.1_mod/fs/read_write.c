@@ -670,9 +670,12 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 			       SCLDA_DELIMITER, ret, SCLDA_DELIMITER, fd,
 			       SCLDA_DELIMITER, count, SCLDA_DELIMITER,
 			       read_buf);
-	// struct sclda_syscallinfo_struct *sss;
-	// sclda_syscallinfo_init(sss, msg_buf, msg_len);
-	// sclda_send_syscall_info(sss);
+	struct sclda_syscallinfo_struct *sss;
+	sclda_syscallinfo_init(sss, msg_buf, msg_len);
+	int send_ret = sclda_send_syscall_info(sss);
+	if (send_ret < 0) {
+		sclda_add_syscallinfo(sss);
+	}
 	printk(KERN_INFO "SCLDA_DEBUG %s", msg_buf);
 
 	kfree(read_buf);
