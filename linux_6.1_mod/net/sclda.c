@@ -163,7 +163,8 @@ int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 	char *sending_msg = kmalloc(max_packet_len, GFP_KERNEL);
 	if (!sending_msg) {
 		kfree(all_msg);
-		printk(KERN_INFO "SCLDA_ERROR %s%s", pid_utime, msg);
+		printk(KERN_INFO "SCLDA_ERROR %s%s", ptr->pid_utime_msg,
+		       ptr->syscall_msg);
 		return -1;
 	}
 
