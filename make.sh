@@ -32,4 +32,4 @@ make localmodconfig
 make -j$(nproc)
 sudo make modules_install
 sudo make install
-sudo reboot
+# sudo reboot
