@@ -12,7 +12,8 @@ struct sclda_pidinfo_ls sclda_pidinfo_head = {
 };
 // システムコール情報のダミーヘッド
 struct sclda_syscallinfo_ls sclda_syscall_head = {
-	(struct sclda_syscallinfo_ls *)NULL, (struct sclda_syscallinfo_ls *)NULL
+	(struct sclda_syscallinfo_struct *)NULL,
+	(struct sclda_syscallinfo_ls *)NULL
 };
 // ソケットなどの初期化が済んだかどうか
 int sclda_init_fin = 0;
@@ -149,7 +150,8 @@ int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 	int all_msg_len = ptr->stime_memory_len + ptr->syscall_msg_len + 1;
 	char *all_msg = kmalloc(all_msg_len, GFP_KERNEL);
 	if (!all_msg) {
-		printk(KERN_INFO "SCLDA_ERROR %s%s", ptr->pid_utime_msg, ptr->syscall_msg);
+		printk(KERN_INFO "SCLDA_ERROR %s%s", ptr->pid_utime_msg,
+		       ptr->syscall_msg);
 		return -1;
 	}
 	all_msg_len = snprintf(all_msg, all_msg_len, "%s%s",

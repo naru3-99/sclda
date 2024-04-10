@@ -67,7 +67,7 @@ struct sclda_syscallinfo_struct {
 struct sclda_syscallinfo_ls {
 	struct sclda_syscallinfo_struct *s;
 	// 次の情報
-	struct sclda_syscall_info_struct *next;
+	struct sclda_syscallinfo_ls *next;
 };
 
 // socketの作成を行う
