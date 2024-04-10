@@ -1,11 +1,25 @@
 #include <net/sclda.h>
 
+// PIDに関する情報を送るためのソケット
 struct sclda_client_struct pidppid_sclda;
+// システムコールに関連する情報を送信するためのソケット
+// CPUのIDのに応じて送信するポートを変更する
 struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
-struct sclda_pidinfo_ls sclda_strls_head = { "\0", 1,
-					   (struct sclda_pidinfo_ls *)NULL };
+// PIDに関する情報を送信できないときのために
+// PID情報のリンクリストのダミーヘッド
+struct sclda_pidinfo_ls sclda_pidinfo_head = {
+	"\0", 1, (struct sclda_pidinfo_ls *)NULL
+};
+// システムコール情報のダミーヘッド
+struct sclda_syscallinfo_ls sclda_syscall_head = {
+	(struct sclda_syscallinfo_ls *)NULL, (struct sclda_syscallinfo_ls *)NULL
+};
+// ソケットなどの初期化が済んだかどうか
 int sclda_init_fin = 0;
+// PIDの情報を送信したかどうか
 int sclda_allsend_fin = 0;
+// 現在システムコールの情報が溜まっているかどうか
+int sclda_syscallinfo_exist = 0;
 
 int __sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
 {
@@ -33,6 +47,8 @@ int __init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
 		return -1;
 	}
 	if (__sclda_connect_socket(sclda_cs_ptr, port) < 0) {
+		// 今回はUDP通信なので、ここがエラーはいても問題ない
+		// UDP通信はコネクションレスな通信であるため
 		printk(KERN_INFO "SCLDA_ERROR socket_connect_error: %d", port);
 	}
 
@@ -57,9 +73,7 @@ int sclda_init(void)
 }
 
 // 文字列を送信するための最もかんたんな実装
-static DEFINE_MUTEX(sclda_send_mutex);
-int __sclda_send(char *buf, int len,
-		 struct sclda_client_struct *sclda_struct_ptr)
+int sclda_send(char *buf, int len, struct sclda_client_struct *sclda_struct_ptr)
 {
 	struct kvec iov;
 	iov.iov_base = buf;
@@ -68,7 +82,9 @@ int __sclda_send(char *buf, int len,
 			      &iov, 1, len);
 }
 
-int sclda_send(char *buf, int len, struct sclda_client_struct *sclda_struct_ptr)
+static DEFINE_MUTEX(sclda_send_mutex);
+int sclda_send_mutex(char *buf, int len,
+		     struct sclda_client_struct *sclda_struct_ptr)
 {
 	int ret;
 	mutex_lock(&sclda_send_mutex);
@@ -77,67 +93,91 @@ int sclda_send(char *buf, int len, struct sclda_client_struct *sclda_struct_ptr)
 	return ret;
 }
 
-void __sclda_send_split(char *msg, int msg_len)
+void sclda_syscallinfo_init(struct sclda_syscallinfo_struct *ptr, char *msg,
+			    int len)
 {
-	// 大きいサイズの文字列を分割して送信する
+	// stime, memory usage
+	ptr->stime_memory_len = snprintf(
+		ptr->stime_memory_msg, SCLDA_STIME_MEMORY_SIZE,
+		"%llu%c%lu%c%lu%c%lu%c", current->stime, SCLDA_DELIMITER,
+		sclda_get_current_spsize(), SCLDA_DELIMITER,
+		sclda_get_current_heapsize(), SCLDA_DELIMITER,
+		sclda_get_current_totalsize(), SCLDA_DELIMITER);
+
+	// utime, pid
+	ptr->pid_utime_len = snprintf(ptr->pid_utime_msg, SCLDA_UTIME_PID_SIZE,
+				      "%d%c%llu%c", sclda_get_current_pid(),
+				      SCLDA_DELIMITER, current->utime,
+				      SCLDA_DELIMITER);
+
+	// msg, len
+	ptr->syscall_msg = msg;
+	ptr->syscall_msg_len = len;
+}
+
+static DEFINE_MUTEX(sclda_add_syscallinfo_mutex);
+void sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr)
+{
+	struct sclda_syscallinfo_ls *new_node =
+		kmalloc(sizeof(struct sclda_syscallinfo_ls), GFP_KERNEL);
+	if (!new_node)
+		return;
+	new_node->s = ptr;
+	
+	mutex_lock(&sclda_add_syscallinfo_mutex);
+	struct sclda_syscallinfo_ls *current_ptr = &sclda_s_head;
+	while (current_ptr->next != NULL) {
+		current_ptr = current_ptr->next;
+	}
+	current_ptr->next = new_node;
+	mutex_unlock(&sclda_add_syscallinfo_mutex);
+}
+
+void sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
+{
+	// 大きいサイズの文字列を分割して送信する実装
+	// ヘッダ情報としてPIDとutimeを最初にくっつける
 	// system-call関連情報を送信するときのみ使用する
-	struct sclda_client_struct *sclda_to_send = sclda_decide_struct();
 
-	// pid utimeはどのプロセスのシステムコールかを特定するために使用する
-	int pid = sclda_get_current_pid();
-	u64 utime = current->utime;
-	// 50あれば十分かな
-	char pid_utime[50];
-	int header_len = snprintf(pid_utime, 50, "%d%c%llu%c", pid,
-				  SCLDA_DELIMITER, utime, SCLDA_DELIMITER);
+	// 送信する情報を確定する
+	int all_msg_len = ptr->stime_memory_len + ptr->syscall_msg_len + 1;
+	char all_msg = kmalloc(all_msg_len, GFP_KERNEL);
+	if (!all_msg) {
+		printk(KERN_INFO "SCLDA_ERROR %s%s", pid_utime, msg);
+		return;
+	}
+	all_msg_len = snprintf(all_msg, all_msg_len, "%s%s",
+			       ptr->stime_memory_msg, ptr->syscall_msg);
 
-	size_t sent_bytes = 0;
-	size_t chunk_size;
-	int max_packet_len = SCLDA_CHUNKSIZE + header_len + 1;
-
-	char *sending_msg;
-	sending_msg = kmalloc(max_packet_len, GFP_KERNEL);
+	// chunksizeごとに分割して送信するパート
+	// 一度に送信するパケットのバッファを段取り
+	int max_packet_len = SCLDA_CHUNKSIZE + ptr->pid_utime_len + 1;
+	char *sending_msg = kmalloc(max_packet_len, GFP_KERNEL);
 	if (!sending_msg) {
+		kfree(all_msg);
 		printk(KERN_INFO "SCLDA_ERROR %s%s", pid_utime, msg);
 		return;
 	}
 
-	int real_size;
-	while (sent_bytes < msg_len) {
-		if ((msg_len - sent_bytes) < SCLDA_CHUNKSIZE) {
-			chunk_size = msg_len - sent_bytes;
+	// 送信に使用するソケットなどを決定
+	struct sclda_client_struct *sclda_to_send = sclda_decide_struct();
+
+	int packet_size;
+	size_t sent_bytes = 0;
+	size_t chunk_size;
+	while (sent_bytes < all_msg_len) {
+		if ((all_msg_len - sent_bytes) < SCLDA_CHUNKSIZE) {
+			chunk_size = all_msg_len - sent_bytes;
 		} else {
 			chunk_size = SCLDA_CHUNKSIZE;
 		}
-		real_size = snprintf(sending_msg, max_packet_len, "%s%.*s",
-				     pid_utime, (int)chunk_size,
-				     msg + sent_bytes);
-		sclda_send(sending_msg, real_size, sclda_to_send);
+		packet_size = snprintf(sending_msg, max_packet_len, "%s%.*s",
+				       ptr->pid_utime_msg, (int)chunk_size,
+				       all_msg + sent_bytes);
+		sclda_send_mutex(sending_msg, real_size, sclda_to_send);
 		sent_bytes += chunk_size;
 	}
 	kfree(sending_msg);
-}
-
-void sclda_send_split(char *msg, int msg_len)
-{
-	// pid utimeは__sclda_send_split関数で付加する
-	// ここで付加する情報：
-	// stime:kernel空間で消費した時間
-	// スタック・ヒープ・メモリ全体の現在の消費量
-	int add_len;
-	char add_str[SCLDA_ADD_BUFSIZE];
-	add_len = snprintf(add_str, SCLDA_ADD_BUFSIZE, "%llu%c%lu%c%lu%c%lu%c",
-			   current->stime, SCLDA_DELIMITER,
-			   sclda_get_current_spsize(), SCLDA_DELIMITER,
-			   sclda_get_current_heapsize(), SCLDA_DELIMITER,
-			   sclda_get_current_totalsize(), SCLDA_DELIMITER);
-	int new_len;
-	new_len = msg_len + SCLDA_ADD_BUFSIZE + 1;
-	char *new_msg;
-	new_msg = kmalloc(new_len, GFP_KERNEL);
-	new_len = snprintf(new_msg, new_len, "%s%s", add_str, msg);
-	__sclda_send_split(new_msg, new_len);
-	kfree(new_msg);
 }
 
 int sclda_get_current_pid(void)
@@ -184,7 +224,7 @@ void sclda_add_string(const char *msg, int len)
 	new_node->next = NULL;
 
 	mutex_lock(&sclda_addstr_mutex);
-	struct sclda_pidinfo_ls *current_ptr = &sclda_strls_head;
+	struct sclda_pidinfo_ls *current_ptr = &sclda_pidinfo_head;
 	while (current_ptr->next != NULL) {
 		current_ptr = current_ptr->next;
 	}
@@ -194,7 +234,7 @@ void sclda_add_string(const char *msg, int len)
 
 void sclda_all_send_strls(void)
 {
-	struct sclda_pidinfo_ls *curptr = sclda_strls_head.next;
+	struct sclda_pidinfo_ls *curptr = sclda_pidinfo_head.next;
 	struct sclda_pidinfo_ls *next;
 	while (curptr != NULL) {
 		sclda_send(curptr->str, curptr->len, &pidppid_sclda);
@@ -207,7 +247,7 @@ void sclda_all_send_strls(void)
 
 struct sclda_pidinfo_ls *get_sclda_pidinfo_ls_head(void)
 {
-	return &sclda_strls_head;
+	return &sclda_pidinfo_head;
 }
 
 int is_sclda_init_fin(void)
