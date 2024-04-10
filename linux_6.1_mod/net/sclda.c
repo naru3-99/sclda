@@ -82,14 +82,14 @@ int sclda_send(char *buf, int len, struct sclda_client_struct *sclda_struct_ptr)
 			      &iov, 1, len);
 }
 
-static DEFINE_MUTEX(sclda_send_mutex);
+static DEFINE_MUTEX(sclda_sendmutex);
 int sclda_send_mutex(char *buf, int len,
 		     struct sclda_client_struct *sclda_struct_ptr)
 {
 	int ret;
-	mutex_lock(&sclda_send_mutex);
-	ret = __sclda_send(buf, len, sclda_struct_ptr);
-	mutex_unlock(&sclda_send_mutex);
+	mutex_lock(&sclda_sendmutex);
+	ret = sclda_send(buf, len, sclda_struct_ptr);
+	mutex_unlock(&sclda_sendmutex);
 	return ret;
 }
 
@@ -98,7 +98,7 @@ void sclda_syscallinfo_init(struct sclda_syscallinfo_struct *ptr, char *msg,
 {
 	ptr = kmalloc(sizeof(struct sclda_syscallinfo_struct), GFP_KERNEL);
 	ptr->syscall_msg = kmalloc(len, GFP_KERNEL);
-	
+
 	// stime, memory usage
 	ptr->stime_memory_len = snprintf(
 		ptr->stime_memory_msg, SCLDA_STIME_MEMORY_SIZE,
@@ -128,7 +128,7 @@ void sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr)
 	new_node->s = ptr;
 
 	mutex_lock(&sclda_add_syscallinfo_mutex);
-	struct sclda_syscallinfo_ls *current_ptr = &sclda_s_head;
+	struct sclda_syscallinfo_ls *current_ptr = &sclda_syscall_head;
 	while (current_ptr->next != NULL) {
 		current_ptr = current_ptr->next;
 	}
@@ -147,9 +147,9 @@ int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 
 	// 送信する情報を確定する
 	int all_msg_len = ptr->stime_memory_len + ptr->syscall_msg_len + 1;
-	char all_msg = kmalloc(all_msg_len, GFP_KERNEL);
+	char *all_msg = kmalloc(all_msg_len, GFP_KERNEL);
 	if (!all_msg) {
-		printk(KERN_INFO "SCLDA_ERROR %s%s", pid_utime, msg);
+		printk(KERN_INFO "SCLDA_ERROR %s%s", ptr->pid_utime_msg, ptr->syscall_msg);
 		return -1;
 	}
 	all_msg_len = snprintf(all_msg, all_msg_len, "%s%s",
@@ -181,7 +181,7 @@ int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 		packet_size = snprintf(sending_msg, max_packet_len, "%s%.*s",
 				       ptr->pid_utime_msg, (int)chunk_size,
 				       all_msg + sent_bytes);
-		ret = sclda_send_mutex(sending_msg, real_size, sclda_to_send);
+		ret = sclda_send_mutex(sending_msg, packet_size, sclda_to_send);
 		if (ret < 0) {
 			return ret;
 		}
