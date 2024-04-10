@@ -635,41 +635,48 @@ ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count)
 SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 {
 	ssize_t ret = ksys_read(fd, buf, count);
-	// if (ret < 0) {
-	// 	// 呼び出しが失敗した場合
-	// 	int msg_len;
-	// 	char msg_buf[100];
-	// 	msg_len = snprintf(msg_buf, 100, "0%c%zd%c%u%c%zu%cNULL",
-	// 			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, fd,
-	// 			   SCLDA_DELIMITER, count, SCLDA_DELIMITER);
-	// 	sclda_send_split(msg_buf, msg_len);
-	// 	return ret;
-	// }
-	// // システムコール呼び出しが成功した場合
-	// // システムコールで読み込んだ情報を取得
-	// int read_len;
-	// char *read_buf = kmalloc(count + 1, GFP_KERNEL);
-	// if (!read_buf)
-	// 	return ret;
-	// read_len = copy_from_user(read_buf, buf, count);
+	// 呼び出しが失敗した場合
+	if (ret < 0) {
+		// char msg_buf[100];
+		// int msg_len = snprintf(msg_buf, 100, "0%c%zd%c%u%c%zu%cNULL",
+		// 		       SCLDA_DELIMITER, ret, SCLDA_DELIMITER,
+		// 		       fd, SCLDA_DELIMITER, count,
+		// 		       SCLDA_DELIMITER);
+		// struct sclda_syscallinfo_struct *sss;
+		// sclda_syscallinfo_init(sss, msg_buf, msg_len);
+		// int send_ret = sclda_send_syscall_info(sss);
+		// if (send_ret < 0) {
+		// 	sclda_add_syscallinfo(sss);
+		// }
+		return ret;
+	}
+	// システムコール呼び出しが成功した場合
+	// システムコールで読み込んだ情報を取得
+	int read_len;
+	char *read_buf = kmalloc(count + 1, GFP_KERNEL);
+	if (!read_buf)
+		return ret;
+	read_len = copy_from_user(read_buf, buf, count);
 
-	// // その他情報をまとめ、送信する
-	// int msg_bufsize;
-	// msg_bufsize = ret + 101;
-	// char *msg_buf;
-	// msg_buf = kmalloc(msg_bufsize, GFP_KERNEL);
-	// if (!msg_buf) {
-	// 	kfree(read_buf);
-	// 	return ret;
-	// }
-	// int msg_len;
-	// msg_len = snprintf(msg_buf, msg_bufsize, "0%c%zd%c%u%c%zu%c%s",
-	// 		   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, fd,
-	// 		   SCLDA_DELIMITER, count, SCLDA_DELIMITER, read_buf);
-	// sclda_send_split(msg_buf, msg_len);
+	// その他情報をまとめ、送信する
+	int msg_bufsize = ret + 101;
+	char *msg_buf = kmalloc(msg_bufsize, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(read_buf);
+		return ret;
+	}
 
-	// kfree(read_buf);
-	// kfree(msg_buf);
+	int msg_len = snprintf(msg_buf, msg_bufsize, "0%c%zd%c%u%c%zu%c%s",
+			       SCLDA_DELIMITER, ret, SCLDA_DELIMITER, fd,
+			       SCLDA_DELIMITER, count, SCLDA_DELIMITER,
+			       read_buf);
+	// struct sclda_syscallinfo_struct *sss;
+	// sclda_syscallinfo_init(sss, msg_buf, msg_len);
+	// sclda_send_syscall_info(sss);
+	printk(KERN_INFO "SCLDA_DEBUG %s", msg_buf);
+
+	kfree(read_buf);
+	kfree(msg_buf);
 	return ret;
 }
 

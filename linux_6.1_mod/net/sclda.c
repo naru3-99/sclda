@@ -96,6 +96,7 @@ int sclda_send_mutex(char *buf, int len,
 void sclda_syscallinfo_init(struct sclda_syscallinfo_struct *ptr, char *msg,
 			    int len)
 {
+	ptr = kmalloc(sizeof(struct sclda_syscallinfo_struct), GFP_KERNEL);
 	// stime, memory usage
 	ptr->stime_memory_len = snprintf(
 		ptr->stime_memory_msg, SCLDA_STIME_MEMORY_SIZE,
@@ -123,17 +124,20 @@ void sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr)
 	if (!new_node)
 		return;
 	new_node->s = ptr;
-	
+
 	mutex_lock(&sclda_add_syscallinfo_mutex);
 	struct sclda_syscallinfo_ls *current_ptr = &sclda_s_head;
 	while (current_ptr->next != NULL) {
 		current_ptr = current_ptr->next;
 	}
 	current_ptr->next = new_node;
+	if (!sclda_syscallinfo_exist) {
+		sclda_syscallinfo_exist = 1;
+	}
 	mutex_unlock(&sclda_add_syscallinfo_mutex);
 }
 
-void sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
+int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 {
 	// 大きいサイズの文字列を分割して送信する実装
 	// ヘッダ情報としてPIDとutimeを最初にくっつける
@@ -144,7 +148,7 @@ void sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 	char all_msg = kmalloc(all_msg_len, GFP_KERNEL);
 	if (!all_msg) {
 		printk(KERN_INFO "SCLDA_ERROR %s%s", pid_utime, msg);
-		return;
+		return -1;
 	}
 	all_msg_len = snprintf(all_msg, all_msg_len, "%s%s",
 			       ptr->stime_memory_msg, ptr->syscall_msg);
@@ -156,13 +160,14 @@ void sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 	if (!sending_msg) {
 		kfree(all_msg);
 		printk(KERN_INFO "SCLDA_ERROR %s%s", pid_utime, msg);
-		return;
+		return -1;
 	}
 
 	// 送信に使用するソケットなどを決定
 	struct sclda_client_struct *sclda_to_send = sclda_decide_struct();
 
 	int packet_size;
+	int ret;
 	size_t sent_bytes = 0;
 	size_t chunk_size;
 	while (sent_bytes < all_msg_len) {
@@ -174,10 +179,11 @@ void sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 		packet_size = snprintf(sending_msg, max_packet_len, "%s%.*s",
 				       ptr->pid_utime_msg, (int)chunk_size,
 				       all_msg + sent_bytes);
-		sclda_send_mutex(sending_msg, real_size, sclda_to_send);
+		ret = sclda_send_mutex(sending_msg, real_size, sclda_to_send);
 		sent_bytes += chunk_size;
 	}
 	kfree(sending_msg);
+	return ret;
 }
 
 int sclda_get_current_pid(void)
