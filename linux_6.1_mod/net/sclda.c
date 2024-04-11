@@ -152,7 +152,8 @@ void sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr)
 	mutex_unlock(&sclda_add_syscallinfo_mutex);
 }
 
-int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
+int __sclda_send_split(struct sclda_syscallinfo_struct *ptr,
+		       struct sclda_client_struct *sclda_to_send)
 {
 	// 大きいサイズの文字列を分割して送信する実装
 	// ヘッダ情報としてPIDとutimeを最初にくっつける
@@ -191,9 +192,6 @@ int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 		return -1;
 	}
 
-	// 送信先を決定：CPUのIDから
-	struct sclda_client_struct *sclda_to_send = sclda_decide_struct();
-
 	// 分割して送信する
 	size_t offset = 0;
 	size_t len = 0;
@@ -225,6 +223,29 @@ int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 	kfree(chunkbuf);
 	kfree(sending_msg);
 	return 1;
+}
+
+int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
+{
+	return __sclda_send_split(ptr, sclda_decide_struct());
+}
+
+void sclda_sendall_syscall(void)
+{
+	mutex_lock(sclda_add_syscallinfo_mutex);
+	struct sclda_syscallinfo_ls *curptr = sclda_syscall_head.next;
+	struct sclda_pidinfo_ls *next;
+	int count = 0;
+	while (curptr != NULL) {
+		__sclda_send_split(curptr->s,
+				   &(syscall_sclda[count % SCLDA_PORT_NUMBER]));
+		next = curptr->next;
+		kfree(curptr->s->syscall_msg);
+		kfree(curptr);
+		curptr = next;
+	}
+	sclda_syscallinfo_exist = 0;
+	mutex_unlock(sclda_add_syscallinfo_mutex);
 }
 
 int sclda_get_current_pid(void)
