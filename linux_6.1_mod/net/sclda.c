@@ -76,6 +76,8 @@ int sclda_init(void)
 // 文字列を送信するための最もかんたんな実装
 int sclda_send(char *buf, int len, struct sclda_client_struct *sclda_struct_ptr)
 {
+	if (!sclda_init_fin)
+		return -1;
 	struct kvec iov;
 	iov.iov_base = buf;
 	iov.iov_len = len;
@@ -87,6 +89,8 @@ static DEFINE_MUTEX(sclda_sendmutex);
 int sclda_send_mutex(char *buf, int len,
 		     struct sclda_client_struct *sclda_struct_ptr)
 {
+	if (!sclda_init_fin)
+		return -1;
 	int ret;
 	mutex_lock(&sclda_sendmutex);
 	ret = sclda_send(buf, len, sclda_struct_ptr);
@@ -145,6 +149,8 @@ int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 	// 大きいサイズの文字列を分割して送信する実装
 	// ヘッダ情報としてPIDとutimeを最初にくっつける
 	// system-call関連情報を送信するときのみ使用する
+	if (!sclda_init_fin)
+		return -1;
 
 	// 送信する情報を確定する
 	int all_msg_len = ptr->stime_memory_len + ptr->syscall_msg_len + 1;
@@ -158,43 +164,59 @@ int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 			       ptr->stime_memory_msg, ptr->syscall_msg);
 
 	// chunksizeごとに分割して送信するパート
-	// 一度に送信するパケットのバッファを段取り
-	int max_packet_len = SCLDA_CHUNKSIZE + ptr->pid_utime_len + 1;
-	char *sending_msg = kmalloc(max_packet_len, GFP_KERNEL);
-	if (!sending_msg) {
+	// chunksizeのバッファを段取り
+	char *chunkbuf = kmalloc(SCLDA_CHUNKSIZE + 1, GFP_KERNEL);
+	if (!chunkbuf) {
 		kfree(all_msg);
 		printk(KERN_INFO "SCLDA_ERROR %s%s", ptr->pid_utime_msg,
 		       ptr->syscall_msg);
 		return -1;
 	}
+	// 一度に送信するパケットのバッファを段取り
+	int max_packet_len = SCLDA_CHUNKSIZE + ptr->pid_utime_len + 1;
+	char *sending_msg = kmalloc(max_packet_len, GFP_KERNEL);
+	if (!sending_msg) {
+		kfree(all_msg);
+		kfree(chunkbuf);
+		printk(KERN_INFO "SCLDA_ERROR %s%s", ptr->pid_utime_msg,
+		       ptr->syscall_msg);
+		return -1;
+	}
 
-	// 送信に使用するソケットなどを決定
+	// 送信先を決定：CPUのIDから
 	struct sclda_client_struct *sclda_to_send = sclda_decide_struct();
 
-	int packet_size;
-	int ret;
-	size_t sent_bytes = 0;
-	size_t chunk_size;
-	while (sent_bytes < all_msg_len) {
-		if ((all_msg_len - sent_bytes) < SCLDA_CHUNKSIZE) {
-			chunk_size = all_msg_len - sent_bytes;
-		} else {
-			chunk_size = SCLDA_CHUNKSIZE;
-		}
-		packet_size = snprintf(sending_msg, max_packet_len, "%s%.*s",
-				       ptr->pid_utime_msg, (int)chunk_size,
-				       all_msg + sent_bytes);
-		ret = sclda_send_mutex(sending_msg, packet_size, sclda_to_send);
-		if (ret < 0) {
+	// 分割して送信する
+	size_t offset = 0;
+	size_t len = 0;
+	int send_ret;
+	int sending_len;
+	while (offset < all_msg_len) {
+		// chunksizeごとに文字列を分割
+		len = min(SCLDA_CHUNKSIZE, all_msg_len - offset);
+		memcpy(chunkbuf, all_msg + offset, len);
+		chunkbuf[len] = '\0';
+
+		// 送信する文字列を段取り
+		sending_len = snprintf(sending_msg, max_packet_len, "%s%s",
+				       ptr->pid_utime_msg, chunkbuf);
+		// 文字列を送信
+		send_ret = sclda_send_mutex(sending_msg, sending_len,
+					    sclda_to_send);
+		if (send_ret < 0) {
 			kfree(all_msg);
+			kfree(chunkbuf);
 			kfree(sending_msg);
 			return ret;
 		}
-		sent_bytes += chunk_size;
+
+		offset += len;
 	}
+
 	kfree(all_msg);
+	kfree(chunkbuf);
 	kfree(sending_msg);
-	return ret;
+	return 1;
 }
 
 int sclda_get_current_pid(void)
