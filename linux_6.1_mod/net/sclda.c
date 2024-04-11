@@ -240,7 +240,7 @@ int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 	return ret;
 }
 
-void sclda_sendall_syscall(void *data)
+int sclda_sendall_syscall(void *data)
 {
 	mutex_lock(&sclda_add_syscallinfo_mutex);
 	struct sclda_syscallinfo_ls *curptr = sclda_syscall_head.next;
@@ -256,6 +256,7 @@ void sclda_sendall_syscall(void *data)
 	}
 	sclda_syscallinfo_exist = 0;
 	mutex_unlock(&sclda_add_syscallinfo_mutex);
+	return 0;
 }
 
 int sclda_get_current_pid(void)
