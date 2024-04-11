@@ -15,6 +15,8 @@ struct sclda_syscallinfo_ls sclda_syscall_head = {
 	(struct sclda_syscallinfo_struct *)NULL,
 	(struct sclda_syscallinfo_ls *)NULL
 };
+// 末尾を持っておく
+struct sclda_syscallinfo_ls *sclda_syscall_tail = NULL;
 // ソケットなどの初期化が済んだかどうか
 int sclda_init_fin = 0;
 // PIDの情報を送信したかどうか
@@ -134,18 +136,26 @@ int sclda_syscallinfo_init(struct sclda_syscallinfo_struct **ptr, char *msg,
 static DEFINE_MUTEX(sclda_add_syscallinfo_mutex);
 void sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr)
 {
+	mutex_lock(&sclda_add_syscallinfo_mutex);
+	// 新しいリストを定義
 	struct sclda_syscallinfo_ls *new_node =
 		kmalloc(sizeof(struct sclda_syscallinfo_ls), GFP_KERNEL);
-	if (!new_node)
+	if (!new_node) {
+		mutex_unlock(&sclda_add_syscallinfo_mutex);
 		return;
-	new_node->s = ptr;
-
-	mutex_lock(&sclda_add_syscallinfo_mutex);
-	struct sclda_syscallinfo_ls *current_ptr = &sclda_syscall_head;
-	while (current_ptr->next != NULL) {
-		current_ptr = current_ptr->next;
 	}
-	current_ptr->next = new_node;
+	new_node->s = ptr;
+	new_node->next = NULL;
+
+	// ダミーヘッドの末尾に追加する
+	if (sclda_syscall_tail == NULL) {
+		sclda_syscall_head.next = new_node;
+		sclda_syscall_tail = new_node;
+	} else {
+		sclda_syscall_tail = new_node;
+	}
+
+	// 溜まっている状態だから1に
 	if (!sclda_syscallinfo_exist) {
 		sclda_syscallinfo_exist = 1;
 	}
