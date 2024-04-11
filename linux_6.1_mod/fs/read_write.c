@@ -657,7 +657,8 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 		if (!read_buf)
 			return ret;
 		int read_len = copy_from_user(read_buf, buf, count);
-		printk(KERN_INFO "SCLDA_DEBUG read %s", read_buf);
+		printk(KERN_INFO "SCLDA_DEBUG read count:%d cfu:%d readbuf:%s",
+		       count, read_len, read_buf);
 		kfree(read_buf);
 	}
 
