@@ -102,7 +102,6 @@ void sclda_syscallinfo_init(struct sclda_syscallinfo_struct *ptr, char *msg,
 			    int len)
 {
 	ptr = kmalloc(sizeof(struct sclda_syscallinfo_struct), GFP_KERNEL);
-	ptr->syscall_msg = kmalloc(len, GFP_KERNEL);
 
 	// stime, memory usage
 	ptr->stime_memory_len = snprintf(
