@@ -89,7 +89,7 @@ int sclda_send_mutex(char *, int, struct sclda_client_struct *);
 int sclda_syscallinfo_init(struct sclda_syscallinfo_struct **ptr, char *msg,
 			   int len);
 void sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr);
-void sclda_sendall_syscall(void);
+void sclda_sendall_syscall(void *data);
 
 // システムコール情報が大きな文字列だった場合、分割して送信
 int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr);

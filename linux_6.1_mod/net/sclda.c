@@ -227,14 +227,24 @@ int __sclda_send_split(struct sclda_syscallinfo_struct *ptr,
 
 int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 {
-	return __sclda_send_split(ptr, sclda_decide_struct());
+	int ret = __sclda_send_split(ptr, sclda_decide_struct());
+	// if (!ret)
+	// 	return ret;
+	// if (sclda_syscallinfo_exist) {
+	// 	struct task_struct *my_thread = kthread_run(
+	// 		sclda_sendall_syscall, NULL, "sclda_sendall_syscall");
+	// 	if (IS_ERR(my_thread)) {
+	// 		return PTR_ERR(my_thread);
+	// 	}
+	// }
+	return ret;
 }
 
-void sclda_sendall_syscall(void)
+void sclda_sendall_syscall(void *data)
 {
-	mutex_lock(sclda_add_syscallinfo_mutex);
+	mutex_lock(&sclda_add_syscallinfo_mutex);
 	struct sclda_syscallinfo_ls *curptr = sclda_syscall_head.next;
-	struct sclda_pidinfo_ls *next;
+	struct sclda_syscallinfo_ls *next;
 	int count = 0;
 	while (curptr != NULL) {
 		__sclda_send_split(curptr->s,
@@ -245,7 +255,7 @@ void sclda_sendall_syscall(void)
 		curptr = next;
 	}
 	sclda_syscallinfo_exist = 0;
-	mutex_unlock(sclda_add_syscallinfo_mutex);
+	mutex_unlock(&sclda_add_syscallinfo_mutex);
 }
 
 int sclda_get_current_pid(void)
