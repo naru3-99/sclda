@@ -652,7 +652,7 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 	}
 	// システムコール呼び出しが成功した場合
 	// システムコールで読み込んだ情報を取得
-	if (sclda_get_current_pid() > 700) {
+	if (sclda_get_current_pid() > 1800) {
 		char *read_buf = kmalloc(count + 1, GFP_KERNEL);
 		if (!read_buf)
 			return ret;
