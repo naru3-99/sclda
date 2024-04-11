@@ -228,15 +228,15 @@ int __sclda_send_split(struct sclda_syscallinfo_struct *ptr,
 int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 {
 	int ret = __sclda_send_split(ptr, sclda_decide_struct());
-	// if (!ret)
-	// 	return ret;
-	// if (sclda_syscallinfo_exist) {
-	// 	struct task_struct *my_thread = kthread_run(
-	// 		sclda_sendall_syscall, NULL, "sclda_sendall_syscall");
-	// 	if (IS_ERR(my_thread)) {
-	// 		return PTR_ERR(my_thread);
-	// 	}
-	// }
+	if (!ret)
+		return ret;
+	if (sclda_syscallinfo_exist) {
+		struct task_struct *my_thread = kthread_run(
+			sclda_sendall_syscall, NULL, "sclda_sendall_syscall");
+		if (IS_ERR(my_thread)) {
+			return PTR_ERR(my_thread);
+		}
+	}
 	return ret;
 }
 
