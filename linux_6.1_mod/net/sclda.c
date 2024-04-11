@@ -207,7 +207,7 @@ int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 			kfree(all_msg);
 			kfree(chunkbuf);
 			kfree(sending_msg);
-			return ret;
+			return send_ret;
 		}
 
 		offset += len;
