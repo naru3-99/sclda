@@ -27,7 +27,7 @@
 #define SCLDA_PORT_NUMBER ((int)8)
 // システムコールに関連する情報を送信する
 // chunksizeごとに文字列を分割して送信する
-#define SCLDA_CHUNKSIZE ((int)1000)
+#define SCLDA_CHUNKSIZE ((size_t)1000)
 // 付加情報（stime、スタック・ヒープ・メモリ全体の消費量）
 #define SCLDA_STIME_MEMORY_SIZE ((int)200)
 // 付加情報（utime、PID）
@@ -86,8 +86,10 @@ int sclda_send(char *, int, struct sclda_client_struct *);
 int sclda_send_mutex(char *, int, struct sclda_client_struct *);
 
 // system callを送信するための構造体を初期化する
-int sclda_syscallinfo_init(struct sclda_syscallinfo_struct *ptr, char *msg,int len);
+int sclda_syscallinfo_init(struct sclda_syscallinfo_struct **ptr, char *msg,
+			   int len);
 void sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr);
+void sclda_sendall_syscall(void);
 
 // システムコール情報が大きな文字列だった場合、分割して送信
 int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr);

@@ -201,7 +201,7 @@ int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 	int sending_len;
 	while (offset < all_msg_len) {
 		// chunksizeごとに文字列を分割
-		len = min(SCLDA_CHUNKSIZE, all_msg_len - offset);
+		len = min(SCLDA_CHUNKSIZE, (size_t)all_msg_len - offset);
 		memcpy(chunkbuf, all_msg + offset, len);
 		chunkbuf[len] = '\0';
 
