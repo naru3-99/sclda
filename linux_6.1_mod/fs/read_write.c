@@ -652,12 +652,14 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 	}
 	// システムコール呼び出しが成功した場合
 	// システムコールで読み込んだ情報を取得
-	char *read_buf = kmalloc(count + 1, GFP_KERNEL);
-	if (!read_buf)
-		return ret;
-	int read_len = copy_from_user(read_buf, buf, count);
-	printk(KERN_INFO "SCLDA_DEBUG read %s", read_buf);
-	kfree(read_buf);
+	if (sclda_get_current_pid() > 700) {
+		char *read_buf = kmalloc(count + 1, GFP_KERNEL);
+		if (!read_buf)
+			return ret;
+		int read_len = copy_from_user(read_buf, buf, count);
+		printk(KERN_INFO "SCLDA_DEBUG read %s", read_buf);
+		kfree(read_buf);
+	}
 
 	// その他情報をまとめ、送信する
 	// int msg_bufsize = ret + 101;
