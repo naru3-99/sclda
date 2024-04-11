@@ -98,28 +98,37 @@ int sclda_send_mutex(char *buf, int len,
 	return ret;
 }
 
-void sclda_syscallinfo_init(struct sclda_syscallinfo_struct *ptr, char *msg,
-			    int len)
+int sclda_syscallinfo_init(struct sclda_syscallinfo_struct **ptr, char *msg,
+			   int len)
 {
-	ptr = kmalloc(sizeof(struct sclda_syscallinfo_struct), GFP_KERNEL);
+	// メモリを割り当て、ポインタを初期化
+	*ptr = kmalloc(sizeof(struct sclda_syscallinfo_struct), GFP_KERNEL);
+	if (!*ptr) {
+		printk(KERN_ERR "sclda_syscallinfo_init: kmalloc failed\n");
+		return 0;
+	}
+
+	// メモリ割り当てが成功したら、情報を初期化
+	struct sclda_syscallinfo_struct *s = *ptr;
 
 	// stime, memory usage
-	ptr->stime_memory_len = snprintf(
-		ptr->stime_memory_msg, SCLDA_STIME_MEMORY_SIZE,
+	s->stime_memory_len = snprintf(
+		s->stime_memory_msg, SCLDA_STIME_MEMORY_SIZE,
 		"%llu%c%lu%c%lu%c%lu%c", current->stime, SCLDA_DELIMITER,
 		sclda_get_current_spsize(), SCLDA_DELIMITER,
 		sclda_get_current_heapsize(), SCLDA_DELIMITER,
 		sclda_get_current_totalsize(), SCLDA_DELIMITER);
 
 	// utime, pid
-	ptr->pid_utime_len = snprintf(ptr->pid_utime_msg, SCLDA_UTIME_PID_SIZE,
-				      "%d%c%llu%c", sclda_get_current_pid(),
-				      SCLDA_DELIMITER, current->utime,
-				      SCLDA_DELIMITER);
+	s->pid_utime_len = snprintf(s->pid_utime_msg, SCLDA_UTIME_PID_SIZE,
+				    "%d%c%llu%c", sclda_get_current_pid(),
+				    SCLDA_DELIMITER, current->utime,
+				    SCLDA_DELIMITER);
 
 	// msg, len
-	ptr->syscall_msg = msg;
-	ptr->syscall_msg_len = len;
+	s->syscall_msg = msg;
+	s->syscall_msg_len = len;
+	return 1;
 }
 
 static DEFINE_MUTEX(sclda_add_syscallinfo_mutex);
