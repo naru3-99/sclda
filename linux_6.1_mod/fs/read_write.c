@@ -645,6 +645,8 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 		struct sclda_syscallinfo_struct *sss = NULL;
 		if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len)) {
 			// error occured
+			printk(KERN_INFO
+			       "SCLDA_ERROR READ failed to invoke, failed to init syscallinfo_struct.");
 			return ret;
 		}
 		if (sclda_send_syscall_info(sss) < 0) {
@@ -655,8 +657,10 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 	// システムコール呼び出しが成功した場合
 	// システムコールで読み込んだ情報を取得
 	char *read_buf = kmalloc(count + 1, GFP_KERNEL);
-	if (!read_buf)
+	if (!read_buf) {
+		printk(KERN_INFO "SCLDA_ERROR READ failed to malloc read_buf.");
 		return ret;
+	}
 	int read_len = copy_from_user(read_buf, buf, count);
 	read_buf[count] = '\0';
 
@@ -664,6 +668,7 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 	int msg_bufsize = read_len + 200;
 	char *msg_buf = kmalloc(msg_bufsize, GFP_KERNEL);
 	if (!msg_buf) {
+		printk(KERN_INFO "SCLDA_ERROR READ failed to malloc msg_buf.");
 		kfree(read_buf);
 		return ret;
 	}
@@ -674,6 +679,8 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 			       read_buf);
 	struct sclda_syscallinfo_struct *sss = NULL;
 	if (sclda_syscallinfo_init(&sss, msg_buf, msg_len)) {
+		printk(KERN_INFO
+		       "SCLDA_ERROR READ failed to init syscallinfo_struct.");
 		kfree(read_buf);
 		kfree(msg_buf);
 		return ret;
