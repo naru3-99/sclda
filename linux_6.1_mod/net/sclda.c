@@ -100,12 +100,8 @@ static DEFINE_MUTEX(send_mutex);
 int sclda_send_mutex(char *buf, int len,
 		     struct sclda_client_struct *sclda_struct_ptr)
 {
-	if (!sclda_init_fin)
-		return -1;
-
-	int ret;
 	mutex_lock(&send_mutex);
-	ret = sclda_send(buf, len, sclda_struct_ptr);
+	int ret = sclda_send(buf, len, sclda_struct_ptr);
 	mutex_unlock(&send_mutex);
 	return ret;
 }
@@ -194,9 +190,7 @@ int __sclda_send_split(struct sclda_syscallinfo_struct *ptr,
 	// 大きいサイズの文字列を分割して送信する実装
 	// ヘッダ情報としてPIDとutimeを最初にくっつける
 	// system-call関連情報を送信するときのみ使用する
-	if (!sclda_init_fin)
-		return -1;
-
+	
 	// 送信する情報を確定する
 	int all_msg_len = ptr->stime_memory_len + ptr->syscall_msg_len + 1;
 	char *all_msg = kmalloc(all_msg_len, GFP_KERNEL);
