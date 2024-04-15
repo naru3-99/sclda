@@ -684,7 +684,7 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 			       SCLDA_DELIMITER, count, SCLDA_DELIMITER,
 			       read_buf);
 	struct sclda_syscallinfo_struct *sss = NULL;
-	if (sclda_syscallinfo_init(&sss, msg_buf, msg_len)) {
+	if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len)) {
 		printk(KERN_INFO
 		       "SCLDA_ERROR READ failed to init syscallinfo_struct.");
 		kfree(read_buf);
