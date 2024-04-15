@@ -637,6 +637,13 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 	// return ksys_read(fd, buf, count);
 
 	ssize_t ret = ksys_read(fd, buf, count);
+
+	// allsendが終わるまでは、初期化プロセス関係なので、
+	// 取得しないようにする。
+	if (!is_sclda_allsend_fin()) {
+		return ret;
+	}
+
 	// 呼び出しが失敗した場合
 	if (ret < 0) {
 		char msg_buf[100];
@@ -646,9 +653,6 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 				       SCLDA_DELIMITER);
 		struct sclda_syscallinfo_struct *sss = NULL;
 		if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len)) {
-			// error occured
-			printk(KERN_INFO
-			       "SCLDA_ERROR READ failed to invoke, failed to init syscallinfo_struct.");
 			return ret;
 		}
 		if (sclda_send_syscall_info(sss) < 0) {
