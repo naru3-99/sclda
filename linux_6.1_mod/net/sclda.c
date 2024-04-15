@@ -5,6 +5,7 @@ struct sclda_client_struct pidppid_sclda;
 // システムコールに関連する情報を送信するためのソケット
 // CPUのIDのに応じて送信するポートを変更する
 struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
+
 // PIDに関する情報を送信できないときのために
 // PID情報のリンクリストのダミーヘッド
 struct sclda_pidinfo_ls sclda_pidinfo_head = {
@@ -17,6 +18,7 @@ struct sclda_syscallinfo_ls sclda_syscall_head = {
 };
 // 末尾を持っておく
 struct sclda_syscallinfo_ls *sclda_syscall_tail = NULL;
+
 // ソケットなどの初期化が済んだかどうか
 int sclda_init_fin = 0;
 // PIDの情報を送信したかどうか
@@ -46,13 +48,13 @@ int __sclda_connect_socket(struct sclda_client_struct *sclda_cs_ptr, int port)
 int __init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
 {
 	if (__sclda_create_socket(sclda_cs_ptr) < 0) {
-		printk(KERN_INFO "SCLDA_ERROR socket_create_error: %d", port);
+		printk(KERN_INFO "SCLDA_ERROR socket create error: %d", port);
 		return -1;
 	}
 	if (__sclda_connect_socket(sclda_cs_ptr, port) < 0) {
 		// 今回はUDP通信なので、ここがエラーはいても問題ない
 		// UDP通信はコネクションレスな通信であるため
-		printk(KERN_INFO "SCLDA_ERROR socket_connect_error: %d", port);
+		printk(KERN_INFO "SCLDA_ERROR socket connect error: %d", port);
 	}
 
 	sclda_cs_ptr->msg.msg_name = &(sclda_cs_ptr->addr);
