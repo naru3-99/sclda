@@ -1,23 +1,29 @@
 #include <net/sclda.h>
 
-// PIDに関する情報を送るためのソケット
+// PIDの情報を送信するためのソケットなど
 struct sclda_client_struct pidppid_sclda;
-// システムコールに関連する情報を送信するためのソケット
+// システムコールの情報を送信するためのソケット
 // CPUのIDのに応じて送信するポートを変更する
 struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
 
-// PIDに関する情報を送信できないときのために
-// PID情報のリンクリストのダミーヘッド
+// PIDの配列を操作するときのmutex
+static DEFINE_MUTEX(pidinfo_mutex);
+// PID情報のダミーヘッド
 struct sclda_pidinfo_ls sclda_pidinfo_head = {
 	"\0", 1, (struct sclda_pidinfo_ls *)NULL
 };
+// PID情報の末尾
+struct sclda_pidinfo_ls *sclda_pidinfo_tail = &sclda_pidinfo_head;
+
+// syscallの配列を操作するときのmutex
+static DEFINE_MUTEX(syscallinfo_mutex);
 // システムコール情報のダミーヘッド
 struct sclda_syscallinfo_ls sclda_syscall_head = {
 	(struct sclda_syscallinfo_struct *)NULL,
 	(struct sclda_syscallinfo_ls *)NULL
 };
-// 末尾を持っておく
-struct sclda_syscallinfo_ls *sclda_syscall_tail = NULL;
+// システムコール情報の末尾
+struct sclda_syscallinfo_ls *sclda_syscall_tail = &sclda_syscall_head;
 
 // ソケットなどの初期化が済んだかどうか
 int sclda_init_fin = 0;
@@ -68,6 +74,8 @@ int __init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
 
 int sclda_init(void)
 {
+	// scldaの初期化を行う
+	// init/main.cで呼び出す
 	__init_sclda_client(&pidppid_sclda, SCLDA_PIDPPID_PORT);
 	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
 		__init_sclda_client(&syscall_sclda[i],
@@ -80,8 +88,6 @@ int sclda_init(void)
 // 文字列を送信するための最もかんたんな実装
 int sclda_send(char *buf, int len, struct sclda_client_struct *sclda_struct_ptr)
 {
-	if (!sclda_init_fin)
-		return -1;
 	struct kvec iov;
 	iov.iov_base = buf;
 	iov.iov_len = len;
@@ -89,17 +95,43 @@ int sclda_send(char *buf, int len, struct sclda_client_struct *sclda_struct_ptr)
 			      &iov, 1, len);
 }
 
-static DEFINE_MUTEX(sclda_sendmutex);
+// 送信する際に使うmutex
+static DEFINE_MUTEX(send_mutex);
 int sclda_send_mutex(char *buf, int len,
 		     struct sclda_client_struct *sclda_struct_ptr)
 {
 	if (!sclda_init_fin)
 		return -1;
+
 	int ret;
-	mutex_lock(&sclda_sendmutex);
+	mutex_lock(&send_mutex);
 	ret = sclda_send(buf, len, sclda_struct_ptr);
-	mutex_unlock(&sclda_sendmutex);
+	mutex_unlock(&send_mutex);
 	return ret;
+}
+
+int sclda_get_current_pid(void)
+{
+	// 現在のPIDを取得する関数
+	return (int)pid_nr(get_task_pid(current, PIDTYPE_PID));
+}
+
+unsigned long sclda_get_current_spsize(void)
+{
+	// currentから、スタックの大きさを取得する(バイト単位)
+	return current->mm->stack_vm * PAGE_SIZE;
+}
+
+unsigned long sclda_get_current_heapsize(void)
+{
+	// currentから、ヒープのサイズを取得する(バイト単位)
+	return current->mm->brk - current->mm->start_brk;
+}
+
+unsigned long sclda_get_current_totalsize(void)
+{
+	// currentから、全体のメモリ使用量を取得する(バイト単位)
+	return current->mm->total_vm * PAGE_SIZE;
 }
 
 int sclda_syscallinfo_init(struct sclda_syscallinfo_struct **ptr, char *msg,
@@ -135,33 +167,25 @@ int sclda_syscallinfo_init(struct sclda_syscallinfo_struct **ptr, char *msg,
 	return 1;
 }
 
-static DEFINE_MUTEX(sclda_add_syscallinfo_mutex);
 void sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr)
 {
-	mutex_lock(&sclda_add_syscallinfo_mutex);
 	// 新しいリストを定義
 	struct sclda_syscallinfo_ls *new_node =
 		kmalloc(sizeof(struct sclda_syscallinfo_ls), GFP_KERNEL);
-	if (!new_node) {
-		mutex_unlock(&sclda_add_syscallinfo_mutex);
+	if (!new_node)
 		return;
-	}
+
 	new_node->s = ptr;
 	new_node->next = NULL;
 
-	// ダミーヘッドの末尾に追加する
-	if (sclda_syscall_tail == NULL) {
-		sclda_syscall_head.next = new_node;
-		sclda_syscall_tail = new_node;
-	} else {
-		sclda_syscall_tail = new_node;
-	}
+	mutex_lock(&syscallinfo_mutex);
+	// 末尾に追加する
+	sclda_syscall_tail->next = new_node;
+	sclda_syscall_tail = sclda_syscall_tail->next;
 
 	// 溜まっている状態だから1に
-	if (!sclda_syscallinfo_exist) {
-		sclda_syscallinfo_exist = 1;
-	}
-	mutex_unlock(&sclda_add_syscallinfo_mutex);
+	sclda_syscallinfo_exist = 1;
+	mutex_unlock(&syscallinfo_mutex);
 }
 
 int __sclda_send_split(struct sclda_syscallinfo_struct *ptr,
@@ -240,13 +264,14 @@ int __sclda_send_split(struct sclda_syscallinfo_struct *ptr,
 int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 {
 	int ret = __sclda_send_split(ptr, sclda_decide_struct());
-	if (!ret)
+	if (ret < 0)
 		return ret;
 	if (!sclda_allsend_fin)
 		return ret;
 	if (sclda_syscallinfo_exist) {
-		struct task_struct *my_thread = kthread_run(
-			sclda_sendall_syscall, NULL, "sclda_sendall_syscall");
+		struct task_struct *my_thread =
+			kthread_run(sclda_sendall_syscallinfo, NULL,
+				    "sclda_sendall_syscallinfo");
 		if (IS_ERR(my_thread)) {
 			return PTR_ERR(my_thread);
 		}
@@ -254,43 +279,25 @@ int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 	return ret;
 }
 
-int sclda_sendall_syscall(void *data)
+int sclda_sendall_syscallinfo(void *data)
 {
-	mutex_lock(&sclda_add_syscallinfo_mutex);
 	struct sclda_syscallinfo_ls *curptr = sclda_syscall_head.next;
 	struct sclda_syscallinfo_ls *next;
 	int count = 0;
+
+	mutex_lock(&syscallinfo_mutex);
 	while (curptr != NULL) {
 		__sclda_send_split(curptr->s,
 				   &(syscall_sclda[count % SCLDA_PORT_NUMBER]));
+		count = count + 1;
 		next = curptr->next;
 		kfree(curptr->s->syscall_msg);
 		kfree(curptr);
 		curptr = next;
 	}
 	sclda_syscallinfo_exist = 0;
-	mutex_unlock(&sclda_add_syscallinfo_mutex);
+	mutex_unlock(&syscallinfo_mutex);
 	return 0;
-}
-
-int sclda_get_current_pid(void)
-{
-	return (int)pid_nr(get_task_pid(current, PIDTYPE_PID));
-}
-
-unsigned long sclda_get_current_spsize(void)
-{
-	return current->mm->stack_vm * PAGE_SIZE;
-}
-
-unsigned long sclda_get_current_heapsize(void)
-{
-	return current->mm->brk - current->mm->start_brk;
-}
-
-unsigned long sclda_get_current_totalsize(void)
-{
-	return current->mm->total_vm * PAGE_SIZE;
 }
 
 struct sclda_client_struct *sclda_decide_struct(void)
@@ -304,8 +311,7 @@ struct sclda_client_struct *sclda_get_pidppid_struct(void)
 	return &pidppid_sclda;
 }
 
-static DEFINE_MUTEX(sclda_addstr_mutex);
-void sclda_add_string(const char *msg, int len)
+void sclda_add_pidinfo(const char *msg, int len)
 {
 	struct sclda_pidinfo_ls *new_node =
 		kmalloc(sizeof(struct sclda_pidinfo_ls), GFP_KERNEL);
@@ -316,19 +322,17 @@ void sclda_add_string(const char *msg, int len)
 	new_node->len = len;
 	new_node->next = NULL;
 
-	mutex_lock(&sclda_addstr_mutex);
-	struct sclda_pidinfo_ls *current_ptr = &sclda_pidinfo_head;
-	while (current_ptr->next != NULL) {
-		current_ptr = current_ptr->next;
-	}
-	current_ptr->next = new_node;
-	mutex_unlock(&sclda_addstr_mutex);
+	mutex_lock(&pidinfo_mutex);
+	sclda_pidinfo_tail->next = new_node;
+	sclda_pidinfo_tail = sclda_pidinfo_tail->next;
+	mutex_unlock(&pidinfo_mutex);
 }
 
-void sclda_all_send_strls(void)
+void sclda_sendall_pidinfo(void)
 {
 	struct sclda_pidinfo_ls *curptr = sclda_pidinfo_head.next;
 	struct sclda_pidinfo_ls *next;
+	mutex_lock(&pidinfo_mutex);
 	while (curptr != NULL) {
 		sclda_send(curptr->str, curptr->len, &pidppid_sclda);
 		next = curptr->next;
@@ -336,12 +340,10 @@ void sclda_all_send_strls(void)
 		curptr = next;
 	}
 	sclda_allsend_fin = 1;
+	mutex_unlock(&pidinfo_mutex);
 }
 
-struct sclda_pidinfo_ls *get_sclda_pidinfo_ls_head(void)
-{
-	return &sclda_pidinfo_head;
-}
+
 
 int is_sclda_init_fin(void)
 {

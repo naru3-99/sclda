@@ -70,51 +70,32 @@ struct sclda_syscallinfo_ls {
 	struct sclda_syscallinfo_ls *next;
 };
 
-// socketの作成を行う
-int __sclda_create_socket(struct sclda_client_struct *);
-// socketの接続を行う
-int __sclda_connect_socket(struct sclda_client_struct *, int);
-
-// sclda_client_structを初期化する関数
-int __init_sclda_client(struct sclda_client_struct *, int);
-
 // sclda_client_structをすべて初期化する関数
 int sclda_init(void);
 
 // 文字列を送信する最も簡単な関数
-int sclda_send(char *, int, struct sclda_client_struct *);
 int sclda_send_mutex(char *, int, struct sclda_client_struct *);
 
 // system callを送信するための構造体を初期化する
 int sclda_syscallinfo_init(struct sclda_syscallinfo_struct **ptr, char *msg,
 			   int len);
+// システムコール情報を保持するためのリストに追加
 void sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr);
-int sclda_sendall_syscall(void *data);
+// システムコールの情報を送信する
+int sclda_sendall_syscallinfo(void *data);
 
 // システムコール情報が大きな文字列だった場合、分割して送信
 int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr);
 
-// 現在のPIDを取得する関数
-int sclda_get_current_pid(void);
-
-// currentから、スタックの大きさを取得する(バイト単位)
-unsigned long sclda_get_current_spsize(void);
-
-// currentから、ヒープのサイズを取得する(バイト単位)
-unsigned long sclda_get_current_heapsize(void);
-
-// currentから、全体のメモリ使用量を取得する(バイト単位)
-unsigned long sclda_get_current_totalsize(void);
-
 // システムコール関連情報を送信する際の、
 // sclda_client_structを決定する
 struct sclda_client_struct *sclda_decide_struct(void);
-
 struct sclda_client_struct *sclda_get_pidppid_struct(void);
 
-void sclda_add_string(const char *, int);
-void sclda_all_send_strls(void);
-struct sclda_pidinfo_ls *get_sclda_pidinfo_ls_head(void);
+// pid情報を送信するための機構
+void sclda_add_pidinfo(const char *, int);
+void sclda_sendall_pidinfo(void);
+// fork.cで初期化処理などが終わったかどうかを参照する
 int is_sclda_init_fin(void);
 int is_sclda_allsend_fin(void);
 #endif // SCLDA_H

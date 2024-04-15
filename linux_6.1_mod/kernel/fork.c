@@ -2770,25 +2770,25 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	}
 	// 初期化され、allsendも終わった場合
 	if (is_sclda_allsend_fin()) {
-		sclda_send(sclda_buf, sclda_real_len,
+		sclda_send_mutex(sclda_buf, sclda_real_len,
 			   sclda_get_pidppid_struct());
 		return nr;
 	}
 	// 初期化はされたがallsendできていない場合
 	int count;
-	count = sclda_send("start\0", 6, sclda_get_pidppid_struct());
-	if (count <= 0) {
+	count = sclda_send_mutex("start\0", 6, sclda_get_pidppid_struct());
+	if (count < 0) {
 		// まだ送信できない場合
 		printk(KERN_INFO
 		       "SCLDA_INFO kernel_clone sclda was inited, it cant send packet, %d.",
 		       (int)nr);
-		sclda_add_string(sclda_buf, sclda_real_len);
+		sclda_add_pidinfo(sclda_buf, sclda_real_len);
 		return nr;
 	}
-	// 送信可能になったため、allsendする
+	// 送信可能になったため、sendallする
 	printk(KERN_INFO "SCLDA_INFO kernel_clone allsend, %d.", (int)nr);
-	sclda_all_send_strls();
-	sclda_send(sclda_buf, sclda_real_len, sclda_get_pidppid_struct());
+	sclda_sendall_pidinfo();
+	sclda_send_mutex(sclda_buf, sclda_real_len, sclda_get_pidppid_struct());
 	return nr;
 }
 /*
