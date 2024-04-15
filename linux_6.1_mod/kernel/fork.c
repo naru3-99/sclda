@@ -2771,7 +2771,7 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	// 初期化され、allsendも終わった場合
 	if (is_sclda_allsend_fin()) {
 		sclda_send_mutex(sclda_buf, sclda_real_len,
-			   sclda_get_pidppid_struct());
+				 sclda_get_pidppid_struct());
 		return nr;
 	}
 	// 初期化はされたがallsendできていない場合
