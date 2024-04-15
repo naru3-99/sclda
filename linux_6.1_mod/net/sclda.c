@@ -88,6 +88,8 @@ int sclda_init(void)
 // 文字列を送信するための最もかんたんな実装
 int sclda_send(char *buf, int len, struct sclda_client_struct *sclda_struct_ptr)
 {
+	if (!sclda_init_fin)
+		return -1;
 	struct kvec iov;
 	iov.iov_base = buf;
 	iov.iov_len = len;
@@ -100,6 +102,8 @@ static DEFINE_MUTEX(send_mutex);
 int sclda_send_mutex(char *buf, int len,
 		     struct sclda_client_struct *sclda_struct_ptr)
 {
+	if (!sclda_init_fin)
+		return -1;
 	mutex_lock(&send_mutex);
 	int ret = sclda_send(buf, len, sclda_struct_ptr);
 	mutex_unlock(&send_mutex);
@@ -190,7 +194,9 @@ int __sclda_send_split(struct sclda_syscallinfo_struct *ptr,
 	// 大きいサイズの文字列を分割して送信する実装
 	// ヘッダ情報としてPIDとutimeを最初にくっつける
 	// system-call関連情報を送信するときのみ使用する
-	
+	if (!sclda_init_fin)
+		return -1;
+
 	// 送信する情報を確定する
 	int all_msg_len = ptr->stime_memory_len + ptr->syscall_msg_len + 1;
 	char *all_msg = kmalloc(all_msg_len, GFP_KERNEL);
@@ -257,6 +263,9 @@ int __sclda_send_split(struct sclda_syscallinfo_struct *ptr,
 
 int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 {
+	if (!sclda_init_fin)
+		return -1;
+
 	int ret = __sclda_send_split(ptr, sclda_decide_struct());
 	if (ret < 0)
 		return ret;
