@@ -343,8 +343,6 @@ void sclda_sendall_pidinfo(void)
 	mutex_unlock(&pidinfo_mutex);
 }
 
-
-
 int is_sclda_init_fin(void)
 {
 	return sclda_init_fin;

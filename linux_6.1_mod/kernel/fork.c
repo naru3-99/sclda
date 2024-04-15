@@ -2765,7 +2765,7 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 		printk(KERN_INFO
 		       "SCLDA_INFO kernel_clone sclda is not inited, %d.",
 		       (int)nr);
-		sclda_add_string(sclda_buf, sclda_real_len);
+		sclda_add_pidinfo(sclda_buf, sclda_real_len);
 		return nr;
 	}
 	// 初期化され、allsendも終わった場合

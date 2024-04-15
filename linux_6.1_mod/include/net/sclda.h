@@ -76,6 +76,9 @@ int sclda_init(void);
 // 文字列を送信する最も簡単な関数
 int sclda_send_mutex(char *, int, struct sclda_client_struct *);
 
+// pidを取得する
+int sclda_get_current_pid(void);
+
 // system callを送信するための構造体を初期化する
 int sclda_syscallinfo_init(struct sclda_syscallinfo_struct **ptr, char *msg,
 			   int len);
