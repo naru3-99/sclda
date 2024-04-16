@@ -724,22 +724,40 @@ ssize_t ksys_write(unsigned int fd, const char __user *buf, size_t count)
 SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
 		count)
 {
-	// char write_buf = kmalloc(count + 1, GFP_KERNEL);
-	// if (!write_buf)
-	// 	return EFAULT;
-	// int write_len = copy_from_user(write_buf, buf, count);
+	// writeで書き込むデータが格納されているメモリに
+	// アクセスし、データを読み込む
+	char *write_buf = kmalloc(count + 1, GFP_KERNEL);
+	if (!write_buf)
+		return EFAULT;
+	int write_len = copy_from_user(write_buf, buf, count);
 
-	// system-call
+	// system-call invocation
 	ssize_t ret = ksys_write(fd, buf, count);
 
-	// char *sendchar = kmalloc(write_len + 200, GFP_KERNEL);
-	// int msg_len = snprintf(sendchar, write_len + 200, "1%c%u%c%zu%c%zd%c%s",
-	// 		       SCLDA_DELIMITER, fd, SCLDA_DELIMITER, count,
-	// 		       SCLDA_DELIMITER, ret, SCLDA_DELIMITER,
-	// 		       write_buf);
-	// sclda_send_split(sendchar, msg_len);
-	// kfree(write_content);
-	// kfree(sendchar);
+	// 送信するデータをひとまとめにする
+	int msg_len = write_len + 200;
+	char *send_msg = kmalloc(msg_len, GFP_KERNEL);
+	if (!send_msg) {
+		kfree(write_buf);
+		return EFAULT;
+	}
+	msg_len = snprintf(send_msg, msg_len, "1%c%u%c%zu%c%zd%c%s",
+			   SCLDA_DELIMITER, fd, SCLDA_DELIMITER, count,
+			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, write_buf);
+
+	// データを送信する
+	struct sclda_syscallinfo_struct *sss = NULL;
+	if (!sclda_syscallinfo_init(&sss, send_msg, msg_len)) {
+		printk(KERN_INFO
+		       "SCLDA_ERROR WRITE failed to init syscallinfo_struct.");
+		kfree(write_buf);
+		kfree(send_msg);
+		return ret;
+	}
+	int send_ret = sclda_send_syscall_info(sss);
+	if (send_ret < 0) {
+		sclda_add_syscallinfo(sss);
+	}
 	return ret;
 }
 
