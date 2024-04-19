@@ -272,6 +272,7 @@ int __sclda_send_split(struct sclda_syscallinfo_struct *ptr,
 	return 1;
 }
 
+static DEFINE_MUTEX(sendall_syscall_mutex);
 int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 {
 	if (!sclda_init_fin)
@@ -281,6 +282,8 @@ int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 	if (ret < 0)
 		return ret;
 	if (!sclda_allsend_fin)
+		return ret;
+	if (mutex_is_locked(&sendall_syscall_mutex))
 		return ret;
 	if (sclda_syscallinfo_exist) {
 		struct task_struct *my_thread =
@@ -295,6 +298,7 @@ int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 
 int sclda_sendall_syscallinfo(void *data)
 {
+	mutex_lock(&sendall_syscall_mutex);
 	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
 		if (sclda_syscallinfo_exist[i] == 0)
 			continue;
@@ -331,6 +335,7 @@ int sclda_sendall_syscallinfo(void *data)
 		sclda_syscall_tails[i] = &sclda_syscall_heads[i];
 		mutex_unlock(&syscall_mutex[i]);
 	}
+	mutex_unlock(&sendall_syscall_mutex);
 	return 0;
 }
 
