@@ -189,15 +189,15 @@ void sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr)
 	new_node->s = ptr;
 	new_node->next = NULL;
 
-	int cpu_id = smp_processor_id();
-	mutex_lock(&syscall_mutex[cpu_id]);
+	unsigned int target_id = smp_processor_id() % SCLDA_PORT_NUMBER;
+	mutex_lock(&syscall_mutex[target_id]);
 	// 末尾に追加する
-	sclda_syscall_tails[cpu_id]->next = new_node;
-	sclda_syscall_tails[cpu_id] = sclda_syscall_tails[cpu_id]->next;
+	sclda_syscall_tails[target_id]->next = new_node;
+	sclda_syscall_tails[target_id] = sclda_syscall_tails[target_id]->next;
 
 	// 溜まっている状態だから1に
-	sclda_syscallinfo_exist[cpu_id] = 1;
-	mutex_unlock(&syscall_mutex[cpu_id]);
+	sclda_syscallinfo_exist[target_id] = 1;
+	mutex_unlock(&syscall_mutex[target_id]);
 }
 
 int __sclda_send_split(struct sclda_syscallinfo_struct *ptr,
