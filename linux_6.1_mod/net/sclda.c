@@ -74,12 +74,16 @@ int sclda_init(void)
 	// scldaの初期化を行う
 	// init/main.cで呼び出す
 	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
+		// mutexの初期化
 		mutex_init(&syscall_mutex[i]);
-		sclda_syscall_heads[i] = {
-			(struct sclda_syscallinfo_struct *)NULL,
-			(struct sclda_syscallinfo_ls *)NULL
-		};
+		// ダミーヘッドの初期化
+		sclda_syscall_heads[i].s =
+			(struct sclda_syscallinfo_struct *)NULL;
+		sclda_syscall_heads[i].next =
+			(struct sclda_syscallinfo_ls *)NULL;
+		// 末尾の初期化
 		sclda_syscall_tails[i] = &sclda_syscall_heads[i];
+		// 存在するかどうかを存在しないで初期化
 		sclda_syscallinfo_exist[i] = 0;
 	}
 
@@ -185,15 +189,15 @@ void sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr)
 	new_node->s = ptr;
 	new_node->next = NULL;
 
-	mutex_lock(&syscall_mutex[i]);
-	// 末尾に追加する
 	int cpu_id = smp_processor_id();
+	mutex_lock(&syscall_mutex[cpu_id]);
+	// 末尾に追加する
 	sclda_syscall_tails[cpu_id]->next = new_node;
 	sclda_syscall_tails[cpu_id] = sclda_syscall_tails[cpu_id]->next;
 
 	// 溜まっている状態だから1に
 	sclda_syscallinfo_exist[cpu_id] = 1;
-	mutex_unlock(&syscall_mutex[i]);
+	mutex_unlock(&syscall_mutex[cpu_id]);
 }
 
 int __sclda_send_split(struct sclda_syscallinfo_struct *ptr,
@@ -292,7 +296,7 @@ int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 
 int sclda_sendall_syscallinfo(void *data)
 {
-	for (size_t i = 0; i < count; i++) {
+	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
 		if (sclda_syscallinfo_exist[i] == 0)
 			continue;
 
@@ -311,14 +315,14 @@ int sclda_sendall_syscallinfo(void *data)
 			curptr = next;
 		}
 		sclda_syscallinfo_exist[i] = 0;
-		sclda_syscall_heads[i] = {
-			(struct sclda_syscallinfo_struct *)NULL,
-			(struct sclda_syscallinfo_ls *)NULL
-		};
+		sclda_syscall_heads[i].s =
+			(struct sclda_syscallinfo_struct *)NULL;
+		sclda_syscall_heads[i].next =
+			(struct sclda_syscallinfo_ls *)NULL;
 		sclda_syscall_tails[i] = &sclda_syscall_heads[i];
 		mutex_unlock(&syscall_mutex[i]);
-		return 0;
 	}
+	return 0;
 }
 
 struct sclda_client_struct *sclda_decide_struct(void)
