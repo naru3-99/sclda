@@ -47,6 +47,16 @@ langMorphDA配下のdynamic_analysis/hostがsclda_host、/guestがsclda_guestに
   - 生成されたプロセスの ID(PID)
   - 生成されたプロセスの親プロセスの ID(PPID)
 
+## UDPパケットの中身
+全ての情報は、\x05区切りになっている。
+- pid(システムコールを呼び出したプロセスのPID)
+- utime(ユーザ空間で使用されたCPU時間)
+- stime(カーネル空間で使用されたCPU時間)
+- stacksize(そのプロセスが使用しているメモリのスタックのサイズ)
+- heapsize(そのプロセスが使用しているメモリのヒープのサイズ)
+- totalsize(そのプロセスが使用しているメモリの全サイズ)
+- syscall_msg(syscall_info.csvを参照。システムコールごとに異なる)
+
 ## 進捗管理
 - (DONE) ヘッダファイルを追加 (include/net/sclda.h)
 - (DONE) UDP通信など一連の関数を実装 (net/sclda.c)
