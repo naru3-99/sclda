@@ -263,7 +263,6 @@ int __sclda_send_split(struct sclda_syscallinfo_struct *ptr,
 			kfree(sending_msg);
 			return send_ret;
 		}
-
 		offset += len;
 	}
 
@@ -303,12 +302,22 @@ int sclda_sendall_syscallinfo(void *data)
 		struct sclda_syscallinfo_ls *curptr =
 			sclda_syscall_heads[i].next;
 		struct sclda_syscallinfo_ls *next;
-		int count = 0;
+
+		if (curptr == NULL) {
+			mutex_lock(&syscall_mutex[i]);
+			sclda_syscallinfo_exist[i] = 0;
+			sclda_syscall_heads[i].s =
+				(struct sclda_syscallinfo_struct *)NULL;
+			sclda_syscall_heads[i].next =
+				(struct sclda_syscallinfo_ls *)NULL;
+			sclda_syscall_tails[i] = &sclda_syscall_heads[i];
+			mutex_unlock(&syscall_mutex[i]);
+			continue;
+		}
 
 		mutex_lock(&syscall_mutex[i]);
 		while (curptr != NULL) {
 			__sclda_send_split(curptr->s, &(syscall_sclda[i]));
-			count = count + 1;
 			next = curptr->next;
 			kfree(curptr->s->syscall_msg);
 			kfree(curptr);
