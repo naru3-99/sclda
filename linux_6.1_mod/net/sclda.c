@@ -16,21 +16,18 @@ struct sclda_pidinfo_ls sclda_pidinfo_head = {
 struct sclda_pidinfo_ls *sclda_pidinfo_tail = &sclda_pidinfo_head;
 
 // syscallの配列を操作するときのmutex
-static DEFINE_MUTEX(syscallinfo_mutex);
+static struct mutex syscall_mutex[SCLDA_PORT_NUMBER];
 // システムコール情報のダミーヘッド
-struct sclda_syscallinfo_ls sclda_syscall_head = {
-	(struct sclda_syscallinfo_struct *)NULL,
-	(struct sclda_syscallinfo_ls *)NULL
-};
+struct sclda_syscallinfo_ls sclda_syscall_heads[SCLDA_PORT_NUMBER];
 // システムコール情報の末尾
-struct sclda_syscallinfo_ls *sclda_syscall_tail = &sclda_syscall_head;
+struct sclda_syscallinfo_ls *sclda_syscall_tails[SCLDA_PORT_NUMBER];
 
 // ソケットなどの初期化が済んだかどうか
 int sclda_init_fin = 0;
 // PIDの情報を送信したかどうか
 int sclda_allsend_fin = 0;
 // 現在システムコールの情報が溜まっているかどうか
-int sclda_syscallinfo_exist = 0;
+int sclda_syscallinfo_exist[SCLDA_PORT_NUMBER];
 
 int __sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
 {
@@ -76,6 +73,16 @@ int sclda_init(void)
 {
 	// scldaの初期化を行う
 	// init/main.cで呼び出す
+	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
+		mutex_init(&syscall_mutex[i]);
+		sclda_syscall_heads[i] = {
+			(struct sclda_syscallinfo_struct *)NULL,
+			(struct sclda_syscallinfo_ls *)NULL
+		};
+		sclda_syscall_tails[i] = &sclda_syscall_heads[i];
+		sclda_syscallinfo_exist[i] = 0;
+	}
+
 	__init_sclda_client(&pidppid_sclda, SCLDA_PIDPPID_PORT);
 	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
 		__init_sclda_client(&syscall_sclda[i],
@@ -178,14 +185,15 @@ void sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr)
 	new_node->s = ptr;
 	new_node->next = NULL;
 
-	mutex_lock(&syscallinfo_mutex);
+	mutex_lock(&syscall_mutex[i]);
 	// 末尾に追加する
-	sclda_syscall_tail->next = new_node;
-	sclda_syscall_tail = sclda_syscall_tail->next;
+	int cpu_id = smp_processor_id();
+	sclda_syscall_tails[cpu_id]->next = new_node;
+	sclda_syscall_tails[cpu_id] = sclda_syscall_tails[cpu_id]->next;
 
 	// 溜まっている状態だから1に
-	sclda_syscallinfo_exist = 1;
-	mutex_unlock(&syscallinfo_mutex);
+	sclda_syscallinfo_exist[cpu_id] = 1;
+	mutex_unlock(&syscall_mutex[i]);
 }
 
 int __sclda_send_split(struct sclda_syscallinfo_struct *ptr,
@@ -284,23 +292,33 @@ int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 
 int sclda_sendall_syscallinfo(void *data)
 {
-	struct sclda_syscallinfo_ls *curptr = sclda_syscall_head.next;
-	struct sclda_syscallinfo_ls *next;
-	int count = 0;
+	for (size_t i = 0; i < count; i++) {
+		if (sclda_syscallinfo_exist[i] == 0)
+			continue;
 
-	mutex_lock(&syscallinfo_mutex);
-	while (curptr != NULL) {
-		__sclda_send_split(curptr->s,
-				   &(syscall_sclda[count % SCLDA_PORT_NUMBER]));
-		count = count + 1;
-		next = curptr->next;
-		kfree(curptr->s->syscall_msg);
-		kfree(curptr);
-		curptr = next;
+		struct sclda_syscallinfo_ls *curptr =
+			sclda_syscall_heads[i].next;
+		struct sclda_syscallinfo_ls *next;
+		int count = 0;
+
+		mutex_lock(&syscall_mutex[i]);
+		while (curptr != NULL) {
+			__sclda_send_split(curptr->s, &(syscall_sclda[i]));
+			count = count + 1;
+			next = curptr->next;
+			kfree(curptr->s->syscall_msg);
+			kfree(curptr);
+			curptr = next;
+		}
+		sclda_syscallinfo_exist[i] = 0;
+		sclda_syscall_heads[i] = {
+			(struct sclda_syscallinfo_struct *)NULL,
+			(struct sclda_syscallinfo_ls *)NULL
+		};
+		sclda_syscall_tails[i] = &sclda_syscall_heads[i];
+		mutex_unlock(&syscall_mutex[i]);
+		return 0;
 	}
-	sclda_syscallinfo_exist = 0;
-	mutex_unlock(&syscallinfo_mutex);
-	return 0;
 }
 
 struct sclda_client_struct *sclda_decide_struct(void)
