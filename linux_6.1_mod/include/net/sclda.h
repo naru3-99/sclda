@@ -8,6 +8,7 @@
 #include <linux/ip.h>
 #include <linux/in.h>
 #include <linux/netpoll.h>
+#include <linux/uaccess.h>
 
 #include <linux/slab.h>
 #include <linux/sched.h>

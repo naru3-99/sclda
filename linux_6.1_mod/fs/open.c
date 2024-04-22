@@ -1338,63 +1338,51 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 	return do_sys_openat2(dfd, filename, &how);
 }
 
-// SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
-// {
-// 	char *kern_path = kmalloc(PATH_MAX, GFP_KERNEL);
-// 	if (!kern_path)
-// 		return -ENOMEM;
-
-// 	long copied = strncpy_from_user(kern_path, filename, PATH_MAX);
-// 	if (copied < 0 || copied == PATH_MAX) {
-// 		kfree(kern_path);
-// 		return -EFAULT;
-// 	}
-
-// 	if (force_o_largefile())
-// 		flags |= O_LARGEFILE;
-// 	long ret = do_sys_open(AT_FDCWD, filename, flags, mode);
-
-// 	int msg_len_max = 2000;
-// 	char *sending_msg = kmalloc(msg_len_max, GFP_KERNEL);
-// 	int len = snprintf(sending_msg, msg_len_max,
-// 			   "%llu%c2%c%d%c%hx%c%ld%c%s", current->stime,
-// 			   SCLDA_DELIMITER SCLDA_DELIMITER, flags,
-// 			   SCLDA_DELIMITER, mode, SCLDA_DELIMITER, ret,
-// 			   SCLDA_DELIMITER);
-
-// 	if ((copied + (long)len) < (long)msg_len_max) {
-// 		len = snprintf(sending_msg + len, msg_len_max - len, "%s",
-// 			       kern_path);
-// 		sclda_send_split(sending_msg, len);
-// 	} else {
-// 		int required_size = len + strlen(kern_path) + 1;
-// 		char *new_sending_msg = kmalloc(required_size, GFP_KERNEL);
-
-// 		if (!new_sending_msg) {
-// 			kfree(sending_msg);
-// 			kfree(kern_path);
-// 			return -ENOMEM;
-// 		}
-
-// 		int new_len = snprintf(new_sending_msg, required_size, "%s%s",
-// 				       sending_msg, kern_path);
-// 		sclda_send_split(new_sending_msg, new_len);
-// 		kfree(new_sending_msg);
-// 	}
-
-// 	sclda_send_split(sending_msg, len);
-
-// 	kfree(kern_path);
-// 	kfree(sending_msg);
-
-// 	return ret;
-// }
-
 SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
 {
 	if (force_o_largefile())
 		flags |= O_LARGEFILE;
-	return do_sys_open(AT_FDCWD, filename, flags, mode);
+	long ret = do_sys_open(AT_FDCWD, filename, flags, mode);
+	// allsendが終わるまでは、初期化プロセス関係なので、
+	// 取得しないようにする。
+	if (!is_sclda_allsend_fin()) {
+		return ret;
+	}
+
+	// ファイル名を取得する
+	long filename_len = strnlen_user(filename, 1000);
+	char *filename_buf = kmalloc(filename_len, GFP_KERNEL);
+	if (!filename_buf)
+		return ret;
+	filename_len = copy_from_user(filename_buf, filename, filename_len);
+
+	// 送信するパート
+	int msg_len = filename_len + 200;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(filename_buf);
+		return ret;
+	}
+	msg_len = snprintf(msg_buf, msg_len, "2%c%zd%c%d%c%u%c%s",
+			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, flags,
+			   SCLDA_DELIMITER, (unsigned int)mode, SCLDA_DELIMITER,
+			   filename_buf);
+
+	struct sclda_syscallinfo_struct *sss = NULL;
+	if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len)) {
+		printk(KERN_INFO
+		       "SCLDA_ERROR OPEN failed to init syscallinfo_struct.");
+		kfree(filename_buf);
+		kfree(msg_buf);
+		return ret;
+	}
+	int send_ret = sclda_send_syscall_info(sss);
+	if (send_ret < 0) {
+		sclda_add_syscallinfo(sss);
+	}
+	kfree(filename_buf);
+	kfree(msg_buf);
+	return ret;
 }
 
 SYSCALL_DEFINE4(openat, int, dfd, const char __user *, filename, int, flags,
@@ -1524,8 +1512,7 @@ SYSCALL_DEFINE1(close, unsigned int, fd)
 	int retval = close_fd(fd);
 
 	/* can't restart close syscall because file table entry was cleared */
-	if (unlikely(retval == -ERESTARTSYS ||
-		     retval == -ERESTARTNOINTR ||
+	if (unlikely(retval == -ERESTARTSYS || retval == -ERESTARTNOINTR ||
 		     retval == -ERESTARTNOHAND ||
 		     retval == -ERESTART_RESTARTBLOCK))
 		retval = -EINTR;
