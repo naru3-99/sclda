@@ -10,7 +10,7 @@
 #include <linux/netpoll.h>
 #include <linux/uaccess.h>
 
-#include <linux/sched/cputime.h>
+#include <linux/sched/clock.h>
 
 #include <linux/slab.h>
 #include <linux/sched.h>
@@ -58,11 +58,11 @@ struct sclda_pidinfo_ls {
 // システムコールを送信するための情報を保持するための実装
 struct sclda_syscallinfo_struct {
 	// PIDとutimeに関連する情報
-	int pid_utime_len;
-	char pid_utime_msg[SCLDA_UTIME_PID_SIZE];
+	int pid_cputime_len;
+	char pid_cputime_msg[SCLDA_UTIME_PID_SIZE];
 	// stime, stack, heap, allmemoryに関連する情報
-	int stime_memory_len;
-	char stime_memory_msg[SCLDA_STIME_MEMORY_SIZE];
+	int memory_len;
+	char memory_msg[SCLDA_STIME_MEMORY_SIZE];
 	// システムコールに関連する情報
 	int syscall_msg_len;
 	char *syscall_msg;

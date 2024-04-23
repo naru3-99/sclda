@@ -151,29 +151,22 @@ int sclda_syscallinfo_init(struct sclda_syscallinfo_struct **ptr, char *msg,
 	// メモリを割り当て、ポインタを初期化
 	*ptr = kmalloc(sizeof(struct sclda_syscallinfo_struct), GFP_KERNEL);
 	if (!*ptr) {
-		printk(KERN_ERR "sclda_syscallinfo_init: kmalloc failed\n");
 		return 0;
 	}
-
-	// メモリ割り当てが成功したら、情報を初期化
+	// メモリ割り当てが成功したら、情報を初期化する
 	struct sclda_syscallinfo_struct *s = *ptr;
-
-	// ただcurrentを参照しても、値が更新されていない問題に対処
-	u64 utime, stime;
-	task_cputime(current, &utime, &stime);
-
+	// pid, cputime
+	s->pid_cputime_len = snprintf(s->pid_cputime_msg, SCLDA_UTIME_PID_SIZE,
+				      "%d%c%llu%c", sclda_get_current_pid(),
+				      SCLDA_DELIMITER, sched_clock(),
+				      SCLDA_DELIMITER);
 	// stime, memory usage
-	s->stime_memory_len =
-		snprintf(s->stime_memory_msg, SCLDA_STIME_MEMORY_SIZE,
-			 "%llu%c%lu%c%lu%c%lu%c", stime, SCLDA_DELIMITER,
-			 sclda_get_current_spsize(), SCLDA_DELIMITER,
-			 sclda_get_current_heapsize(), SCLDA_DELIMITER,
-			 sclda_get_current_totalsize(), SCLDA_DELIMITER);
-
-	// utime, pid
-	s->pid_utime_len = snprintf(s->pid_utime_msg, SCLDA_UTIME_PID_SIZE,
-				    "%d%c%llu%c", sclda_get_current_pid(),
-				    SCLDA_DELIMITER, utime, SCLDA_DELIMITER);
+	s->memory_len = snprintf(s->memory_msg, SCLDA_STIME_MEMORY_SIZE,
+				 "%llu%c%lu%c%lu%c%lu%c", stime,
+				 SCLDA_DELIMITER, sclda_get_current_spsize(),
+				 SCLDA_DELIMITER, sclda_get_current_heapsize(),
+				 SCLDA_DELIMITER, sclda_get_current_totalsize(),
+				 SCLDA_DELIMITER);
 
 	// msg, len
 	s->syscall_msg = msg;
@@ -213,33 +206,27 @@ int __sclda_send_split(struct sclda_syscallinfo_struct *ptr,
 		return -1;
 
 	// 送信する情報を確定する
-	int all_msg_len = ptr->stime_memory_len + ptr->syscall_msg_len + 1;
+	int all_msg_len = ptr->memory_len + ptr->syscall_msg_len + 1;
 	char *all_msg = kmalloc(all_msg_len, GFP_KERNEL);
 	if (!all_msg) {
-		printk(KERN_INFO "SCLDA_ERROR %s%s", ptr->pid_utime_msg,
-		       ptr->syscall_msg);
 		return -1;
 	}
 	all_msg_len = snprintf(all_msg, all_msg_len, "%s%s",
-			       ptr->stime_memory_msg, ptr->syscall_msg);
+			       ptr->memory_msg, ptr->syscall_msg);
 
 	// chunksizeごとに分割して送信するパート
 	// chunksizeのバッファを段取り
 	char *chunkbuf = kmalloc(SCLDA_CHUNKSIZE + 1, GFP_KERNEL);
 	if (!chunkbuf) {
 		kfree(all_msg);
-		printk(KERN_INFO "SCLDA_ERROR %s%s", ptr->pid_utime_msg,
-		       ptr->syscall_msg);
 		return -1;
 	}
 	// 一度に送信するパケットのバッファを段取り
-	int max_packet_len = SCLDA_CHUNKSIZE + ptr->pid_utime_len + 1;
+	int max_packet_len = SCLDA_CHUNKSIZE + ptr->pid_cputime_len + 1;
 	char *sending_msg = kmalloc(max_packet_len, GFP_KERNEL);
 	if (!sending_msg) {
 		kfree(all_msg);
 		kfree(chunkbuf);
-		printk(KERN_INFO "SCLDA_ERROR %s%s", ptr->pid_utime_msg,
-		       ptr->syscall_msg);
 		return -1;
 	}
 
@@ -256,7 +243,7 @@ int __sclda_send_split(struct sclda_syscallinfo_struct *ptr,
 
 		// 送信する文字列を段取り
 		sending_len = snprintf(sending_msg, max_packet_len, "%s%s",
-				       ptr->pid_utime_msg, chunkbuf);
+				       ptr->pid_cputime_msg, chunkbuf);
 		// 文字列を送信
 		send_ret = sclda_send_mutex(sending_msg, sending_len,
 					    sclda_to_send);
