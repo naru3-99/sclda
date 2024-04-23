@@ -1350,17 +1350,21 @@ SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
 	}
 
 	// ファイル名を取得する
-	long filename_len = strnlen_user(filename, 1000);
+	int filename_len = strnlen_user(filename, 1000);
 	char *filename_buf = kmalloc(filename_len, GFP_KERNEL);
-	if (!filename_buf)
+	if (!filename_buf) {
+		printk(KERN_INFO "SCLDA ERROR OPEN filename_buf");
 		return ret;
-	filename_len = copy_from_user(filename_buf, filename, filename_len);
+	}
+	filename_len =
+		(int)copy_from_user(filename_buf, filename, filename_len);
 
 	// 送信するパート
 	int msg_len = filename_len + 200;
 	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf) {
 		kfree(filename_buf);
+		printk(KERN_INFO "SCLDA ERROR OPEN msg_buf");
 		return ret;
 	}
 	msg_len = snprintf(msg_buf, msg_len, "2%c%ld%c%d%c%u%c%s",
@@ -1372,6 +1376,7 @@ SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
 	if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len)) {
 		kfree(filename_buf);
 		kfree(msg_buf);
+		printk(KERN_INFO "SCLDA ERROR OPEN syscallinfo_init");
 		return ret;
 	}
 	int send_ret = sclda_send_syscall_info(sss);
