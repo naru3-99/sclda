@@ -26,7 +26,7 @@ struct sclda_syscallinfo_ls *sclda_syscall_tails[SCLDA_PORT_NUMBER];
 int sclda_init_fin = 0;
 // PIDの情報を送信したかどうか
 int sclda_allsend_fin = 0;
-// 現在システムコールの情報が溜まっているかどうか
+// syscallinfo_structがいくつ溜まっているか
 int sclda_syscallinfo_exist[SCLDA_PORT_NUMBER];
 
 int __sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
@@ -83,7 +83,7 @@ int sclda_init(void)
 			(struct sclda_syscallinfo_ls *)NULL;
 		// 末尾の初期化
 		sclda_syscall_tails[i] = &sclda_syscall_heads[i];
-		// 存在するかどうかを存在しないで初期化
+		// まだ溜まっていないから0で初期化
 		sclda_syscallinfo_exist[i] = 0;
 	}
 
@@ -195,8 +195,8 @@ void sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr)
 	sclda_syscall_tails[target_id]->next = new_node;
 	sclda_syscall_tails[target_id] = sclda_syscall_tails[target_id]->next;
 
-	// 溜まっている状態だから1に
-	sclda_syscallinfo_exist[target_id] = 1;
+	// 一つ増やす
+	sclda_syscallinfo_exist[target_id]++;
 	mutex_unlock(&syscall_mutex[target_id]);
 }
 
@@ -285,12 +285,14 @@ int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 		return ret;
 	if (mutex_is_locked(&sendall_syscall_mutex))
 		return ret;
-	if (sclda_syscallinfo_exist) {
-		struct task_struct *my_thread =
-			kthread_run(sclda_sendall_syscallinfo, NULL,
-				    "sclda_sendall_syscallinfo");
-		if (IS_ERR(my_thread)) {
-			return PTR_ERR(my_thread);
+	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
+		if (sclda_syscallinfo_exist[i] > SCLDA_NUM_TO_SEND_SINFO) {
+			// リンクドリストが解放されないため
+			// エラーがおきてもだいじょうぶい
+			struct task_struct *my_thread =
+				kthread_run(sclda_sendall_syscallinfo, NULL,
+					    "sclda_sendall_syscallinfo");
+			return ret;
 		}
 	}
 	return ret;
@@ -300,7 +302,7 @@ int sclda_sendall_syscallinfo(void *data)
 {
 	mutex_lock(&sendall_syscall_mutex);
 	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
-		if (sclda_syscallinfo_exist[i] == 0)
+		if (sclda_syscallinfo_exist[i] < SCLDA_NUM_TO_SEND_SINFO)
 			continue;
 
 		struct sclda_syscallinfo_ls *curptr =

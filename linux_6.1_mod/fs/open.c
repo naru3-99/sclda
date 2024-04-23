@@ -1370,8 +1370,6 @@ SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
 
 	struct sclda_syscallinfo_struct *sss = NULL;
 	if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len)) {
-		printk(KERN_INFO
-		       "SCLDA_ERROR OPEN failed to init syscallinfo_struct.");
 		kfree(filename_buf);
 		kfree(msg_buf);
 		return ret;

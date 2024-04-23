@@ -35,6 +35,8 @@
 #define SCLDA_UTIME_PID_SIZE ((int)50)
 // プロセス生成に関連する情報を送信する
 #define SCLDA_PIDPPID_BUFSIZE ((int)150)
+// syscall_info構造体がいくつ貯まると送信するか
+#define SCLDA_NUM_TO_SEND_SINFO ((int)500)
 
 // ソケットなどをひとまとめにする構造体
 struct sclda_client_struct {
