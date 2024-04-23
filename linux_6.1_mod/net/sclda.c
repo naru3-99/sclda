@@ -158,19 +158,22 @@ int sclda_syscallinfo_init(struct sclda_syscallinfo_struct **ptr, char *msg,
 	// メモリ割り当てが成功したら、情報を初期化
 	struct sclda_syscallinfo_struct *s = *ptr;
 
+	// ただcurrentを参照しても、値が更新されていない問題に対処
+	u64 utime, stime;
+	task_cputime(current, &utime, &stime);
+
 	// stime, memory usage
-	s->stime_memory_len = snprintf(
-		s->stime_memory_msg, SCLDA_STIME_MEMORY_SIZE,
-		"%llu%c%lu%c%lu%c%lu%c", current->stime, SCLDA_DELIMITER,
-		sclda_get_current_spsize(), SCLDA_DELIMITER,
-		sclda_get_current_heapsize(), SCLDA_DELIMITER,
-		sclda_get_current_totalsize(), SCLDA_DELIMITER);
+	s->stime_memory_len =
+		snprintf(s->stime_memory_msg, SCLDA_STIME_MEMORY_SIZE,
+			 "%llu%c%lu%c%lu%c%lu%c", stime, SCLDA_DELIMITER,
+			 sclda_get_current_spsize(), SCLDA_DELIMITER,
+			 sclda_get_current_heapsize(), SCLDA_DELIMITER,
+			 sclda_get_current_totalsize(), SCLDA_DELIMITER);
 
 	// utime, pid
 	s->pid_utime_len = snprintf(s->pid_utime_msg, SCLDA_UTIME_PID_SIZE,
 				    "%d%c%llu%c", sclda_get_current_pid(),
-				    SCLDA_DELIMITER, current->utime,
-				    SCLDA_DELIMITER);
+				    SCLDA_DELIMITER, utime, SCLDA_DELIMITER);
 
 	// msg, len
 	s->syscall_msg = msg;

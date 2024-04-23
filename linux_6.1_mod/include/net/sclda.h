@@ -10,6 +10,8 @@
 #include <linux/netpoll.h>
 #include <linux/uaccess.h>
 
+#include <linux/sched/cputime.h>
+
 #include <linux/slab.h>
 #include <linux/sched.h>
 
