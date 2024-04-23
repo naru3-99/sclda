@@ -1393,7 +1393,50 @@ SYSCALL_DEFINE4(openat, int, dfd, const char __user *, filename, int, flags,
 {
 	if (force_o_largefile())
 		flags |= O_LARGEFILE;
-	return do_sys_open(dfd, filename, flags, mode);
+	long ret = do_sys_open(dfd, filename, flags, mode);
+	// allsendが終わるまでは、初期化プロセス関係なので、
+	// 取得しないようにする。
+	if (!is_sclda_allsend_fin()) {
+		return ret;
+	}
+
+	// ファイル名を取得する
+	int filename_len = strnlen_user(filename, 1000);
+	char *filename_buf = kmalloc(filename_len, GFP_KERNEL);
+	if (!filename_buf) {
+		printk(KERN_INFO "SCLDA ERROR OPEN filename_buf");
+		return ret;
+	}
+	filename_len =
+		(int)copy_from_user(filename_buf, filename, filename_len);
+
+	// 送信するパート
+	int msg_len = filename_len + 200;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(filename_buf);
+		printk(KERN_INFO "SCLDA ERROR OPEN msg_buf");
+		return ret;
+	}
+	msg_len = snprintf(msg_buf, msg_len, "257%c%ld%c%d%c%d%c%u%c%s",
+			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, dfd,
+			   SCLDA_DELIMITER, flags, SCLDA_DELIMITER,
+			   (unsigned int)mode, SCLDA_DELIMITER, filename_buf);
+
+	struct sclda_syscallinfo_struct *sss = NULL;
+	if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len)) {
+		kfree(filename_buf);
+		kfree(msg_buf);
+		printk(KERN_INFO "SCLDA ERROR OPEN syscallinfo_init");
+		return ret;
+	}
+	int send_ret = sclda_send_syscall_info(sss);
+	if (send_ret < 0) {
+		sclda_add_syscallinfo(sss);
+	}
+	kfree(filename_buf);
+	kfree(msg_buf);
+	return ret;
 }
 
 SYSCALL_DEFINE4(openat2, int, dfd, const char __user *, filename,
