@@ -1363,7 +1363,7 @@ SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
 		kfree(filename_buf);
 		return ret;
 	}
-	msg_len = snprintf(msg_buf, msg_len, "2%c%zd%c%d%c%u%c%s",
+	msg_len = snprintf(msg_buf, msg_len, "2%c%ld%c%d%c%u%c%s",
 			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, flags,
 			   SCLDA_DELIMITER, (unsigned int)mode, SCLDA_DELIMITER,
 			   filename_buf);
