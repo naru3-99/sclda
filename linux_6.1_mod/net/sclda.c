@@ -162,10 +162,10 @@ int sclda_syscallinfo_init(struct sclda_syscallinfo_struct **ptr, char *msg,
 				      SCLDA_DELIMITER);
 	// stime, memory usage
 	s->memory_len = snprintf(s->memory_msg, SCLDA_STIME_MEMORY_SIZE,
-				 "%llu%c%lu%c%lu%c%lu%c", stime,
-				 SCLDA_DELIMITER, sclda_get_current_spsize(),
-				 SCLDA_DELIMITER, sclda_get_current_heapsize(),
-				 SCLDA_DELIMITER, sclda_get_current_totalsize(),
+				 "%lu%c%lu%c%lu%c",
+				 sclda_get_current_spsize(), SCLDA_DELIMITER,
+				 sclda_get_current_heapsize(), SCLDA_DELIMITER,
+				 sclda_get_current_totalsize(),
 				 SCLDA_DELIMITER);
 
 	// msg, len
@@ -211,8 +211,8 @@ int __sclda_send_split(struct sclda_syscallinfo_struct *ptr,
 	if (!all_msg) {
 		return -1;
 	}
-	all_msg_len = snprintf(all_msg, all_msg_len, "%s%s",
-			       ptr->memory_msg, ptr->syscall_msg);
+	all_msg_len = snprintf(all_msg, all_msg_len, "%s%s", ptr->memory_msg,
+			       ptr->syscall_msg);
 
 	// chunksizeごとに分割して送信するパート
 	// chunksizeのバッファを段取り
