@@ -634,10 +634,7 @@ ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count)
 
 SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 {
-	// return ksys_read(fd, buf, count);
-
 	ssize_t ret = ksys_read(fd, buf, count);
-
 	// allsendが終わるまでは、初期化プロセス関係なので、
 	// 取得しないようにする。
 	if (!is_sclda_allsend_fin()) {
@@ -663,10 +660,9 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 	// システムコール呼び出しが成功した場合
 	// システムコールで読み込んだ情報を取得
 	char *read_buf = kmalloc(count + 1, GFP_KERNEL);
-	if (!read_buf) {
-		printk(KERN_INFO "SCLDA_ERROR READ failed to malloc read_buf.");
+	if (!read_buf)
 		return ret;
-	}
+
 	int read_len = copy_from_user(read_buf, buf, count);
 	read_buf[count] = '\0';
 
@@ -674,7 +670,6 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 	int msg_bufsize = read_len + 200;
 	char *msg_buf = kmalloc(msg_bufsize, GFP_KERNEL);
 	if (!msg_buf) {
-		printk(KERN_INFO "SCLDA_ERROR READ failed to malloc msg_buf.");
 		kfree(read_buf);
 		return ret;
 	}
@@ -685,8 +680,6 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 			       read_buf);
 	struct sclda_syscallinfo_struct *sss = NULL;
 	if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len)) {
-		printk(KERN_INFO
-		       "SCLDA_ERROR READ failed to init syscallinfo_struct.");
 		kfree(read_buf);
 		kfree(msg_buf);
 		return ret;
@@ -739,7 +732,7 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
 	char *send_msg = kmalloc(msg_len, GFP_KERNEL);
 	if (!send_msg) {
 		kfree(write_buf);
-		return EFAULT;
+		return ret;
 	}
 	msg_len = snprintf(send_msg, msg_len, "1%c%u%c%zu%c%zd%c%s",
 			   SCLDA_DELIMITER, fd, SCLDA_DELIMITER, count,
@@ -747,9 +740,7 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
 
 	// データを送信する
 	struct sclda_syscallinfo_struct *sss = NULL;
-	if (!sclda_syscallinfo_init(&sss, send_msg, msg_len)) {
-		printk(KERN_INFO
-		       "SCLDA_ERROR WRITE failed to init syscallinfo_struct.");
+	if (!sclda_syscallinfo_init(&sss, send_msg, msg_len)) {;
 		kfree(write_buf);
 		kfree(send_msg);
 		return ret;
