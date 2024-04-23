@@ -36,7 +36,7 @@
 // 付加情報（utime、PID）
 #define SCLDA_UTIME_PID_SIZE ((int)50)
 // プロセス生成に関連する情報を送信する
-#define SCLDA_PIDPPID_BUFSIZE ((int)150)
+#define SCLDA_PIDPPID_BUFSIZE ((int)80)
 // syscall_info構造体がいくつ貯まると送信するか
 #define SCLDA_NUM_TO_SEND_SINFO ((int)500)
 

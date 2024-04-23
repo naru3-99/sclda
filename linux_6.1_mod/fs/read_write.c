@@ -734,13 +734,14 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
 		kfree(write_buf);
 		return ret;
 	}
-	msg_len = snprintf(send_msg, msg_len, "1%c%u%c%zu%c%zd%c%s",
-			   SCLDA_DELIMITER, fd, SCLDA_DELIMITER, count,
-			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, write_buf);
+	msg_len = snprintf(send_msg, msg_len, "1%c%zd%c%u%c%zu%c%s",
+			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, count, SCLDA_DELIMITER, write_buf);
 
 	// データを送信する
 	struct sclda_syscallinfo_struct *sss = NULL;
-	if (!sclda_syscallinfo_init(&sss, send_msg, msg_len)) {;
+	if (!sclda_syscallinfo_init(&sss, send_msg, msg_len)) {
+		;
 		kfree(write_buf);
 		kfree(send_msg);
 		return ret;

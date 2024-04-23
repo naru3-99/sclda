@@ -281,7 +281,7 @@ int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
 			// エラーがおきてもだいじょうぶい
 			struct task_struct *my_thread =
 				kthread_run(sclda_sendall_syscallinfo, NULL,
-					    "sclda_sendall_syscallinfo");
+					    "sclda_sendall");
 			return ret;
 		}
 	}

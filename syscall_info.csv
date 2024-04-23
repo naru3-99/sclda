@@ -1,6 +1,5 @@
 <syscall-name>,<syscall-number>,<content1>,<content2> ...,,,
 read,0,return value,fd,count,read_content,
-write,1,file_descripter,offset,retval,write_content,
-open,2,flags,mode,retval,filepath,
-close,3,file_descriper,return_value,,,
-stat,4,file_name_address,return_value,file_name,kernel_stat_struct,
+write,1,return value,file_descripter,count,write_content,
+open,2,return value,flags,mode,filepath,
+openat,257,return value,dfd,flags,mode,filepath
