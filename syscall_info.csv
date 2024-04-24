@@ -2,4 +2,7 @@
 read,0,return value,fd,count,read_content,
 write,1,return value,file_descripter,count,write_content,
 open,2,return value,flags,mode,filepath,
+dup,32,return value,file_descripter
+dup2,33,return value,old_fd,new_fd
 openat,257,return value,dfd,flags,mode,filepath
+dup3,292,return value,old_fd,new_fd,flags

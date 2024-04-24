@@ -22,14 +22,16 @@
 #include <linux/close_range.h>
 #include <net/sock.h>
 
+#include <net/sclda.h>
+
 #include "internal.h"
 
-unsigned int sysctl_nr_open __read_mostly = 1024*1024;
+unsigned int sysctl_nr_open __read_mostly = 1024 * 1024;
 unsigned int sysctl_nr_open_min = BITS_PER_LONG;
 /* our min() is unusable in constant expressions ;-/ */
 #define __const_min(x, y) ((x) < (y) ? (x) : (y))
 unsigned int sysctl_nr_open_max =
-	__const_min(INT_MAX, ~(size_t)0/sizeof(void *)) & -BITS_PER_LONG;
+	__const_min(INT_MAX, ~(size_t)0 / sizeof(void *)) & -BITS_PER_LONG;
 
 static void __free_fdtable(struct fdtable *fdt)
 {
@@ -43,8 +45,8 @@ static void free_fdtable_rcu(struct rcu_head *rcu)
 	__free_fdtable(container_of(rcu, struct fdtable, rcu));
 }
 
-#define BITBIT_NR(nr)	BITS_TO_LONGS(BITS_TO_LONGS(nr))
-#define BITBIT_SIZE(nr)	(BITBIT_NR(nr) * sizeof(long))
+#define BITBIT_NR(nr) BITS_TO_LONGS(BITS_TO_LONGS(nr))
+#define BITBIT_SIZE(nr) (BITBIT_NR(nr) * sizeof(long))
 
 /*
  * Copy 'count' fd bits from the old table to the new table and clear the extra
@@ -102,7 +104,7 @@ static void copy_fdtable(struct fdtable *nfdt, struct fdtable *ofdt)
  * let's consider it documentation (and maybe a test-case for gcc to improve
  * its code generation ;)
  */
-static struct fdtable * alloc_fdtable(unsigned int nr)
+static struct fdtable *alloc_fdtable(unsigned int nr)
 {
 	struct fdtable *fdt;
 	void *data;
@@ -138,9 +140,9 @@ static struct fdtable * alloc_fdtable(unsigned int nr)
 		goto out_fdt;
 	fdt->fd = data;
 
-	data = kvmalloc(max_t(size_t,
-				 2 * nr / BITS_PER_BYTE + BITBIT_SIZE(nr), L1_CACHE_BYTES),
-				 GFP_KERNEL_ACCOUNT);
+	data = kvmalloc(max_t(size_t, 2 * nr / BITS_PER_BYTE + BITBIT_SIZE(nr),
+			      L1_CACHE_BYTES),
+			GFP_KERNEL_ACCOUNT);
 	if (!data)
 		goto out_arr;
 	fdt->open_fds = data;
@@ -167,8 +169,7 @@ out:
  * The files->file_lock should be held on entry, and will be held on exit.
  */
 static int expand_fdtable(struct files_struct *files, unsigned int nr)
-	__releases(files->file_lock)
-	__acquires(files->file_lock)
+	__releases(files->file_lock) __acquires(files->file_lock)
 {
 	struct fdtable *new_fdt, *cur_fdt;
 
@@ -212,8 +213,7 @@ static int expand_fdtable(struct files_struct *files, unsigned int nr)
  * The files->file_lock should be held on entry, and will be held on exit.
  */
 static int expand_files(struct files_struct *files, unsigned int nr)
-	__releases(files->file_lock)
-	__acquires(files->file_lock)
+	__releases(files->file_lock) __acquires(files->file_lock)
 {
 	struct fdtable *fdt;
 	int expanded = 0;
@@ -277,7 +277,7 @@ static unsigned int count_open_files(struct fdtable *fdt)
 	unsigned int i;
 
 	/* Find the last open fd */
-	for (i = size / BITS_PER_LONG; i > 0; ) {
+	for (i = size / BITS_PER_LONG; i > 0;) {
 		if (fdt->open_fds[--i])
 			break;
 	}
@@ -313,7 +313,8 @@ static unsigned int sane_fdtable_size(struct fdtable *fdt, unsigned int max_fds)
  * passed in files structure.
  * errorp will be valid only when the returned files_struct is NULL.
  */
-struct files_struct *dup_fd(struct files_struct *oldf, unsigned int max_fds, int *errorp)
+struct files_struct *dup_fd(struct files_struct *oldf, unsigned int max_fds,
+			    int *errorp)
 {
 	struct files_struct *newf;
 	struct file **old_fds, **new_fds;
@@ -397,7 +398,8 @@ struct files_struct *dup_fd(struct files_struct *oldf, unsigned int max_fds, int
 	spin_unlock(&oldf->file_lock);
 
 	/* clear the remainder */
-	memset(new_fds, 0, (new_fdt->max_fds - open_files) * sizeof(struct file *));
+	memset(new_fds, 0,
+	       (new_fdt->max_fds - open_files) * sizeof(struct file *));
 
 	rcu_assign_pointer(newf->fdt, new_fdt);
 
@@ -409,7 +411,7 @@ out:
 	return NULL;
 }
 
-static struct fdtable *close_files(struct files_struct * files)
+static struct fdtable *close_files(struct files_struct *files)
 {
 	/*
 	 * It is safe to dereference the fd table without RCU or
@@ -427,7 +429,7 @@ static struct fdtable *close_files(struct files_struct * files)
 		set = fdt->open_fds[j++];
 		while (set) {
 			if (set & 1) {
-				struct file * file = xchg(&fdt->fd[i], NULL);
+				struct file *file = xchg(&fdt->fd[i], NULL);
 				if (file) {
 					filp_close(file, files);
 					cond_resched();
@@ -455,7 +457,7 @@ void put_files_struct(struct files_struct *files)
 
 void exit_files(struct task_struct *tsk)
 {
-	struct files_struct * files = tsk->files;
+	struct files_struct *files = tsk->files;
 
 	if (files) {
 		task_lock(tsk);
@@ -485,7 +487,8 @@ static unsigned int find_next_fd(struct fdtable *fdt, unsigned int start)
 	unsigned int maxbit = maxfd / BITS_PER_LONG;
 	unsigned int bitbit = start / BITS_PER_LONG;
 
-	bitbit = find_next_zero_bit(fdt->full_fds_bits, maxbit, bitbit) * BITS_PER_LONG;
+	bitbit = find_next_zero_bit(fdt->full_fds_bits, maxbit, bitbit) *
+		 BITS_PER_LONG;
 	if (bitbit > maxfd)
 		return maxfd;
 	if (bitbit > start)
@@ -823,7 +826,7 @@ void do_close_on_exec(struct files_struct *files)
 
 	/* exec unshares first */
 	spin_lock(&files->file_lock);
-	for (i = 0; ; i++) {
+	for (i = 0;; i++) {
 		unsigned long set;
 		unsigned fd = i * BITS_PER_LONG;
 		fdt = files_fdtable(files);
@@ -833,7 +836,7 @@ void do_close_on_exec(struct files_struct *files)
 		if (!set)
 			continue;
 		fdt->close_on_exec[i] = 0;
-		for ( ; set ; fd++, set >>= 1) {
+		for (; set; fd++, set >>= 1) {
 			struct file *file;
 			if (!(set & 1))
 				continue;
@@ -847,13 +850,12 @@ void do_close_on_exec(struct files_struct *files)
 			cond_resched();
 			spin_lock(&files->file_lock);
 		}
-
 	}
 	spin_unlock(&files->file_lock);
 }
 
 static inline struct file *__fget_files_rcu(struct files_struct *files,
-	unsigned int fd, fmode_t mask)
+					    unsigned int fd, fmode_t mask)
 {
 	for (;;) {
 		struct file *file;
@@ -962,7 +964,8 @@ struct file *task_lookup_fd_rcu(struct task_struct *task, unsigned int fd)
 	return file;
 }
 
-struct file *task_lookup_next_fd_rcu(struct task_struct *task, unsigned int *ret_fd)
+struct file *task_lookup_next_fd_rcu(struct task_struct *task,
+				     unsigned int *ret_fd)
 {
 	/* Must be called with rcu_read_lock held */
 	struct files_struct *files;
@@ -1050,7 +1053,7 @@ unsigned long __fdget_raw(unsigned int fd)
 static inline bool file_needs_f_pos_lock(struct file *file)
 {
 	return (file->f_mode & FMODE_ATOMIC_POS) &&
-		(file_count(file) > 1 || S_ISDIR(file_inode(file)->i_mode));
+	       (file_count(file) > 1 || S_ISDIR(file_inode(file)->i_mode));
 }
 
 unsigned long __fdget_pos(unsigned int fd)
@@ -1101,9 +1104,8 @@ bool get_close_on_exec(unsigned int fd)
 	return res;
 }
 
-static int do_dup2(struct files_struct *files,
-	struct file *file, unsigned fd, unsigned flags)
-__releases(&files->file_lock)
+static int do_dup2(struct files_struct *files, struct file *file, unsigned fd,
+		   unsigned flags) __releases(&files->file_lock)
 {
 	struct file *tofree;
 	struct fdtable *fdt;
@@ -1264,7 +1266,28 @@ out_unlock:
 
 SYSCALL_DEFINE3(dup3, unsigned int, oldfd, unsigned int, newfd, int, flags)
 {
-	return ksys_dup3(oldfd, newfd, flags);
+	int ret = ksys_dup3(oldfd, newfd, flags);
+	// allsendが終わるまでは、初期化プロセス関係なので、
+	// 取得しないようにする。
+	if (!is_sclda_allsend_fin()) {
+		return ret;
+	}
+
+	int msg_len = 200;
+	char msg_buf[msg_len];
+	msg_len = snprintf(msg_buf, msg_len, "292%c%d%c%u%c%u%c%d",
+			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, oldfd,
+			   SCLDA_DELIMITER, newfd, SCLDA_DELIMITER, flags);
+
+	struct sclda_syscallinfo_struct *sss = NULL;
+	if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len))
+		return ret;
+
+	int send_ret = sclda_send_syscall_info(sss);
+	if (send_ret < 0) {
+		sclda_add_syscallinfo(sss);
+	}
+	return ret;
 }
 
 SYSCALL_DEFINE2(dup2, unsigned int, oldfd, unsigned int, newfd)
@@ -1277,9 +1300,48 @@ SYSCALL_DEFINE2(dup2, unsigned int, oldfd, unsigned int, newfd)
 		if (!files_lookup_fd_rcu(files, oldfd))
 			retval = -EBADF;
 		rcu_read_unlock();
+		// errorした場合の送信コード
+		if (!is_sclda_allsend_fin()) {
+			return retval;
+		}
+
+		int msg_len = 200;
+		char msg_buf[msg_len];
+		msg_len = snprintf(msg_buf, msg_len, "33%c%d%c%u%c%u",
+				   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
+				   oldfd, SCLDA_DELIMITER, newfd);
+
+		struct sclda_syscallinfo_struct *sss = NULL;
+		if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len))
+			return retval;
+
+		int send_ret = sclda_send_syscall_info(sss);
+		if (send_ret < 0)
+			sclda_add_syscallinfo(sss);
 		return retval;
 	}
-	return ksys_dup3(oldfd, newfd, 0);
+
+	int ret = ksys_dup3(oldfd, newfd, 0);
+	// allsendが終わるまでは、初期化プロセス関係なので、
+	// 取得しないようにする。
+	if (!is_sclda_allsend_fin()) {
+		return ret;
+	}
+
+	int msg_len = 200;
+	char msg_buf[msg_len];
+	msg_len = snprintf(msg_buf, msg_len, "33%c%d%c%u%c%u", SCLDA_DELIMITER,
+			   ret, SCLDA_DELIMITER, oldfd, SCLDA_DELIMITER, newfd);
+
+	struct sclda_syscallinfo_struct *sss = NULL;
+	if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len))
+		return ret;
+
+	int send_ret = sclda_send_syscall_info(sss);
+	if (send_ret < 0)
+		sclda_add_syscallinfo(sss);
+
+	return ret;
 }
 
 SYSCALL_DEFINE1(dup, unsigned int, fildes)
@@ -1294,6 +1356,24 @@ SYSCALL_DEFINE1(dup, unsigned int, fildes)
 		else
 			fput(file);
 	}
+
+	if (!is_sclda_allsend_fin()) {
+		return ret;
+	}
+
+	int msg_len = 100;
+	char msg_buf[msg_len];
+	msg_len = snprintf(msg_buf, msg_len, "32%c%d%c%u", SCLDA_DELIMITER, ret,
+			   SCLDA_DELIMITER, fildes);
+
+	struct sclda_syscallinfo_struct *sss = NULL;
+	if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len))
+		return ret;
+
+	int send_ret = sclda_send_syscall_info(sss);
+	if (send_ret < 0)
+		sclda_add_syscallinfo(sss);
+
 	return ret;
 }
 
@@ -1312,8 +1392,7 @@ int f_dupfd(unsigned int from, struct file *file, unsigned flags)
 }
 
 int iterate_fd(struct files_struct *files, unsigned n,
-		int (*f)(const void *, struct file *, unsigned),
-		const void *p)
+	       int (*f)(const void *, struct file *, unsigned), const void *p)
 {
 	struct fdtable *fdt;
 	int res = 0;
