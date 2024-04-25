@@ -317,65 +317,31 @@ static int cp_old_stat(struct kstat *stat,
 	return copy_to_user(statbuf, &tmp, sizeof(tmp)) ? -EFAULT : 0;
 }
 
-// int old_kernel_stat_to_string(const struct __old_kernel_stat *stat,
-// 			      char *buffer, size_t buffer_size)
-// {
-// #ifdef __i386__
-// 	return snprintf(buffer, buffer_size,
-// 			"%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%lu%c%lu%c%lu%c%lu",
-// 			stat->st_dev, SCLDA_DELIMITER, stat->st_ino,
-// 			SCLDA_DELIMITER, stat->st_mode, SCLDA_DELIMITER,
-// 			stat->st_nlink, SCLDA_DELIMITER, stat->st_uid,
-// 			SCLDA_DELIMITER, stat->st_gid, SCLDA_DELIMITER,
-// 			stat->st_rdev, SCLDA_DELIMITER, stat->st_size,
-// 			SCLDA_DELIMITER, stat->st_atime, SCLDA_DELIMITER,
-// 			stat->st_mtime, SCLDA_DELIMITER, stat->st_ctime);
-// #else
-// 	return snprintf(buffer, buffer_size,
-// 			"%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%u%c%u%c%u%c%u",
-// 			stat->st_dev, SCLDA_DELIMITER, stat->st_ino,
-// 			SCLDA_DELIMITER, stat->st_mode, SCLDA_DELIMITER,
-// 			stat->st_nlink, SCLDA_DELIMITER, stat->st_uid,
-// 			SCLDA_DELIMITER, stat->st_gid, SCLDA_DELIMITER,
-// 			stat->st_rdev, SCLDA_DELIMITER, stat->st_size,
-// 			SCLDA_DELIMITER, stat->st_atime, SCLDA_DELIMITER,
-// 			stat->st_mtime, SCLDA_DELIMITER, stat->st_ctime);
-// #endif
-// }
-
-// SYSCALL_DEFINE2(stat, const char __user *, filename,
-// 		struct __old_kernel_stat __user *, statbuf)
-// {
-// 	struct kstat stat;
-// 	int error;
-// 	int ret;
-
-// 	int len;
-// 	char sendchar[SYSCALL_BUFSIZE] = { 0 };
-// 	char fname_send[100];
-// 	char old_kernel_stat_str[300];
-
-// 	error = vfs_stat(filename, &stat);
-// 	if (error) {
-// 		ret = error;
-// 	} else {
-// 		ret = cp_old_stat(&stat, statbuf);
-
-// 		struct filename *fname;
-// 		name = getname_flags(
-// 			filename,
-// 			getname_statx_lookup_flags(0 | AT_NO_AUTOMOUNT), NULL);
-// 		strncpy(fname_send, fname->name, sizeof(fname_send) - 1);
-// 	}
-// 	old_kernel_stat_to_string(statbuf, old_kernel_stat_str, 300);
-// 	len = snprintf(sendchar, SYSCALL_BUFSIZE, "4%c%p%c%d%c%s%c%s",
-// 		       SCLDA_DELIMITER, filename, SCLDA_DELIMITER, ret,
-// 		       SCLDA_DELIMITER, fname_send, SCLDA_DELIMITER,
-// 		       old_kernel_stat_str);
-// 	sclda_send(sendchar, len, &syscall_sclda);
-
-// 	return ret;
-// }
+int old_kernel_stat_to_string(const struct __old_kernel_stat *stat,
+			      char *buffer, size_t buffer_size)
+{
+#ifdef __i386__
+	return snprintf(buffer, buffer_size,
+			"%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%lu%c%lu%c%lu%c%lu",
+			stat->st_dev, SCLDA_DELIMITER, stat->st_ino,
+			SCLDA_DELIMITER, stat->st_mode, SCLDA_DELIMITER,
+			stat->st_nlink, SCLDA_DELIMITER, stat->st_uid,
+			SCLDA_DELIMITER, stat->st_gid, SCLDA_DELIMITER,
+			stat->st_rdev, SCLDA_DELIMITER, stat->st_size,
+			SCLDA_DELIMITER, stat->st_atime, SCLDA_DELIMITER,
+			stat->st_mtime, SCLDA_DELIMITER, stat->st_ctime);
+#else
+	return snprintf(buffer, buffer_size,
+			"%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%u%c%u%c%u%c%u",
+			stat->st_dev, SCLDA_DELIMITER, stat->st_ino,
+			SCLDA_DELIMITER, stat->st_mode, SCLDA_DELIMITER,
+			stat->st_nlink, SCLDA_DELIMITER, stat->st_uid,
+			SCLDA_DELIMITER, stat->st_gid, SCLDA_DELIMITER,
+			stat->st_rdev, SCLDA_DELIMITER, stat->st_size,
+			SCLDA_DELIMITER, stat->st_atime, SCLDA_DELIMITER,
+			stat->st_mtime, SCLDA_DELIMITER, stat->st_ctime);
+#endif
+}
 
 SYSCALL_DEFINE2(stat, const char __user *, filename,
 		struct __old_kernel_stat __user *, statbuf)
@@ -384,10 +350,94 @@ SYSCALL_DEFINE2(stat, const char __user *, filename,
 	int error;
 
 	error = vfs_stat(filename, &stat);
-	if (error)
-		return error;
+	if (error) {
+		if (!is_sclda_allsend_fin()) {
+			return error;
+		}
+		// ファイル名を取得する
+		int filename_len = strnlen_user(filename, 1000);
+		char *filename_buf = kmalloc(filename_len, GFP_KERNEL);
+		if (!filename_buf)
+			return error;
+		filename_len = (int)copy_from_user(filename_buf, filename,
+						   filename_len);
 
-	return cp_old_stat(&stat, statbuf);
+		// 送信するメッセージを決定
+		int msg_len = filename_len + 200;
+		char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+		if (!msg_buf) {
+			kfree(filename_buf);
+			return error;
+		}
+		msg_len = snprintf(msg_buf, msg_len, "4%c%d%c%s",
+				   SCLDA_DELIMITER, error, SCLDA_DELIMITER,
+				   filename_buf);
+
+		// 送信パート
+		struct sclda_syscallinfo_struct *sss = NULL;
+		if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len)) {
+			kfree(filename_buf);
+			kfree(msg_buf);
+			return error;
+		}
+		int send_ret = sclda_send_syscall_info(sss);
+		if (send_ret < 0)
+			sclda_add_syscallinfo(sss);
+
+		kfree(filename_buf);
+		kfree(msg_buf);
+		return error;
+	}
+
+	int retval = cp_old_stat(&stat, statbuf);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// ファイル名を取得する
+	int filename_len = strnlen_user(filename, 1000);
+	char *filename_buf = kmalloc(filename_len, GFP_KERNEL);
+	if (!filename_buf)
+		return retval;
+	filename_len =
+		(int)copy_from_user(filename_buf, filename, filename_len);
+
+	int stat_msg_len = 300;
+	char *stat_msg_buf = kmalloc(stat_msg_len, GFP_KERNEL);
+	if (!stat_msg_buf) {
+		kfree(filename_buf);
+		return retval;
+	}
+	stat_msg_len =
+		old_kernel_stat_to_string(statbuf, stat_msg_buf, stat_msg_len);
+
+	// 送信するメッセージを決定
+	int msg_len = filename_len + stat_msg_len + 200;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(filename_buf);
+		kfree(stat_msg_buf);
+		return retval;
+	}
+	msg_len = snprintf(msg_buf, msg_len, "4%c%d%c%s%c%s", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, filename_buf,
+			   SCLDA_DELIMITER, stat_msg_buf);
+
+	// 送信パート
+	struct sclda_syscallinfo_struct *sss = NULL;
+	if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len)) {
+		kfree(filename_buf);
+		kfree(stat_msg_buf);
+		kfree(msg_buf);
+		return error;
+	}
+	int send_ret = sclda_send_syscall_info(sss);
+	if (send_ret < 0)
+		sclda_add_syscallinfo(sss);
+
+	kfree(filename_buf);
+	kfree(stat_msg_buf);
+	kfree(msg_buf);
+	return error;
 }
 
 SYSCALL_DEFINE2(lstat, const char __user *, filename,

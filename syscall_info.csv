@@ -2,6 +2,7 @@ read,0,retval,fd,count,read_content,
 write,1,retval,fd,count,write_content,
 open,2,retval,flags,mode,filepath,
 close,3,retval,fd
+stat,4,retval,filename,st_dev,st_ino,st_mode,st_nlink,st_uid,st_gid,st_rdevst_size,st_atime,st_mtime,st_ctime
 dup,32,retval,fd
 dup2,33,retval,old_fd,new_fd
 openat,257,retval,dfd,flags,mode,filename
