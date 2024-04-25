@@ -1403,10 +1403,9 @@ SYSCALL_DEFINE4(openat, int, dfd, const char __user *, filename, int, flags,
 	// ファイル名を取得する
 	int filename_len = strnlen_user(filename, 1000);
 	char *filename_buf = kmalloc(filename_len, GFP_KERNEL);
-	if (!filename_buf) {
-		printk(KERN_INFO "SCLDA ERROR OPEN filename_buf");
+	if (!filename_buf)
 		return ret;
-	}
+
 	filename_len =
 		(int)copy_from_user(filename_buf, filename, filename_len);
 
@@ -1544,11 +1543,11 @@ SYSCALL_DEFINE1(close, unsigned int, fd)
 		     retval == -ERESTART_RESTARTBLOCK))
 		retval = -EINTR;
 
-	if (!is_sclda_allsend_fin()) {
+	if (!is_sclda_allsend_fin())
 		return retval;
-	}
+
 	// 送信するパート
-	char *msg_buf[200];
+	char msg_buf[200];
 	int msg_len = snprintf(msg_buf, 200, "3%c%d%c%u", SCLDA_DELIMITER,
 			       retval, SCLDA_DELIMITER, fd);
 	struct sclda_syscallinfo_struct *sss = NULL;
