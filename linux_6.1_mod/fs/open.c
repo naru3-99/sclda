@@ -1534,25 +1534,6 @@ EXPORT_SYMBOL(filp_close);
  * releasing the fd. This ensures that one clone task can't release
  * an fd while another clone is opening it.
  */
-// SYSCALL_DEFINE1(close, unsigned int, fd)
-// {
-// 	int retval = close_fd(fd);
-
-// 	/* can't restart close syscall because file table entry was cleared */
-// 	if (unlikely(retval == -ERESTARTSYS || retval == -ERESTARTNOINTR ||
-// 		     retval == -ERESTARTNOHAND ||
-// 		     retval == -ERESTART_RESTARTBLOCK))
-// 		retval = -EINTR;
-
-// 	// int len;
-// 	// char sendchar[SYSCALL_BUFSIZE] = { 0 };
-// 	// len = snprintf(sendchar, SYSCALL_BUFSIZE, "3%c%u%c%d", SCLDA_DELIMITER,
-// 	// 	       fd, SCLDA_DELIMITER, retval);
-// 	// sclda_send(sendchar, len, &syscall_sclda);
-
-// 	return retval;
-// }
-
 SYSCALL_DEFINE1(close, unsigned int, fd)
 {
 	int retval = close_fd(fd);
@@ -1562,6 +1543,20 @@ SYSCALL_DEFINE1(close, unsigned int, fd)
 		     retval == -ERESTARTNOHAND ||
 		     retval == -ERESTART_RESTARTBLOCK))
 		retval = -EINTR;
+
+	if (!is_sclda_allsend_fin()) {
+		return retval;
+	}
+	// 送信するパート
+	char *msg_buf[200];
+	int msg_len = snprintf(msg_buf, 200, "3%c%d%c%u", SCLDA_DELIMITER,
+			       retval, SCLDA_DELIMITER, fd);
+	struct sclda_syscallinfo_struct *sss = NULL;
+	if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len))
+		return retval;
+	int send_ret = sclda_send_syscall_info(sss);
+	if (send_ret < 0)
+		sclda_add_syscallinfo(sss);
 
 	return retval;
 }
