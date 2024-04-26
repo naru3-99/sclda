@@ -35,6 +35,8 @@
 #include <linux/audit.h>
 #include <linux/printk.h>
 
+#include <net/sclda.h>
+
 #include <linux/uaccess.h>
 #include <asm/tlb.h>
 #include <asm/tlbflush.h>
