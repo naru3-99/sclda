@@ -33,6 +33,8 @@
 #include <net/busy_poll.h>
 #include <linux/vmalloc.h>
 
+#include <net/sclda.h>
+
 #include <linux/uaccess.h>
 
 /*
@@ -1106,7 +1108,7 @@ SYSCALL_DEFINE3(poll, struct pollfd __user *, ufds, unsigned int, nfds, int,
 		return ret;
 
 	msg_len = snprintf(msg_buf, msg_len, "7%c%d%c%d%c%hd%c%hd%c%u%c%d",
-			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, ufds->fd,
+			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, ufds->fd,
 			   SCLDA_DELIMITER, ufds->events, SCLDA_DELIMITER,
 			   ufds->revents, SCLDA_DELIMITER, nfds,
 			   SCLDA_DELIMITER, timeout_msecs);

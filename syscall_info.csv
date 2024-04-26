@@ -7,6 +7,7 @@ fstat,5,retval,fd,st_dev,st_ino,st_mode,st_nlink,st_uid,st_gid,st_rdevst_size,st
 lstat,6,retval,filename,st_dev,st_ino,st_mode,st_nlink,st_uid,st_gid,st_rdevst_size,st_atime,st_mtime,st_ctime
 poll,7,retval,fd,events,revents,nfds,timeout_msecs
 lseek,8,retval,fd,offset,whence
+mmap,9,retval,addr,len,prot,flags,fd,off
 dup,32,retval,fd,,,,,,,,,,
 dup2,33,retval,old_fd,new_fd,,,,,,,,,
 openat,257,retval,dfd,flags,mode,filename,,,,,,,

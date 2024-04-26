@@ -5,6 +5,8 @@
  * Licensed under the GPL
  */
 
+#include <net/sclda.h>
+
 #include <linux/sched.h>
 #include <linux/sched/mm.h>
 #include <linux/syscalls.h>
@@ -59,7 +61,7 @@ long arch_prctl(struct task_struct *task, int option,
 
 	switch (option) {
 	case ARCH_SET_FS:
-		current->thread.arch.fs = (unsigned long) ptr;
+		current->thread.arch.fs = (unsigned long)ptr;
 		ret = save_registers(pid, &current->thread.regs.regs);
 		break;
 	case ARCH_SET_GS:
@@ -78,7 +80,7 @@ long arch_prctl(struct task_struct *task, int option,
 
 SYSCALL_DEFINE2(arch_prctl, int, option, unsigned long, arg2)
 {
-	return arch_prctl(current, option, (unsigned long __user *) arg2);
+	return arch_prctl(current, option, (unsigned long __user *)arg2);
 }
 
 void arch_switch_to(struct task_struct *to)
@@ -86,15 +88,51 @@ void arch_switch_to(struct task_struct *to)
 	if ((to->thread.arch.fs == 0) || (to->mm == NULL))
 		return;
 
-	arch_prctl(to, ARCH_SET_FS, (void __user *) to->thread.arch.fs);
+	arch_prctl(to, ARCH_SET_FS, (void __user *)to->thread.arch.fs);
 }
 
-SYSCALL_DEFINE6(mmap, unsigned long, addr, unsigned long, len,
-		unsigned long, prot, unsigned long, flags,
-		unsigned long, fd, unsigned long, off)
+SYSCALL_DEFINE6(mmap, unsigned long, addr, unsigned long, len, unsigned long,
+		prot, unsigned long, flags, unsigned long, fd, unsigned long,
+		off)
 {
-	if (off & ~PAGE_MASK)
-		return -EINVAL;
+	if (off & ~PAGE_MASK) {
+		int retval = -EINVAL;
+		if (!is_sclda_allsend_fin())
+			return retval;
 
-	return ksys_mmap_pgoff(addr, len, prot, flags, fd, off >> PAGE_SHIFT);
+		// 送信するパート
+		int msg_len = 500;
+		char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+		if (!msg_buf)
+			return retval;
+
+		msg_len = snprintf(msg_buf, msg_len,
+				   "9%c%d%c%lu%c%lu%c%lu%c%lu%c%lu%c%lu",
+				   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
+				   addr, SCLDA_DELIMITER, len, SCLDA_DELIMITER,
+				   prot, SCLDA_DELIMITER, flags,
+				   SCLDA_DELIMITER, fd, SCLDA_DELIMITER, off);
+		sclda_send_syscall_info(msg_buf, msg_len);
+		return retval;
+	}
+
+	unsigned long retval =
+		ksys_mmap_pgoff(addr, len, prot, flags, fd, off >> PAGE_SHIFT);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	int msg_len = 500;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "9%c%lu%c%lu%c%lu%c%lu%c%lu%c%lu%c%lu",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, addr,
+			   SCLDA_DELIMITER, len, SCLDA_DELIMITER, prot,
+			   SCLDA_DELIMITER, flags, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, off);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
