@@ -11,7 +11,7 @@ int hinagata()
     if (!msg_buf)
         return retval;
 
-    msg_len = snprintf(msg_buf, msg_len, "3%c%d%c%u", SCLDA_DELIMITER,
+    msg_len = snprintf(msg_buf, msg_len, "99999%c%d%c%u", SCLDA_DELIMITER,
                        retval, SCLDA_DELIMITER, fd);
     sclda_send_syscall_info(msg_buf, msg_len);
     return retval;

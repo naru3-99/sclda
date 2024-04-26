@@ -842,7 +842,7 @@ SYSCALL_DEFINE3(mprotect, unsigned long, start, size_t, len, unsigned long,
 	if (!msg_buf)
 		return retval;
 
-	msg_len = snprintf(msg_buf, msg_len, "3%c%d%c%lu%c%lu%c%lu",
+	msg_len = snprintf(msg_buf, msg_len, "10%c%d%c%lu%c%lu%c%lu",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, start,
 			   SCLDA_DELIMITER, len, SCLDA_DELIMITER, prot);
 	sclda_send_syscall_info(msg_buf, msg_len);

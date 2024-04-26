@@ -9,6 +9,7 @@ poll,7,retval,fd,events,revents,nfds,timeout_msecs
 lseek,8,retval,fd,offset,whence
 mmap,9,retval,addr,len,prot,flags,fd,off
 mprotect,10,retval,start,len,prot
+munmap,11,retval,addr,len
 dup,32,retval,fd,,,,,,,,,,
 dup2,33,retval,old_fd,new_fd,,,,,,,,,
 openat,257,retval,dfd,flags,mode,filename,,,,,,,
