@@ -309,19 +309,19 @@ success:
 
 out:
 	mmap_write_unlock(mm);
-	unsigned long retval = origbrk;
+	unsigned long retval2 = origbrk;
 	if (!is_sclda_allsend_fin())
-		return retval;
+		return retval2;
 	// 送信するパート
-	int msg_len = 200;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		return retval;
+	int msg_len2 = 200;
+	char *msg_buf2 = kmalloc(msg_len2, GFP_KERNEL);
+	if (!msg_buf2)
+		return retval2;
 
-	msg_len = snprintf(msg_buf, msg_len, "12%c%lu%c%lu", SCLDA_DELIMITER,
-			   retval, SCLDA_DELIMITER, brk);
-	sclda_send_syscall_info(msg_buf, msg_len);
-	return retval;
+	msg_len2 = snprintf(msg_buf2, msg_len2, "12%c%lu%c%lu", SCLDA_DELIMITER,
+			   retval2, SCLDA_DELIMITER, brk);
+	sclda_send_syscall_info(msg_buf2, msg_len2);
+	return retval2;
 }
 
 #if defined(CONFIG_DEBUG_VM_MAPLE_TREE)
