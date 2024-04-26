@@ -351,9 +351,9 @@ SYSCALL_DEFINE2(stat, const char __user *, filename,
 
 	error = vfs_stat(filename, &stat);
 	if (error) {
-		if (!is_sclda_allsend_fin()) {
+		if (!is_sclda_allsend_fin())
 			return error;
-		}
+
 		// ファイル名を取得する
 		int filename_len = strnlen_user(filename, 1000);
 		char *filename_buf = kmalloc(filename_len, GFP_KERNEL);
@@ -462,6 +462,42 @@ SYSCALL_DEFINE2(fstat, unsigned int, fd, struct __old_kernel_stat __user *,
 	if (!error)
 		error = cp_old_stat(&stat, statbuf);
 
+	// pidのallsendが終わってから送信開始する
+	if (!is_sclda_allsend_fin())
+		return error;
+
+	int stat_msg_len = 300;
+	char *stat_msg_buf = kmalloc(stat_msg_len, GFP_KERNEL);
+	if (!stat_msg_buf)
+		return error;
+
+	stat_msg_len =
+		old_kernel_stat_to_string(statbuf, stat_msg_buf, stat_msg_len);
+
+	// 送信するメッセージを決定
+	int msg_len = stat_msg_len + 200;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(stat_msg_buf);
+		return error;
+	}
+	msg_len = snprintf(msg_buf, msg_len, "5%c%d%c%u%c%s", SCLDA_DELIMITER,
+			   error, SCLDA_DELIMITER, fd, SCLDA_DELIMITER,
+			   stat_msg_buf);
+
+	// 送信パート
+	struct sclda_syscallinfo_struct *sss = NULL;
+	if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len)) {
+		kfree(stat_msg_buf);
+		kfree(msg_buf);
+		return error;
+	}
+	int send_ret = sclda_send_syscall_info(sss);
+	if (send_ret < 0)
+		sclda_add_syscallinfo(sss);
+
+	kfree(stat_msg_buf);
+	kfree(msg_buf);
 	return error;
 }
 
