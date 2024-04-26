@@ -93,7 +93,7 @@ void sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr);
 int sclda_sendall_syscallinfo(void *data);
 
 // システムコール情報が大きな文字列だった場合、分割して送信
-int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr);
+int sclda_send_syscall_info(char *msg_buf,int msg_len);
 
 // システムコール関連情報を送信する際の、
 // sclda_client_structを決定する

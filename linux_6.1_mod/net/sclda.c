@@ -162,10 +162,9 @@ int sclda_syscallinfo_init(struct sclda_syscallinfo_struct **ptr, char *msg,
 				      SCLDA_DELIMITER);
 	// stime, memory usage
 	s->memory_len = snprintf(s->memory_msg, SCLDA_STIME_MEMORY_SIZE,
-				 "%lu%c%lu%c%lu%c",
-				 sclda_get_current_spsize(), SCLDA_DELIMITER,
-				 sclda_get_current_heapsize(), SCLDA_DELIMITER,
-				 sclda_get_current_totalsize(),
+				 "%lu%c%lu%c%lu%c", sclda_get_current_spsize(),
+				 SCLDA_DELIMITER, sclda_get_current_heapsize(),
+				 SCLDA_DELIMITER, sclda_get_current_totalsize(),
 				 SCLDA_DELIMITER);
 
 	// msg, len
@@ -263,16 +262,32 @@ int __sclda_send_split(struct sclda_syscallinfo_struct *ptr,
 }
 
 static DEFINE_MUTEX(sendall_syscall_mutex);
-int sclda_send_syscall_info(struct sclda_syscallinfo_struct *ptr)
+// 送信し終えたときに、送信したものが、
+// msg_buf, sclda_client_structを解放する責任を負う
+int sclda_send_syscall_info(char *msg_buf, int msg_len)
 {
 	if (!sclda_init_fin)
 		return -1;
 
-	int ret = __sclda_send_split(ptr, sclda_decide_struct());
-	if (ret < 0)
+	// sclda_client_structの作成
+	struct sclda_syscallinfo_struct *sss = NULL;
+	if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len)) {
+		// こいつの初期化ができなかったときは、
+		// もうmsgの中身を送信できないため解放する
+		kfree(msg_buf);
+		return -1;
+	}
+
+	// 送信を試みて、送信できなかったらaddする
+	int ret = __sclda_send_split(sss, sclda_decide_struct());
+	if (ret < 0) {
+		sclda_add_syscallinfo(sss);
 		return ret;
-	if (!sclda_allsend_fin)
-		return ret;
+	}
+	// 送信できたので、解放
+	kfree(msg_buf);
+	kfree(sss);
+	// addしたものが溜まっている場合、送信する
 	if (mutex_is_locked(&sendall_syscall_mutex))
 		return ret;
 	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
@@ -292,6 +307,7 @@ int sclda_sendall_syscallinfo(void *data)
 {
 	mutex_lock(&sendall_syscall_mutex);
 	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
+		// まだ必要数溜まって無いところは無視する
 		if (sclda_syscallinfo_exist[i] < SCLDA_NUM_TO_SEND_SINFO)
 			continue;
 
@@ -299,6 +315,7 @@ int sclda_sendall_syscallinfo(void *data)
 			sclda_syscall_heads[i].next;
 		struct sclda_syscallinfo_ls *next;
 
+		// 何らかのエラーでNULLだった場合、諦めて初期化する
 		if (curptr == NULL) {
 			mutex_lock(&syscall_mutex[i]);
 			sclda_syscallinfo_exist[i] = 0;
@@ -311,12 +328,14 @@ int sclda_sendall_syscallinfo(void *data)
 			continue;
 		}
 
+		// 送信を開始する
 		mutex_lock(&syscall_mutex[i]);
 		while (curptr != NULL) {
 			__sclda_send_split(curptr->s, &(syscall_sclda[i]));
 			next = curptr->next;
-			kfree(curptr->s->syscall_msg);
-			kfree(curptr);
+			kfree(curptr->s->syscall_msg); // msg_bufの解放
+			kfree(curptr->s); // sclda_syscallinfo_structの解放
+			kfree(curptr); // sclda_syscallinfo_lsの解放
 			curptr = next;
 		}
 		sclda_syscallinfo_exist[i] = 0;

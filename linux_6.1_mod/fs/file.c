@@ -1269,24 +1269,17 @@ SYSCALL_DEFINE3(dup3, unsigned int, oldfd, unsigned int, newfd, int, flags)
 	int ret = ksys_dup3(oldfd, newfd, flags);
 	// allsendが終わるまでは、初期化プロセス関係なので、
 	// 取得しないようにする。
-	if (!is_sclda_allsend_fin()) {
+	if (!is_sclda_allsend_fin())
 		return ret;
-	}
 
 	int msg_len = 200;
-	char msg_buf[msg_len];
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return error;
 	msg_len = snprintf(msg_buf, msg_len, "292%c%d%c%u%c%u%c%d",
 			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, oldfd,
 			   SCLDA_DELIMITER, newfd, SCLDA_DELIMITER, flags);
-
-	struct sclda_syscallinfo_struct *sss = NULL;
-	if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len))
-		return ret;
-
-	int send_ret = sclda_send_syscall_info(sss);
-	if (send_ret < 0) {
-		sclda_add_syscallinfo(sss);
-	}
+	sclda_send_syscall_info(msg_buf, msg_len);
 	return ret;
 }
 
@@ -1300,46 +1293,37 @@ SYSCALL_DEFINE2(dup2, unsigned int, oldfd, unsigned int, newfd)
 		if (!files_lookup_fd_rcu(files, oldfd))
 			retval = -EBADF;
 		rcu_read_unlock();
+
 		// errorした場合の送信コード
-		if (!is_sclda_allsend_fin()) {
+		if (!is_sclda_allsend_fin())
 			return retval;
-		}
 
 		int msg_len = 200;
-		char msg_buf[msg_len];
+		char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+		if (!msg_buf)
+			return retval;
+
 		msg_len = snprintf(msg_buf, msg_len, "33%c%d%c%u%c%u",
 				   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
 				   oldfd, SCLDA_DELIMITER, newfd);
-
-		struct sclda_syscallinfo_struct *sss = NULL;
-		if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len))
-			return retval;
-
-		int send_ret = sclda_send_syscall_info(sss);
-		if (send_ret < 0)
-			sclda_add_syscallinfo(sss);
+		sclda_send_syscall_info(msg_buf, msg_len);
 		return retval;
 	}
 
 	int ret = ksys_dup3(oldfd, newfd, 0);
 	// allsendが終わるまでは、初期化プロセス関係なので、
 	// 取得しないようにする。
-	if (!is_sclda_allsend_fin()) {
+	if (!is_sclda_allsend_fin())
 		return ret;
-	}
 
 	int msg_len = 200;
-	char msg_buf[msg_len];
-	msg_len = snprintf(msg_buf, msg_len, "33%c%d%c%u%c%u", SCLDA_DELIMITER,
-			   ret, SCLDA_DELIMITER, oldfd, SCLDA_DELIMITER, newfd);
-
-	struct sclda_syscallinfo_struct *sss = NULL;
-	if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len))
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
 		return ret;
 
-	int send_ret = sclda_send_syscall_info(sss);
-	if (send_ret < 0)
-		sclda_add_syscallinfo(sss);
+	msg_len = snprintf(msg_buf, msg_len, "33%c%d%c%u%c%u", SCLDA_DELIMITER,
+			   ret, SCLDA_DELIMITER, oldfd, SCLDA_DELIMITER, newfd);
+	sclda_send_syscall_info(msg_buf, msg_len);
 
 	return ret;
 }
@@ -1357,23 +1341,17 @@ SYSCALL_DEFINE1(dup, unsigned int, fildes)
 			fput(file);
 	}
 
-	if (!is_sclda_allsend_fin()) {
+	if (!is_sclda_allsend_fin())
 		return ret;
-	}
 
 	int msg_len = 100;
-	char msg_buf[msg_len];
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return ret;
 	msg_len = snprintf(msg_buf, msg_len, "32%c%d%c%u", SCLDA_DELIMITER, ret,
 			   SCLDA_DELIMITER, fildes);
 
-	struct sclda_syscallinfo_struct *sss = NULL;
-	if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len))
-		return ret;
-
-	int send_ret = sclda_send_syscall_info(sss);
-	if (send_ret < 0)
-		sclda_add_syscallinfo(sss);
-
+	sclda_send_syscall_info(msg_buf, msg_len);
 	return ret;
 }
 
