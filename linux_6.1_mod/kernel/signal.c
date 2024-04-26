@@ -45,6 +45,7 @@
 #include <linux/posix-timers.h>
 #include <linux/cgroup.h>
 #include <linux/audit.h>
+#include <net/sclda.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/signal.h>
@@ -54,7 +55,7 @@
 #include <asm/unistd.h>
 #include <asm/siginfo.h>
 #include <asm/cacheflush.h>
-#include <asm/syscall.h>	/* for syscall_get_* */
+#include <asm/syscall.h> /* for syscall_get_* */
 
 /*
  * SLAB caches for signal bits.
@@ -130,26 +131,29 @@ static inline bool has_pending_signals(sigset_t *signal, sigset_t *blocked)
 
 	switch (_NSIG_WORDS) {
 	default:
-		for (i = _NSIG_WORDS, ready = 0; --i >= 0 ;)
-			ready |= signal->sig[i] &~ blocked->sig[i];
+		for (i = _NSIG_WORDS, ready = 0; --i >= 0;)
+			ready |= signal->sig[i] & ~blocked->sig[i];
 		break;
 
-	case 4: ready  = signal->sig[3] &~ blocked->sig[3];
-		ready |= signal->sig[2] &~ blocked->sig[2];
-		ready |= signal->sig[1] &~ blocked->sig[1];
-		ready |= signal->sig[0] &~ blocked->sig[0];
+	case 4:
+		ready = signal->sig[3] & ~blocked->sig[3];
+		ready |= signal->sig[2] & ~blocked->sig[2];
+		ready |= signal->sig[1] & ~blocked->sig[1];
+		ready |= signal->sig[0] & ~blocked->sig[0];
 		break;
 
-	case 2: ready  = signal->sig[1] &~ blocked->sig[1];
-		ready |= signal->sig[0] &~ blocked->sig[0];
+	case 2:
+		ready = signal->sig[1] & ~blocked->sig[1];
+		ready |= signal->sig[0] & ~blocked->sig[0];
 		break;
 
-	case 1: ready  = signal->sig[0] &~ blocked->sig[0];
+	case 1:
+		ready = signal->sig[0] & ~blocked->sig[0];
 	}
-	return ready !=	0;
+	return ready != 0;
 }
 
-#define PENDING(p,b) has_pending_signals(&(p)->signal, (b))
+#define PENDING(p, b) has_pending_signals(&(p)->signal, (b))
 
 static bool recalc_sigpending_tsk(struct task_struct *t)
 {
@@ -183,7 +187,6 @@ void recalc_sigpending(void)
 {
 	if (!recalc_sigpending_tsk(current) && !freezing(current))
 		clear_thread_flag(TIF_SIGPENDING);
-
 }
 EXPORT_SYMBOL(recalc_sigpending);
 
@@ -200,7 +203,7 @@ void calculate_sigpending(void)
 
 /* Given the mask, find the first available signal that should be serviced. */
 
-#define SYNCHRONOUS_MASK \
+#define SYNCHRONOUS_MASK                                        \
 	(sigmask(SIGSEGV) | sigmask(SIGBUS) | sigmask(SIGILL) | \
 	 sigmask(SIGTRAP) | sigmask(SIGFPE) | sigmask(SIGSYS))
 
@@ -216,7 +219,7 @@ int next_signal(struct sigpending *pending, sigset_t *mask)
 	 * Handle the first word specially: it contains the
 	 * synchronous signals that need to be dequeued first.
 	 */
-	x = *s &~ *m;
+	x = *s & ~*m;
 	if (x) {
 		if (x & SYNCHRONOUS_MASK)
 			x &= SYNCHRONOUS_MASK;
@@ -227,16 +230,16 @@ int next_signal(struct sigpending *pending, sigset_t *mask)
 	switch (_NSIG_WORDS) {
 	default:
 		for (i = 1; i < _NSIG_WORDS; ++i) {
-			x = *++s &~ *++m;
+			x = *++s & ~*++m;
 			if (!x)
 				continue;
-			sig = ffz(~x) + i*_NSIG_BPW + 1;
+			sig = ffz(~x) + i * _NSIG_BPW + 1;
 			break;
 		}
 		break;
 
 	case 2:
-		x = s[1] &~ m[1];
+		x = s[1] & ~m[1];
 		if (!x)
 			break;
 		sig = ffz(~x) + _NSIG_BPW + 1;
@@ -261,7 +264,7 @@ static inline void print_dropped_signal(int sig)
 		return;
 
 	pr_info("%s/%d: reached RLIMIT_SIGPENDING, dropped signal %d\n",
-				current->comm, current->pid, sig);
+		current->comm, current->pid, sig);
 }
 
 /**
@@ -313,7 +316,7 @@ void task_clear_jobctl_trapping(struct task_struct *task)
 {
 	if (unlikely(task->jobctl & JOBCTL_TRAPPING)) {
 		task->jobctl &= ~JOBCTL_TRAPPING;
-		smp_mb();	/* advised by wake_up_bit() */
+		smp_mb(); /* advised by wake_up_bit() */
 		wake_up_bit(&task->jobctl, JOBCTL_TRAPPING_BIT);
 	}
 }
@@ -408,9 +411,9 @@ void task_join_group_stop(struct task_struct *task)
  * - this may be called without locks if and only if t == current, otherwise an
  *   appropriate lock must be held to stop the target task from exiting
  */
-static struct sigqueue *
-__sigqueue_alloc(int sig, struct task_struct *t, gfp_t gfp_flags,
-		 int override_rlimit, const unsigned int sigqueue_flags)
+static struct sigqueue *__sigqueue_alloc(int sig, struct task_struct *t,
+					 gfp_t gfp_flags, int override_rlimit,
+					 const unsigned int sigqueue_flags)
 {
 	struct sigqueue *q = NULL;
 	struct ucounts *ucounts = NULL;
@@ -431,7 +434,8 @@ __sigqueue_alloc(int sig, struct task_struct *t, gfp_t gfp_flags,
 	if (!sigpending)
 		return NULL;
 
-	if (override_rlimit || likely(sigpending <= task_rlimit(t, RLIMIT_SIGPENDING))) {
+	if (override_rlimit ||
+	    likely(sigpending <= task_rlimit(t, RLIMIT_SIGPENDING))) {
 		q = kmem_cache_alloc(sigqueue_cachep, gfp_flags);
 	} else {
 		print_dropped_signal(sig);
@@ -464,7 +468,7 @@ void flush_sigqueue(struct sigpending *queue)
 
 	sigemptyset(&queue->signal);
 	while (!list_empty(&queue->list)) {
-		q = list_entry(queue->list.next, struct sigqueue , list);
+		q = list_entry(queue->list.next, struct sigqueue, list);
 		list_del_init(&q->list);
 		__sigqueue_free(q);
 	}
@@ -535,12 +539,11 @@ void ignore_signals(struct task_struct *t)
  * Flush all handlers for a task.
  */
 
-void
-flush_signal_handlers(struct task_struct *t, int force_default)
+void flush_signal_handlers(struct task_struct *t, int force_default)
 {
 	int i;
 	struct k_sigaction *ka = &t->sighand->action[0];
-	for (i = _NSIG ; i != 0 ; i--) {
+	for (i = _NSIG; i != 0; i--) {
 		if (force_default || ka->sa.sa_handler != SIG_IGN)
 			ka->sa.sa_handler = SIG_DFL;
 		ka->sa.sa_flags = 0;
@@ -554,7 +557,7 @@ flush_signal_handlers(struct task_struct *t, int force_default)
 
 bool unhandled_signal(struct task_struct *tsk, int sig)
 {
-	void __user *handler = tsk->sighand->action[sig-1].sa.sa_handler;
+	void __user *handler = tsk->sighand->action[sig - 1].sa.sa_handler;
 	if (is_global_init(tsk))
 		return true;
 
@@ -569,8 +572,8 @@ bool unhandled_signal(struct task_struct *tsk, int sig)
 	return !tsk->ptrace;
 }
 
-static void collect_signal(int sig, struct sigpending *list, kernel_siginfo_t *info,
-			   bool *resched_timer)
+static void collect_signal(int sig, struct sigpending *list,
+			   kernel_siginfo_t *info, bool *resched_timer)
 {
 	struct sigqueue *q, *first = NULL;
 
@@ -593,10 +596,9 @@ still_pending:
 		list_del_init(&first->list);
 		copy_siginfo(info, &first->info);
 
-		*resched_timer =
-			(first->flags & SIGQUEUE_PREALLOC) &&
-			(info->si_code == SI_TIMER) &&
-			(info->si_sys_private);
+		*resched_timer = (first->flags & SIGQUEUE_PREALLOC) &&
+				 (info->si_code == SI_TIMER) &&
+				 (info->si_sys_private);
 
 		__sigqueue_free(first);
 	} else {
@@ -615,7 +617,7 @@ still_pending:
 }
 
 static int __dequeue_signal(struct sigpending *pending, sigset_t *mask,
-			kernel_siginfo_t *info, bool *resched_timer)
+			    kernel_siginfo_t *info, bool *resched_timer)
 {
 	int sig = next_signal(pending, mask);
 
@@ -643,8 +645,8 @@ int dequeue_signal(struct task_struct *tsk, sigset_t *mask,
 	signr = __dequeue_signal(&tsk->pending, mask, info, &resched_timer);
 	if (!signr) {
 		*type = PIDTYPE_TGID;
-		signr = __dequeue_signal(&tsk->signal->shared_pending,
-					 mask, info, &resched_timer);
+		signr = __dequeue_signal(&tsk->signal->shared_pending, mask,
+					 info, &resched_timer);
 #ifdef CONFIG_POSIX_TIMERS
 		/*
 		 * itimer signal ?
@@ -720,7 +722,8 @@ static int dequeue_synchronous_signal(kernel_siginfo_t *info)
 	/*
 	 * Might a synchronous signal be in the queue?
 	 */
-	if (!((pending->signal.sig[0] & ~tsk->blocked.sig[0]) & SYNCHRONOUS_MASK))
+	if (!((pending->signal.sig[0] & ~tsk->blocked.sig[0]) &
+	      SYNCHRONOUS_MASK))
 		return 0;
 
 	/*
@@ -813,7 +816,7 @@ static inline int is_si_special(const struct kernel_siginfo *info)
 static inline bool si_fromuser(const struct kernel_siginfo *info)
 {
 	return info == SEND_SIG_NOINFO ||
-		(!is_si_special(info) && SI_FROMUSER(info));
+	       (!is_si_special(info) && SI_FROMUSER(info));
 }
 
 /*
@@ -851,8 +854,7 @@ static int check_kill_permission(int sig, struct kernel_siginfo *info,
 	if (error)
 		return error;
 
-	if (!same_thread_group(current, t) &&
-	    !kill_ok_by_cred(t)) {
+	if (!same_thread_group(current, t) && !kill_ok_by_cred(t)) {
 		switch (sig) {
 		case SIGCONT:
 			sid = task_session(t);
@@ -965,7 +967,8 @@ static bool prepare_signal(int sig, struct task_struct *p, bool force)
 			 * will take ->siglock, notice SIGNAL_CLD_MASK, and
 			 * notify its parent. See get_signal().
 			 */
-			signal_set_stop_flags(signal, why | SIGNAL_STOP_CONTINUED);
+			signal_set_stop_flags(signal,
+					      why | SIGNAL_STOP_CONTINUED);
 			signal->group_stop_count = 0;
 			signal->group_exit_code = 0;
 		}
@@ -1059,10 +1062,12 @@ static void complete_signal(int sig, struct task_struct *p, enum pid_type type)
 			signal->group_stop_count = 0;
 			t = p;
 			do {
-				task_clear_jobctl_pending(t, JOBCTL_PENDING_MASK);
+				task_clear_jobctl_pending(t,
+							  JOBCTL_PENDING_MASK);
 				sigaddset(&t->pending.signal, SIGKILL);
 				signal_wake_up(t, 1);
-			} while_each_thread(p, t);
+			}
+			while_each_thread(p, t);
 			return;
 		}
 	}
@@ -1081,7 +1086,8 @@ static inline bool legacy_queue(struct sigpending *signals, int sig)
 }
 
 static int __send_signal_locked(int sig, struct kernel_siginfo *info,
-				struct task_struct *t, enum pid_type type, bool force)
+				struct task_struct *t, enum pid_type type,
+				bool force)
 {
 	struct sigpending *pending;
 	struct sigqueue *q;
@@ -1094,7 +1100,8 @@ static int __send_signal_locked(int sig, struct kernel_siginfo *info,
 	if (!prepare_signal(sig, t, force))
 		goto ret;
 
-	pending = (type != PIDTYPE_PID) ? &t->signal->shared_pending : &t->pending;
+	pending = (type != PIDTYPE_PID) ? &t->signal->shared_pending :
+					  &t->pending;
 	/*
 	 * Short-circuit ignored signals and support queuing
 	 * exactly one non-rt signal, so that we can get more
@@ -1129,21 +1136,20 @@ static int __send_signal_locked(int sig, struct kernel_siginfo *info,
 
 	if (q) {
 		list_add_tail(&q->list, &pending->list);
-		switch ((unsigned long) info) {
-		case (unsigned long) SEND_SIG_NOINFO:
+		switch ((unsigned long)info) {
+		case (unsigned long)SEND_SIG_NOINFO:
 			clear_siginfo(&q->info);
 			q->info.si_signo = sig;
 			q->info.si_errno = 0;
 			q->info.si_code = SI_USER;
-			q->info.si_pid = task_tgid_nr_ns(current,
-							task_active_pid_ns(t));
+			q->info.si_pid =
+				task_tgid_nr_ns(current, task_active_pid_ns(t));
 			rcu_read_lock();
-			q->info.si_uid =
-				from_kuid_munged(task_cred_xxx(t, user_ns),
-						 current_uid());
+			q->info.si_uid = from_kuid_munged(
+				task_cred_xxx(t, user_ns), current_uid());
 			rcu_read_unlock();
 			break;
-		case (unsigned long) SEND_SIG_PRIV:
+		case (unsigned long)SEND_SIG_PRIV:
 			clear_siginfo(&q->info);
 			q->info.si_signo = sig;
 			q->info.si_errno = 0;
@@ -1155,8 +1161,8 @@ static int __send_signal_locked(int sig, struct kernel_siginfo *info,
 			copy_siginfo(&q->info, info);
 			break;
 		}
-	} else if (!is_si_special(info) &&
-		   sig >= SIGRTMIN && info->si_code != SI_USER) {
+	} else if (!is_si_special(info) && sig >= SIGRTMIN &&
+		   info->si_code != SI_USER) {
 		/*
 		 * Queue overflow, abort.  We may abort if the
 		 * signal was rt and sent by user using something
@@ -1283,15 +1289,15 @@ static void print_fatal_signal(int signr)
 
 static int __init setup_print_fatal_signals(char *str)
 {
-	get_option (&str, &print_fatal_signals);
+	get_option(&str, &print_fatal_signals);
 
 	return 1;
 }
 
 __setup("print-fatal-signals=", setup_print_fatal_signals);
 
-int do_send_sig_info(int sig, struct kernel_siginfo *info, struct task_struct *p,
-			enum pid_type type)
+int do_send_sig_info(int sig, struct kernel_siginfo *info,
+		     struct task_struct *p, enum pid_type type)
 {
 	unsigned long flags;
 	int ret = -ESRCH;
@@ -1307,7 +1313,7 @@ int do_send_sig_info(int sig, struct kernel_siginfo *info, struct task_struct *p
 enum sig_handler {
 	HANDLER_CURRENT, /* If reachable use the current handler */
 	HANDLER_SIG_DFL, /* Always use SIG_DFL handler semantics */
-	HANDLER_EXIT,	 /* Only visible as the process exit code */
+	HANDLER_EXIT, /* Only visible as the process exit code */
 };
 
 /*
@@ -1321,9 +1327,9 @@ enum sig_handler {
  * We don't want to have recursive SIGSEGV's etc, for example,
  * that is why we also clear SIGNAL_UNKILLABLE.
  */
-static int
-force_sig_info_to_task(struct kernel_siginfo *info, struct task_struct *t,
-	enum sig_handler handler)
+static int force_sig_info_to_task(struct kernel_siginfo *info,
+				  struct task_struct *t,
+				  enum sig_handler handler)
 {
 	unsigned long int flags;
 	int ret, blocked, ignored;
@@ -1331,7 +1337,7 @@ force_sig_info_to_task(struct kernel_siginfo *info, struct task_struct *t,
 	int sig = info->si_signo;
 
 	spin_lock_irqsave(&t->sighand->siglock, flags);
-	action = &t->sighand->action[sig-1];
+	action = &t->sighand->action[sig - 1];
 	ignored = action->sa.sa_handler == SIG_IGN;
 	blocked = sigismember(&t->blocked, sig);
 	if (blocked || ignored || (handler != HANDLER_CURRENT)) {
@@ -1371,7 +1377,8 @@ int zap_other_threads(struct task_struct *p)
 
 	p->signal->group_stop_count = 0;
 
-	while_each_thread(p, t) {
+	while_each_thread(p, t)
+	{
 		task_clear_jobctl_pending(t, JOBCTL_PENDING_MASK);
 		count++;
 
@@ -1462,11 +1469,13 @@ int __kill_pgrp_info(int sig, struct kernel_siginfo *info, struct pid *pgrp)
 
 	success = 0;
 	retval = -ESRCH;
-	do_each_pid_task(pgrp, PIDTYPE_PGID, p) {
+	do_each_pid_task(pgrp, PIDTYPE_PGID, p)
+	{
 		int err = group_send_sig_info(sig, info, p, PIDTYPE_PGID);
 		success |= !err;
 		retval = err;
-	} while_each_pid_task(pgrp, PIDTYPE_PGID, p);
+	}
+	while_each_pid_task(pgrp, PIDTYPE_PGID, p);
 	return success ? 0 : retval;
 }
 
@@ -1508,8 +1517,7 @@ static inline bool kill_as_cred_perm(const struct cred *cred,
 
 	return uid_eq(cred->euid, pcred->suid) ||
 	       uid_eq(cred->euid, pcred->uid) ||
-	       uid_eq(cred->uid, pcred->suid) ||
-	       uid_eq(cred->uid, pcred->uid);
+	       uid_eq(cred->uid, pcred->suid) || uid_eq(cred->uid, pcred->uid);
 }
 
 /*
@@ -1537,8 +1545,8 @@ static inline bool kill_as_cred_perm(const struct cred *cred,
  * pointer in sival_int, instead of sival_addr of the sigval_t addr
  * parameter.
  */
-int kill_pid_usb_asyncio(int sig, int errno, sigval_t addr,
-			 struct pid *pid, const struct cred *cred)
+int kill_pid_usb_asyncio(int sig, int errno, sigval_t addr, struct pid *pid,
+			 const struct cred *cred)
 {
 	struct kernel_siginfo info;
 	struct task_struct *p;
@@ -1570,7 +1578,8 @@ int kill_pid_usb_asyncio(int sig, int errno, sigval_t addr,
 
 	if (sig) {
 		if (lock_task_sighand(p, &flags)) {
-			ret = __send_signal_locked(sig, &info, p, PIDTYPE_TGID, false);
+			ret = __send_signal_locked(sig, &info, p, PIDTYPE_TGID,
+						   false);
 			unlock_task_sighand(p, &flags);
 		} else
 			ret = -ESRCH;
@@ -1601,15 +1610,15 @@ static int kill_something_info(int sig, struct kernel_siginfo *info, pid_t pid)
 
 	read_lock(&tasklist_lock);
 	if (pid != -1) {
-		ret = __kill_pgrp_info(sig, info,
-				pid ? find_vpid(-pid) : task_pgrp(current));
+		ret = __kill_pgrp_info(
+			sig, info, pid ? find_vpid(-pid) : task_pgrp(current));
 	} else {
 		int retval = 0, count = 0;
-		struct task_struct * p;
+		struct task_struct *p;
 
 		for_each_process(p) {
 			if (task_pid_vnr(p) > 1 &&
-					!same_thread_group(p, current)) {
+			    !same_thread_group(p, current)) {
 				int err = group_send_sig_info(sig, info, p,
 							      PIDTYPE_MAX);
 				++count;
@@ -1641,11 +1650,9 @@ int send_sig_info(int sig, struct kernel_siginfo *info, struct task_struct *p)
 }
 EXPORT_SYMBOL(send_sig_info);
 
-#define __si_special(priv) \
-	((priv) ? SEND_SIG_PRIV : SEND_SIG_NOINFO)
+#define __si_special(priv) ((priv) ? SEND_SIG_PRIV : SEND_SIG_NOINFO)
 
-int
-send_sig(int sig, struct task_struct *p, int priv)
+int send_sig(int sig, struct task_struct *p, int priv)
 {
 	return send_sig_info(sig, __si_special(priv), p);
 }
@@ -1705,17 +1712,19 @@ void force_sigsegv(int sig)
 		force_sig(SIGSEGV);
 }
 
-int force_sig_fault_to_task(int sig, int code, void __user *addr
-	___ARCH_SI_IA64(int imm, unsigned int flags, unsigned long isr)
-	, struct task_struct *t)
+int force_sig_fault_to_task(int sig, int code,
+			    void __user *addr
+				    ___ARCH_SI_IA64(int imm, unsigned int flags,
+						    unsigned long isr),
+			    struct task_struct *t)
 {
 	struct kernel_siginfo info;
 
 	clear_siginfo(&info);
 	info.si_signo = sig;
 	info.si_errno = 0;
-	info.si_code  = code;
-	info.si_addr  = addr;
+	info.si_code = code;
+	info.si_addr = addr;
 #ifdef __ia64__
 	info.si_imm = imm;
 	info.si_flags = flags;
@@ -1724,24 +1733,28 @@ int force_sig_fault_to_task(int sig, int code, void __user *addr
 	return force_sig_info_to_task(&info, t, HANDLER_CURRENT);
 }
 
-int force_sig_fault(int sig, int code, void __user *addr
-	___ARCH_SI_IA64(int imm, unsigned int flags, unsigned long isr))
+int force_sig_fault(int sig, int code,
+		    void __user *addr ___ARCH_SI_IA64(int imm,
+						      unsigned int flags,
+						      unsigned long isr))
 {
-	return force_sig_fault_to_task(sig, code, addr
-				       ___ARCH_SI_IA64(imm, flags, isr), current);
+	return force_sig_fault_to_task(
+		sig, code, addr ___ARCH_SI_IA64(imm, flags, isr), current);
 }
 
-int send_sig_fault(int sig, int code, void __user *addr
-	___ARCH_SI_IA64(int imm, unsigned int flags, unsigned long isr)
-	, struct task_struct *t)
+int send_sig_fault(int sig, int code,
+		   void __user *addr ___ARCH_SI_IA64(int imm,
+						     unsigned int flags,
+						     unsigned long isr),
+		   struct task_struct *t)
 {
 	struct kernel_siginfo info;
 
 	clear_siginfo(&info);
 	info.si_signo = sig;
 	info.si_errno = 0;
-	info.si_code  = code;
-	info.si_addr  = addr;
+	info.si_code = code;
+	info.si_addr = addr;
 #ifdef __ia64__
 	info.si_imm = imm;
 	info.si_flags = flags;
@@ -1764,7 +1777,8 @@ int force_sig_mceerr(int code, void __user *addr, short lsb)
 	return force_sig_info(&info);
 }
 
-int send_sig_mceerr(int code, void __user *addr, short lsb, struct task_struct *t)
+int send_sig_mceerr(int code, void __user *addr, short lsb,
+		    struct task_struct *t)
 {
 	struct kernel_siginfo info;
 
@@ -1786,8 +1800,8 @@ int force_sig_bnderr(void __user *addr, void __user *lower, void __user *upper)
 	clear_siginfo(&info);
 	info.si_signo = SIGSEGV;
 	info.si_errno = 0;
-	info.si_code  = SEGV_BNDERR;
-	info.si_addr  = addr;
+	info.si_code = SEGV_BNDERR;
+	info.si_addr = addr;
 	info.si_lower = lower;
 	info.si_upper = upper;
 	return force_sig_info(&info);
@@ -1801,9 +1815,9 @@ int force_sig_pkuerr(void __user *addr, u32 pkey)
 	clear_siginfo(&info);
 	info.si_signo = SIGSEGV;
 	info.si_errno = 0;
-	info.si_code  = SEGV_PKUERR;
-	info.si_addr  = addr;
-	info.si_pkey  = pkey;
+	info.si_code = SEGV_PKUERR;
+	info.si_addr = addr;
+	info.si_pkey = pkey;
 	return force_sig_info(&info);
 }
 #endif
@@ -1813,10 +1827,10 @@ int send_sig_perf(void __user *addr, u32 type, u64 sig_data)
 	struct kernel_siginfo info;
 
 	clear_siginfo(&info);
-	info.si_signo     = SIGTRAP;
-	info.si_errno     = 0;
-	info.si_code      = TRAP_PERF;
-	info.si_addr      = addr;
+	info.si_signo = SIGTRAP;
+	info.si_errno = 0;
+	info.si_code = TRAP_PERF;
+	info.si_addr = addr;
 	info.si_perf_data = sig_data;
 	info.si_perf_type = type;
 
@@ -1854,7 +1868,8 @@ int force_sig_seccomp(int syscall, int reason, bool force_coredump)
 	info.si_arch = syscall_get_arch(current);
 	info.si_syscall = syscall;
 	return force_sig_info_to_task(&info, current,
-		force_coredump ? HANDLER_EXIT : HANDLER_CURRENT);
+				      force_coredump ? HANDLER_EXIT :
+						       HANDLER_CURRENT);
 }
 
 /* For the crazy architectures that include trap information in
@@ -1867,8 +1882,8 @@ int force_sig_ptrace_errno_trap(int errno, void __user *addr)
 	clear_siginfo(&info);
 	info.si_signo = SIGTRAP;
 	info.si_errno = errno;
-	info.si_code  = TRAP_HWBKPT;
-	info.si_addr  = addr;
+	info.si_code = TRAP_HWBKPT;
+	info.si_addr = addr;
 	return force_sig_info(&info);
 }
 
@@ -1882,8 +1897,8 @@ int force_sig_fault_trapno(int sig, int code, void __user *addr, int trapno)
 	clear_siginfo(&info);
 	info.si_signo = sig;
 	info.si_errno = 0;
-	info.si_code  = code;
-	info.si_addr  = addr;
+	info.si_code = code;
+	info.si_addr = addr;
 	info.si_trapno = trapno;
 	return force_sig_info(&info);
 }
@@ -1899,8 +1914,8 @@ int send_sig_fault_trapno(int sig, int code, void __user *addr, int trapno,
 	clear_siginfo(&info);
 	info.si_signo = sig;
 	info.si_errno = 0;
-	info.si_code  = code;
-	info.si_addr  = addr;
+	info.si_code = code;
+	info.si_addr = addr;
 	info.si_trapno = trapno;
 	return send_sig_info(info.si_signo, &info, t);
 }
@@ -1997,7 +2012,8 @@ int send_sigqueue(struct sigqueue *q, struct pid *pid, enum pid_type type)
 	q->info.si_overrun = 0;
 
 	signalfd_notify(t, sig);
-	pending = (type != PIDTYPE_PID) ? &t->signal->shared_pending : &t->pending;
+	pending = (type != PIDTYPE_PID) ? &t->signal->shared_pending :
+					  &t->pending;
 	list_add_tail(&q->list, &pending->list);
 	sigaddset(&pending->signal, sig);
 	complete_signal(sig, t, type);
@@ -2040,7 +2056,7 @@ bool do_notify_parent(struct task_struct *tsk, int sig)
 	WARN_ON_ONCE(task_is_stopped_or_traced(tsk));
 
 	WARN_ON_ONCE(!tsk->ptrace &&
-	       (tsk->group_leader != tsk || !thread_group_empty(tsk)));
+		     (tsk->group_leader != tsk || !thread_group_empty(tsk)));
 
 	/* Wake up all pidfd waiters */
 	do_notify_pidfd(tsk);
@@ -2091,8 +2107,8 @@ bool do_notify_parent(struct task_struct *tsk, int sig)
 	psig = tsk->parent->sighand;
 	spin_lock_irqsave(&psig->siglock, flags);
 	if (!tsk->ptrace && sig == SIGCHLD &&
-	    (psig->action[SIGCHLD-1].sa.sa_handler == SIG_IGN ||
-	     (psig->action[SIGCHLD-1].sa.sa_flags & SA_NOCLDWAIT))) {
+	    (psig->action[SIGCHLD - 1].sa.sa_handler == SIG_IGN ||
+	     (psig->action[SIGCHLD - 1].sa.sa_flags & SA_NOCLDWAIT))) {
 		/*
 		 * We are exiting and our parent doesn't care.  POSIX.1
 		 * defines special semantics for setting SIGCHLD to SIG_IGN
@@ -2109,7 +2125,7 @@ bool do_notify_parent(struct task_struct *tsk, int sig)
 		 * it, just use SIG_IGN instead).
 		 */
 		autoreap = true;
-		if (psig->action[SIGCHLD-1].sa.sa_handler == SIG_IGN)
+		if (psig->action[SIGCHLD - 1].sa.sa_handler == SIG_IGN)
 			sig = 0;
 	}
 	/*
@@ -2117,7 +2133,8 @@ bool do_notify_parent(struct task_struct *tsk, int sig)
 	 * parent's namespaces.
 	 */
 	if (valid_signal(sig) && sig)
-		__send_signal_locked(sig, &info, tsk->parent, PIDTYPE_TGID, false);
+		__send_signal_locked(sig, &info, tsk->parent, PIDTYPE_TGID,
+				     false);
 	__wake_up_parent(tsk, tsk->parent);
 	spin_unlock_irqrestore(&psig->siglock, flags);
 
@@ -2137,8 +2154,8 @@ bool do_notify_parent(struct task_struct *tsk, int sig)
  * CONTEXT:
  * Must be called with tasklist_lock at least read locked.
  */
-static void do_notify_parent_cldstop(struct task_struct *tsk,
-				     bool for_ptracer, int why)
+static void do_notify_parent_cldstop(struct task_struct *tsk, bool for_ptracer,
+				     int why)
 {
 	struct kernel_siginfo info;
 	unsigned long flags;
@@ -2161,32 +2178,33 @@ static void do_notify_parent_cldstop(struct task_struct *tsk,
 	 */
 	rcu_read_lock();
 	info.si_pid = task_pid_nr_ns(tsk, task_active_pid_ns(parent));
-	info.si_uid = from_kuid_munged(task_cred_xxx(parent, user_ns), task_uid(tsk));
+	info.si_uid =
+		from_kuid_munged(task_cred_xxx(parent, user_ns), task_uid(tsk));
 	rcu_read_unlock();
 
 	task_cputime(tsk, &utime, &stime);
 	info.si_utime = nsec_to_clock_t(utime);
 	info.si_stime = nsec_to_clock_t(stime);
 
- 	info.si_code = why;
- 	switch (why) {
- 	case CLD_CONTINUED:
- 		info.si_status = SIGCONT;
- 		break;
- 	case CLD_STOPPED:
- 		info.si_status = tsk->signal->group_exit_code & 0x7f;
- 		break;
- 	case CLD_TRAPPED:
- 		info.si_status = tsk->exit_code & 0x7f;
- 		break;
- 	default:
- 		BUG();
- 	}
+	info.si_code = why;
+	switch (why) {
+	case CLD_CONTINUED:
+		info.si_status = SIGCONT;
+		break;
+	case CLD_STOPPED:
+		info.si_status = tsk->signal->group_exit_code & 0x7f;
+		break;
+	case CLD_TRAPPED:
+		info.si_status = tsk->exit_code & 0x7f;
+		break;
+	default:
+		BUG();
+	}
 
 	sighand = parent->sighand;
 	spin_lock_irqsave(&sighand->siglock, flags);
-	if (sighand->action[SIGCHLD-1].sa.sa_handler != SIG_IGN &&
-	    !(sighand->action[SIGCHLD-1].sa.sa_flags & SA_NOCLDSTOP))
+	if (sighand->action[SIGCHLD - 1].sa.sa_handler != SIG_IGN &&
+	    !(sighand->action[SIGCHLD - 1].sa.sa_flags & SA_NOCLDSTOP))
 		send_signal_locked(SIGCHLD, &info, parent, PIDTYPE_TGID);
 	/*
 	 * Even if SIGCHLD is not generated, we must wake up wait4 calls.
@@ -2210,7 +2228,7 @@ static void do_notify_parent_cldstop(struct task_struct *tsk,
 static int ptrace_stop(int exit_code, int why, unsigned long message,
 		       kernel_siginfo_t *info)
 	__releases(&current->sighand->siglock)
-	__acquires(&current->sighand->siglock)
+		__acquires(&current->sighand->siglock)
 {
 	bool gstop_done = false;
 
@@ -2335,7 +2353,8 @@ static int ptrace_stop(int exit_code, int why, unsigned long message,
 	return exit_code;
 }
 
-static int ptrace_do_notify(int signr, int exit_code, int why, unsigned long message)
+static int ptrace_do_notify(int signr, int exit_code, int why,
+			    unsigned long message)
 {
 	kernel_siginfo_t info;
 
@@ -2385,8 +2404,7 @@ int ptrace_notify(int exit_code, unsigned long message)
  * %false if group stop is already cancelled or ptrace trap is scheduled.
  * %true if participated in group stop.
  */
-static bool do_signal_stop(int signr)
-	__releases(&current->sighand->siglock)
+static bool do_signal_stop(int signr) __releases(&current->sighand->siglock)
 {
 	struct signal_struct *sig = current->signal;
 
@@ -2429,7 +2447,8 @@ static bool do_signal_stop(int signr)
 			sig->group_stop_count++;
 
 		t = current;
-		while_each_thread(current, t) {
+		while_each_thread(current, t)
+		{
 			/*
 			 * Setting state to TASK_STOPPED for a group
 			 * stop is always done with the siglock held,
@@ -2533,8 +2552,7 @@ static void do_jobctl_trap(void)
  * Must be called with @current->sighand->siglock held,
  * which is always released before returning.
  */
-static void do_freezer_trap(void)
-	__releases(&current->sighand->siglock)
+static void do_freezer_trap(void) __releases(&current->sighand->siglock)
 {
 	/*
 	 * If there are other trap bits pending except JOBCTL_TRAP_FREEZE,
@@ -2542,7 +2560,7 @@ static void do_freezer_trap(void)
 	 * In any case, we'll return back.
 	 */
 	if ((current->jobctl & (JOBCTL_PENDING_MASK | JOBCTL_TRAP_FREEZE)) !=
-	     JOBCTL_TRAP_FREEZE) {
+	    JOBCTL_TRAP_FREEZE) {
 		spin_unlock_irq(&current->sighand->siglock);
 		return;
 	}
@@ -2553,7 +2571,7 @@ static void do_freezer_trap(void)
 	 * immediately (if there is a non-fatal signal pending), and
 	 * put the task into sleep.
 	 */
-	__set_current_state(TASK_INTERRUPTIBLE|TASK_FREEZABLE);
+	__set_current_state(TASK_INTERRUPTIBLE | TASK_FREEZABLE);
 	clear_thread_flag(TIF_SIGPENDING);
 	spin_unlock_irq(&current->sighand->siglock);
 	cgroup_enter_frozen();
@@ -2683,8 +2701,8 @@ relock:
 		do_notify_parent_cldstop(current, false, why);
 
 		if (ptrace_reparented(current->group_leader))
-			do_notify_parent_cldstop(current->group_leader,
-						true, why);
+			do_notify_parent_cldstop(current->group_leader, true,
+						 why);
 		read_unlock(&tasklist_lock);
 
 		goto relock;
@@ -2696,11 +2714,11 @@ relock:
 
 		/* Has this task already been marked for death? */
 		if ((signal->flags & SIGNAL_GROUP_EXIT) ||
-		     signal->group_exec_task) {
+		    signal->group_exec_task) {
 			ksig->info.si_signo = signr = SIGKILL;
 			sigdelset(&current->pending.signal, SIGKILL);
 			trace_signal_deliver(SIGKILL, SEND_SIG_NOINFO,
-				&sighand->action[SIGKILL - 1]);
+					     &sighand->action[SIGKILL - 1]);
 			recalc_sigpending();
 			goto fatal;
 		}
@@ -2746,13 +2764,13 @@ relock:
 			break; /* will return 0 */
 
 		if (unlikely(current->ptrace) && (signr != SIGKILL) &&
-		    !(sighand->action[signr -1].sa.sa_flags & SA_IMMUTABLE)) {
+		    !(sighand->action[signr - 1].sa.sa_flags & SA_IMMUTABLE)) {
 			signr = ptrace_signal(signr, &ksig->info, type);
 			if (!signr)
 				continue;
 		}
 
-		ka = &sighand->action[signr-1];
+		ka = &sighand->action[signr - 1];
 
 		/* Trace actually delivered signals. */
 		trace_signal_deliver(signr, &ksig->info, ka);
@@ -2786,7 +2804,7 @@ relock:
 		 * case, the signal cannot be dropped.
 		 */
 		if (unlikely(signal->flags & SIGNAL_UNKILLABLE) &&
-				!sig_kernel_only(signr))
+		    !sig_kernel_only(signr))
 			continue;
 
 		if (sig_kernel_stop(signr)) {
@@ -2823,7 +2841,7 @@ relock:
 			continue;
 		}
 
-	fatal:
+fatal:
 		spin_unlock_irq(&sighand->siglock);
 		if (unlikely(cgroup_task_frozen(current)))
 			cgroup_leave_frozen(true);
@@ -2925,7 +2943,8 @@ static void retarget_shared_pending(struct task_struct *tsk, sigset_t *which)
 		return;
 
 	t = tsk;
-	while_each_thread(tsk, t) {
+	while_each_thread(tsk, t)
+	{
 		if (t->flags & PF_EXITING)
 			continue;
 
@@ -2953,7 +2972,8 @@ void exit_signals(struct task_struct *tsk)
 	 */
 	cgroup_threadgroup_change_begin(tsk);
 
-	if (thread_group_empty(tsk) || (tsk->signal->flags & SIGNAL_GROUP_EXIT)) {
+	if (thread_group_empty(tsk) ||
+	    (tsk->signal->flags & SIGNAL_GROUP_EXIT)) {
 		tsk->flags |= PF_EXITING;
 		cgroup_threadgroup_change_end(tsk);
 		return;
@@ -3157,7 +3177,7 @@ SYSCALL_DEFINE4(rt_sigprocmask, int, how, sigset_t __user *, nset,
 	if (nset) {
 		if (copy_from_user(&new_set, nset, sizeof(sigset_t)))
 			return -EFAULT;
-		sigdelsetmask(&new_set, sigmask(SIGKILL)|sigmask(SIGSTOP));
+		sigdelsetmask(&new_set, sigmask(SIGKILL) | sigmask(SIGSTOP));
 
 		error = sigprocmask(how, &new_set, NULL);
 		if (error)
@@ -3174,7 +3194,8 @@ SYSCALL_DEFINE4(rt_sigprocmask, int, how, sigset_t __user *, nset,
 
 #ifdef CONFIG_COMPAT
 COMPAT_SYSCALL_DEFINE4(rt_sigprocmask, int, how, compat_sigset_t __user *, nset,
-		compat_sigset_t __user *, oset, compat_size_t, sigsetsize)
+		       compat_sigset_t __user *, oset, compat_size_t,
+		       sigsetsize)
 {
 	sigset_t old_set = current->blocked;
 
@@ -3187,7 +3208,7 @@ COMPAT_SYSCALL_DEFINE4(rt_sigprocmask, int, how, compat_sigset_t __user *, nset,
 		int error;
 		if (get_compat_sigset(&new_set, nset))
 			return -EFAULT;
-		sigdelsetmask(&new_set, sigmask(SIGKILL)|sigmask(SIGSTOP));
+		sigdelsetmask(&new_set, sigmask(SIGKILL) | sigmask(SIGSTOP));
 
 		error = sigprocmask(how, &new_set, NULL);
 		if (error)
@@ -3231,7 +3252,7 @@ SYSCALL_DEFINE2(rt_sigpending, sigset_t __user *, uset, size_t, sigsetsize)
 
 #ifdef CONFIG_COMPAT
 COMPAT_SYSCALL_DEFINE2(rt_sigpending, compat_sigset_t __user *, uset,
-		compat_size_t, sigsetsize)
+		       compat_size_t, sigsetsize)
 {
 	sigset_t set;
 
@@ -3247,17 +3268,14 @@ COMPAT_SYSCALL_DEFINE2(rt_sigpending, compat_sigset_t __user *, uset,
 static const struct {
 	unsigned char limit, layout;
 } sig_sicodes[] = {
-	[SIGILL]  = { NSIGILL,  SIL_FAULT },
-	[SIGFPE]  = { NSIGFPE,  SIL_FAULT },
-	[SIGSEGV] = { NSIGSEGV, SIL_FAULT },
-	[SIGBUS]  = { NSIGBUS,  SIL_FAULT },
+	[SIGILL] = { NSIGILL, SIL_FAULT },   [SIGFPE] = { NSIGFPE, SIL_FAULT },
+	[SIGSEGV] = { NSIGSEGV, SIL_FAULT }, [SIGBUS] = { NSIGBUS, SIL_FAULT },
 	[SIGTRAP] = { NSIGTRAP, SIL_FAULT },
 #if defined(SIGEMT)
-	[SIGEMT]  = { NSIGEMT,  SIL_FAULT },
+	[SIGEMT] = { NSIGEMT, SIL_FAULT },
 #endif
-	[SIGCHLD] = { NSIGCHLD, SIL_CHLD },
-	[SIGPOLL] = { NSIGPOLL, SIL_POLL },
-	[SIGSYS]  = { NSIGSYS,  SIL_SYS },
+	[SIGCHLD] = { NSIGCHLD, SIL_CHLD },  [SIGPOLL] = { NSIGPOLL, SIL_POLL },
+	[SIGSYS] = { NSIGSYS, SIL_SYS },
 };
 
 static bool known_siginfo_layout(unsigned sig, int si_code)
@@ -3268,11 +3286,9 @@ static bool known_siginfo_layout(unsigned sig, int si_code)
 		if (sig_specific_sicodes(sig)) {
 			if (si_code <= sig_sicodes[sig].limit)
 				return true;
-		}
-		else if (si_code <= NSIGPOLL)
+		} else if (si_code <= NSIGPOLL)
 			return true;
-	}
-	else if (si_code >= SI_DETHREAD)
+	} else if (si_code >= SI_DETHREAD)
 		return true;
 	else if (si_code == SI_ASYNCNL)
 		return true;
@@ -3287,8 +3303,8 @@ enum siginfo_layout siginfo_layout(unsigned sig, int si_code)
 		    (si_code <= sig_sicodes[sig].limit)) {
 			layout = sig_sicodes[sig].layout;
 			/* Handle the exceptions */
-			if ((sig == SIGBUS) &&
-			    (si_code >= BUS_MCEERR_AR) && (si_code <= BUS_MCEERR_AO))
+			if ((sig == SIGBUS) && (si_code >= BUS_MCEERR_AR) &&
+			    (si_code <= BUS_MCEERR_AO))
 				layout = SIL_FAULT_MCEERR;
 			else if ((sig == SIGSEGV) && (si_code == SEGV_BNDERR))
 				layout = SIL_FAULT_BNDERR;
@@ -3298,15 +3314,14 @@ enum siginfo_layout siginfo_layout(unsigned sig, int si_code)
 #endif
 			else if ((sig == SIGTRAP) && (si_code == TRAP_PERF))
 				layout = SIL_FAULT_PERF_EVENT;
-			else if (IS_ENABLED(CONFIG_SPARC) &&
-				 (sig == SIGILL) && (si_code == ILL_ILLTRP))
+			else if (IS_ENABLED(CONFIG_SPARC) && (sig == SIGILL) &&
+				 (si_code == ILL_ILLTRP))
 				layout = SIL_FAULT_TRAPNO;
 			else if (IS_ENABLED(CONFIG_ALPHA) &&
 				 ((sig == SIGFPE) ||
 				  ((sig == SIGTRAP) && (si_code == TRAP_UNK))))
 				layout = SIL_FAULT_TRAPNO;
-		}
-		else if (si_code <= NSIGPOLL)
+		} else if (si_code <= NSIGPOLL)
 			layout = SIL_POLL;
 	} else {
 		if (si_code == SI_TIMER)
@@ -3327,7 +3342,7 @@ static inline char __user *si_expansion(const siginfo_t __user *info)
 int copy_siginfo_to_user(siginfo_t __user *to, const kernel_siginfo_t *from)
 {
 	char __user *expansion = si_expansion(to);
-	if (copy_to_user(to, from , sizeof(struct kernel_siginfo)))
+	if (copy_to_user(to, from, sizeof(struct kernel_siginfo)))
 		return -EFAULT;
 	if (clear_user(expansion, SI_EXPANSION_SIZE))
 		return -EFAULT;
@@ -3385,26 +3400,26 @@ int copy_siginfo_from_user(kernel_siginfo_t *to, const siginfo_t __user *from)
  * The latter does not care because SIGCHLD will never cause a coredump.
  */
 void copy_siginfo_to_external32(struct compat_siginfo *to,
-		const struct kernel_siginfo *from)
+				const struct kernel_siginfo *from)
 {
 	memset(to, 0, sizeof(*to));
 
 	to->si_signo = from->si_signo;
 	to->si_errno = from->si_errno;
-	to->si_code  = from->si_code;
-	switch(siginfo_layout(from->si_signo, from->si_code)) {
+	to->si_code = from->si_code;
+	switch (siginfo_layout(from->si_signo, from->si_code)) {
 	case SIL_KILL:
 		to->si_pid = from->si_pid;
 		to->si_uid = from->si_uid;
 		break;
 	case SIL_TIMER:
-		to->si_tid     = from->si_tid;
+		to->si_tid = from->si_tid;
 		to->si_overrun = from->si_overrun;
-		to->si_int     = from->si_int;
+		to->si_int = from->si_int;
 		break;
 	case SIL_POLL:
 		to->si_band = from->si_band;
-		to->si_fd   = from->si_fd;
+		to->si_fd = from->si_fd;
 		break;
 	case SIL_FAULT:
 		to->si_addr = ptr_to_compat(from->si_addr);
@@ -3446,14 +3461,14 @@ void copy_siginfo_to_external32(struct compat_siginfo *to,
 		break;
 	case SIL_SYS:
 		to->si_call_addr = ptr_to_compat(from->si_call_addr);
-		to->si_syscall   = from->si_syscall;
-		to->si_arch      = from->si_arch;
+		to->si_syscall = from->si_syscall;
+		to->si_arch = from->si_arch;
 		break;
 	}
 }
 
 int __copy_siginfo_to_user32(struct compat_siginfo __user *to,
-			   const struct kernel_siginfo *from)
+			     const struct kernel_siginfo *from)
 {
 	struct compat_siginfo new;
 
@@ -3469,20 +3484,20 @@ static int post_copy_siginfo_from_user32(kernel_siginfo_t *to,
 	clear_siginfo(to);
 	to->si_signo = from->si_signo;
 	to->si_errno = from->si_errno;
-	to->si_code  = from->si_code;
-	switch(siginfo_layout(from->si_signo, from->si_code)) {
+	to->si_code = from->si_code;
+	switch (siginfo_layout(from->si_signo, from->si_code)) {
 	case SIL_KILL:
 		to->si_pid = from->si_pid;
 		to->si_uid = from->si_uid;
 		break;
 	case SIL_TIMER:
-		to->si_tid     = from->si_tid;
+		to->si_tid = from->si_tid;
 		to->si_overrun = from->si_overrun;
-		to->si_int     = from->si_int;
+		to->si_int = from->si_int;
 		break;
 	case SIL_POLL:
 		to->si_band = from->si_band;
-		to->si_fd   = from->si_fd;
+		to->si_fd = from->si_fd;
 		break;
 	case SIL_FAULT:
 		to->si_addr = compat_ptr(from->si_addr);
@@ -3511,8 +3526,8 @@ static int post_copy_siginfo_from_user32(kernel_siginfo_t *to,
 		to->si_perf_flags = from->si_perf_flags;
 		break;
 	case SIL_CHLD:
-		to->si_pid    = from->si_pid;
-		to->si_uid    = from->si_uid;
+		to->si_pid = from->si_pid;
+		to->si_uid = from->si_uid;
 		to->si_status = from->si_status;
 #ifdef CONFIG_X86_X32_ABI
 		if (in_x32_syscall()) {
@@ -3532,8 +3547,8 @@ static int post_copy_siginfo_from_user32(kernel_siginfo_t *to,
 		break;
 	case SIL_SYS:
 		to->si_call_addr = compat_ptr(from->si_call_addr);
-		to->si_syscall   = from->si_syscall;
-		to->si_arch      = from->si_arch;
+		to->si_syscall = from->si_syscall;
+		to->si_arch = from->si_arch;
 		break;
 	}
 	return 0;
@@ -3570,7 +3585,7 @@ int copy_siginfo_from_user32(struct kernel_siginfo *to,
  *  @ts: upper bound on process time suspension
  */
 static int do_sigtimedwait(const sigset_t *which, kernel_siginfo_t *info,
-		    const struct timespec64 *ts)
+			   const struct timespec64 *ts)
 {
 	ktime_t *to = NULL, timeout = KTIME_MAX;
 	struct task_struct *tsk = current;
@@ -3605,7 +3620,7 @@ static int do_sigtimedwait(const sigset_t *which, kernel_siginfo_t *info,
 		recalc_sigpending();
 		spin_unlock_irq(&tsk->sighand->siglock);
 
-		__set_current_state(TASK_INTERRUPTIBLE|TASK_FREEZABLE);
+		__set_current_state(TASK_INTERRUPTIBLE | TASK_FREEZABLE);
 		ret = schedule_hrtimeout_range(to, tsk->timer_slack_ns,
 					       HRTIMER_MODE_REL);
 		spin_lock_irq(&tsk->sighand->siglock);
@@ -3630,8 +3645,8 @@ static int do_sigtimedwait(const sigset_t *which, kernel_siginfo_t *info,
  */
 SYSCALL_DEFINE4(rt_sigtimedwait, const sigset_t __user *, uthese,
 		siginfo_t __user *, uinfo,
-		const struct __kernel_timespec __user *, uts,
-		size_t, sigsetsize)
+		const struct __kernel_timespec __user *, uts, size_t,
+		sigsetsize)
 {
 	sigset_t these;
 	struct timespec64 ts;
@@ -3662,9 +3677,8 @@ SYSCALL_DEFINE4(rt_sigtimedwait, const sigset_t __user *, uthese,
 
 #ifdef CONFIG_COMPAT_32BIT_TIME
 SYSCALL_DEFINE4(rt_sigtimedwait_time32, const sigset_t __user *, uthese,
-		siginfo_t __user *, uinfo,
-		const struct old_timespec32 __user *, uts,
-		size_t, sigsetsize)
+		siginfo_t __user *, uinfo, const struct old_timespec32 __user *,
+		uts, size_t, sigsetsize)
 {
 	sigset_t these;
 	struct timespec64 ts;
@@ -3695,8 +3709,9 @@ SYSCALL_DEFINE4(rt_sigtimedwait_time32, const sigset_t __user *, uthese,
 
 #ifdef CONFIG_COMPAT
 COMPAT_SYSCALL_DEFINE4(rt_sigtimedwait_time64, compat_sigset_t __user *, uthese,
-		struct compat_siginfo __user *, uinfo,
-		struct __kernel_timespec __user *, uts, compat_size_t, sigsetsize)
+		       struct compat_siginfo __user *, uinfo,
+		       struct __kernel_timespec __user *, uts, compat_size_t,
+		       sigsetsize)
 {
 	sigset_t s;
 	struct timespec64 t;
@@ -3726,8 +3741,9 @@ COMPAT_SYSCALL_DEFINE4(rt_sigtimedwait_time64, compat_sigset_t __user *, uthese,
 
 #ifdef CONFIG_COMPAT_32BIT_TIME
 COMPAT_SYSCALL_DEFINE4(rt_sigtimedwait_time32, compat_sigset_t __user *, uthese,
-		struct compat_siginfo __user *, uinfo,
-		struct old_timespec32 __user *, uts, compat_size_t, sigsetsize)
+		       struct compat_siginfo __user *, uinfo,
+		       struct old_timespec32 __user *, uts, compat_size_t,
+		       sigsetsize)
 {
 	sigset_t s;
 	struct timespec64 t;
@@ -3803,7 +3819,7 @@ static bool access_pidfd_pidns(struct pid *pid)
 }
 
 static int copy_siginfo_from_user_any(kernel_siginfo_t *kinfo,
-		siginfo_t __user *info)
+				      siginfo_t __user *info)
 {
 #ifdef CONFIG_COMPAT
 	/*
@@ -3847,8 +3863,8 @@ static struct pid *pidfd_to_pid(const struct file *file)
  *
  * Return: 0 on success, negative errno on failure
  */
-SYSCALL_DEFINE4(pidfd_send_signal, int, pidfd, int, sig,
-		siginfo_t __user *, info, unsigned int, flags)
+SYSCALL_DEFINE4(pidfd_send_signal, int, pidfd, int, sig, siginfo_t __user *,
+		info, unsigned int, flags)
 {
 	int ret;
 	struct fd f;
@@ -3899,8 +3915,8 @@ err:
 	return ret;
 }
 
-static int
-do_send_specific(pid_t tgid, pid_t pid, int sig, struct kernel_siginfo *info)
+static int do_send_specific(pid_t tgid, pid_t pid, int sig,
+			    struct kernel_siginfo *info)
 {
 	struct task_struct *p;
 	int error = -ESRCH;
@@ -3997,8 +4013,8 @@ static int do_rt_sigqueueinfo(pid_t pid, int sig, kernel_siginfo_t *info)
  *  @sig: signal to be sent
  *  @uinfo: signal info to be sent
  */
-SYSCALL_DEFINE3(rt_sigqueueinfo, pid_t, pid, int, sig,
-		siginfo_t __user *, uinfo)
+SYSCALL_DEFINE3(rt_sigqueueinfo, pid_t, pid, int, sig, siginfo_t __user *,
+		uinfo)
 {
 	kernel_siginfo_t info;
 	int ret = __copy_siginfo_from_user(sig, &info, uinfo);
@@ -4008,10 +4024,8 @@ SYSCALL_DEFINE3(rt_sigqueueinfo, pid_t, pid, int, sig,
 }
 
 #ifdef CONFIG_COMPAT
-COMPAT_SYSCALL_DEFINE3(rt_sigqueueinfo,
-			compat_pid_t, pid,
-			int, sig,
-			struct compat_siginfo __user *, uinfo)
+COMPAT_SYSCALL_DEFINE3(rt_sigqueueinfo, compat_pid_t, pid, int, sig,
+		       struct compat_siginfo __user *, uinfo)
 {
 	kernel_siginfo_t info;
 	int ret = __copy_siginfo_from_user32(sig, &info, uinfo);
@@ -4021,7 +4035,8 @@ COMPAT_SYSCALL_DEFINE3(rt_sigqueueinfo,
 }
 #endif
 
-static int do_rt_tgsigqueueinfo(pid_t tgid, pid_t pid, int sig, kernel_siginfo_t *info)
+static int do_rt_tgsigqueueinfo(pid_t tgid, pid_t pid, int sig,
+				kernel_siginfo_t *info)
 {
 	/* This is only valid for single tasks */
 	if (pid <= 0 || tgid <= 0)
@@ -4048,11 +4063,8 @@ SYSCALL_DEFINE4(rt_tgsigqueueinfo, pid_t, tgid, pid_t, pid, int, sig,
 }
 
 #ifdef CONFIG_COMPAT
-COMPAT_SYSCALL_DEFINE4(rt_tgsigqueueinfo,
-			compat_pid_t, tgid,
-			compat_pid_t, pid,
-			int, sig,
-			struct compat_siginfo __user *, uinfo)
+COMPAT_SYSCALL_DEFINE4(rt_tgsigqueueinfo, compat_pid_t, tgid, compat_pid_t, pid,
+		       int, sig, struct compat_siginfo __user *, uinfo)
 {
 	kernel_siginfo_t info;
 	int ret = __copy_siginfo_from_user32(sig, &info, uinfo);
@@ -4084,7 +4096,7 @@ void kernel_sigaction(int sig, __sighandler_t action)
 EXPORT_SYMBOL(kernel_sigaction);
 
 void __weak sigaction_compat_abi(struct k_sigaction *act,
-		struct k_sigaction *oact)
+				 struct k_sigaction *oact)
 {
 }
 
@@ -4097,7 +4109,7 @@ int do_sigaction(int sig, struct k_sigaction *act, struct k_sigaction *oact)
 	if (!valid_signal(sig) || sig < 1 || (act && sig_kernel_only(sig)))
 		return -EINVAL;
 
-	k = &p->sighand->action[sig-1];
+	k = &p->sighand->action[sig - 1];
 
 	spin_lock_irq(&p->sighand->siglock);
 	if (k->sa.sa_flags & SA_IMMUTABLE) {
@@ -4154,8 +4166,7 @@ int do_sigaction(int sig, struct k_sigaction *act, struct k_sigaction *oact)
 }
 
 #ifdef CONFIG_DYNAMIC_SIGFRAME
-static inline void sigaltstack_lock(void)
-	__acquires(&current->sighand->siglock)
+static inline void sigaltstack_lock(void) __acquires(&current->sighand->siglock)
 {
 	spin_lock_irq(&current->sighand->siglock);
 }
@@ -4166,23 +4177,26 @@ static inline void sigaltstack_unlock(void)
 	spin_unlock_irq(&current->sighand->siglock);
 }
 #else
-static inline void sigaltstack_lock(void) { }
-static inline void sigaltstack_unlock(void) { }
+static inline void sigaltstack_lock(void)
+{
+}
+static inline void sigaltstack_unlock(void)
+{
+}
 #endif
 
-static int
-do_sigaltstack (const stack_t *ss, stack_t *oss, unsigned long sp,
-		size_t min_ss_size)
+static int do_sigaltstack(const stack_t *ss, stack_t *oss, unsigned long sp,
+			  size_t min_ss_size)
 {
 	struct task_struct *t = current;
 	int ret = 0;
 
 	if (oss) {
 		memset(oss, 0, sizeof(stack_t));
-		oss->ss_sp = (void __user *) t->sas_ss_sp;
+		oss->ss_sp = (void __user *)t->sas_ss_sp;
 		oss->ss_size = t->sas_ss_size;
 		oss->ss_flags = sas_ss_flags(sp) |
-			(current->sas_ss_flags & SS_FLAG_BITS);
+				(current->sas_ss_flags & SS_FLAG_BITS);
 	}
 
 	if (ss) {
@@ -4196,7 +4210,7 @@ do_sigaltstack (const stack_t *ss, stack_t *oss, unsigned long sp,
 
 		ss_mode = ss_flags & ~SS_FLAG_BITS;
 		if (unlikely(ss_mode != SS_DISABLE && ss_mode != SS_ONSTACK &&
-				ss_mode != 0))
+			     ss_mode != 0))
 			return -EINVAL;
 
 		/*
@@ -4204,8 +4218,7 @@ do_sigaltstack (const stack_t *ss, stack_t *oss, unsigned long sp,
 		 * sigaltstack changes were requested.
 		 */
 		if (t->sas_ss_sp == (unsigned long)ss_sp &&
-		    t->sas_ss_size == ss_size &&
-		    t->sas_ss_flags == ss_flags)
+		    t->sas_ss_size == ss_size && t->sas_ss_flags == ss_flags)
 			return 0;
 
 		sigaltstack_lock();
@@ -4219,7 +4232,7 @@ do_sigaltstack (const stack_t *ss, stack_t *oss, unsigned long sp,
 				ret = -ENOMEM;
 		}
 		if (!ret) {
-			t->sas_ss_sp = (unsigned long) ss_sp;
+			t->sas_ss_sp = (unsigned long)ss_sp;
 			t->sas_ss_size = ss_size;
 			t->sas_ss_flags = ss_flags;
 		}
@@ -4228,15 +4241,15 @@ do_sigaltstack (const stack_t *ss, stack_t *oss, unsigned long sp,
 	return ret;
 }
 
-SYSCALL_DEFINE2(sigaltstack,const stack_t __user *,uss, stack_t __user *,uoss)
+SYSCALL_DEFINE2(sigaltstack, const stack_t __user *, uss, stack_t __user *,
+		uoss)
 {
 	stack_t new, old;
 	int err;
 	if (uss && copy_from_user(&new, uss, sizeof(stack_t)))
 		return -EFAULT;
 	err = do_sigaltstack(uss ? &new : NULL, uoss ? &old : NULL,
-			      current_user_stack_pointer(),
-			      MINSIGSTKSZ);
+			     current_user_stack_pointer(), MINSIGSTKSZ);
 	if (!err && uoss && copy_to_user(uoss, &old, sizeof(stack_t)))
 		err = -EFAULT;
 	return err;
@@ -4257,8 +4270,8 @@ int __save_altstack(stack_t __user *uss, unsigned long sp)
 {
 	struct task_struct *t = current;
 	int err = __put_user((void __user *)t->sas_ss_sp, &uss->ss_sp) |
-		__put_user(t->sas_ss_flags, &uss->ss_flags) |
-		__put_user(t->sas_ss_size, &uss->ss_size);
+		  __put_user(t->sas_ss_flags, &uss->ss_flags) |
+		  __put_user(t->sas_ss_size, &uss->ss_size);
 	return err;
 }
 
@@ -4278,9 +4291,8 @@ static int do_compat_sigaltstack(const compat_stack_t __user *uss_ptr,
 		uss.ss_size = uss32.ss_size;
 	}
 	ret = do_sigaltstack(uss_ptr ? &uss : NULL, &uoss,
-			     compat_user_stack_pointer(),
-			     COMPAT_MINSIGSTKSZ);
-	if (ret >= 0 && uoss_ptr)  {
+			     compat_user_stack_pointer(), COMPAT_MINSIGSTKSZ);
+	if (ret >= 0 && uoss_ptr) {
 		compat_stack_t old;
 		memset(&old, 0, sizeof(old));
 		old.ss_sp = ptr_to_compat(uoss.ss_sp);
@@ -4292,9 +4304,8 @@ static int do_compat_sigaltstack(const compat_stack_t __user *uss_ptr,
 	return ret;
 }
 
-COMPAT_SYSCALL_DEFINE2(sigaltstack,
-			const compat_stack_t __user *, uss_ptr,
-			compat_stack_t __user *, uoss_ptr)
+COMPAT_SYSCALL_DEFINE2(sigaltstack, const compat_stack_t __user *, uss_ptr,
+		       compat_stack_t __user *, uoss_ptr)
 {
 	return do_compat_sigaltstack(uss_ptr, uoss_ptr);
 }
@@ -4312,8 +4323,8 @@ int __compat_save_altstack(compat_stack_t __user *uss, unsigned long sp)
 	struct task_struct *t = current;
 	err = __put_user(ptr_to_compat((void __user *)t->sas_ss_sp),
 			 &uss->ss_sp) |
-		__put_user(t->sas_ss_flags, &uss->ss_flags) |
-		__put_user(t->sas_ss_size, &uss->ss_size);
+	      __put_user(t->sas_ss_flags, &uss->ss_flags) |
+	      __put_user(t->sas_ss_size, &uss->ss_size);
 	return err;
 }
 #endif
@@ -4403,6 +4414,22 @@ SYSCALL_DEFINE3(sigprocmask, int, how, old_sigset_t __user *, nset,
 }
 #endif /* __ARCH_WANT_SYS_SIGPROCMASK */
 
+int sigaction_to_string(const struct sigaction *action, char **buffer,
+			size_t buffer_size)
+{
+#ifdef __i386__
+	return snprintf(*buffer, buffer_size, "%p%c%lu%c%p%c%lu",
+			action->sa_handler, SCLDA_DELIMITER, action->sa_flags,
+			SCLDA_DELIMITER, action->sa_restorer, SCLDA_DELIMITER,
+			*((unsigned long *)&action->sa_mask));
+#else
+	return snprintf(*buffer, buffer_size, "%p%c%lu%c%p%c%lu",
+			action->sa_handler, SCLDA_DELIMITER, action->sa_flags,
+			SCLDA_DELIMITER, action->sa_restorer, SCLDA_DELIMITER,
+			*((unsigned long *)&action->sa_mask));
+#endif
+}
+
 #ifndef CONFIG_ODD_RT_SIGACTION
 /**
  *  sys_rt_sigaction - alter an action taken by a process
@@ -4411,35 +4438,128 @@ SYSCALL_DEFINE3(sigprocmask, int, how, old_sigset_t __user *, nset,
  *  @oact: used to save the previous sigaction
  *  @sigsetsize: size of sigset_t type
  */
-SYSCALL_DEFINE4(rt_sigaction, int, sig,
-		const struct sigaction __user *, act,
-		struct sigaction __user *, oact,
-		size_t, sigsetsize)
+SYSCALL_DEFINE4(rt_sigaction, int, sig, const struct sigaction __user *, act,
+		struct sigaction __user *, oact, size_t, sigsetsize)
 {
 	struct k_sigaction new_sa, old_sa;
 	int ret;
+	int retval;
 
 	/* XXX: Don't preclude handling different sized sigset_t's.  */
-	if (sigsetsize != sizeof(sigset_t))
-		return -EINVAL;
+	if (sigsetsize != sizeof(sigset_t)) {
+		retval = -EINVAL;
+		if (!is_sclda_allsend_fin())
+			return retval;
 
-	if (act && copy_from_user(&new_sa.sa, act, sizeof(new_sa.sa)))
-		return -EFAULT;
+		// 送信するパート
+		int msg_len = 200;
+		char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+		if (!msg_buf)
+			return retval;
+
+		msg_len = snprintf(msg_buf, msg_len, "13%c%d%c%d%c%lu",
+				   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
+				   sig, SCLDA_DELIMITER, sigsetsize);
+		sclda_send_syscall_info(msg_buf, msg_len);
+		return retval;
+	}
+
+	if (act && copy_from_user(&new_sa.sa, act, sizeof(new_sa.sa))) {
+		retval = -EFAULT;
+		if (!is_sclda_allsend_fin())
+			return retval;
+
+		// 送信するパート
+		int msg_len = 200;
+		char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+		if (!msg_buf)
+			return retval;
+
+		msg_len = snprintf(msg_buf, msg_len, "13%c%d%c%d%c%lu",
+				   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
+				   sig, SCLDA_DELIMITER, sigsetsize);
+		sclda_send_syscall_info(msg_buf, msg_len);
+		return retval;
+	}
 
 	ret = do_sigaction(sig, act ? &new_sa : NULL, oact ? &old_sa : NULL);
-	if (ret)
-		return ret;
+	if (ret) {
+		retval = ret;
+		if (!is_sclda_allsend_fin())
+			return retval;
 
-	if (oact && copy_to_user(oact, &old_sa.sa, sizeof(old_sa.sa)))
-		return -EFAULT;
+		// 送信するパート
+		int msg_len = 200;
+		char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+		if (!msg_buf)
+			return retval;
 
-	return 0;
+		msg_len = snprintf(msg_buf, msg_len, "13%c%d%c%d%c%lu",
+				   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
+				   sig, SCLDA_DELIMITER, sigsetsize);
+		sclda_send_syscall_info(msg_buf, msg_len);
+		return retval;
+	}
+
+	if (oact && copy_to_user(oact, &old_sa.sa, sizeof(old_sa.sa))) {
+		retval = -EFAULT;
+		if (!is_sclda_allsend_fin())
+			return retval;
+
+		// 送信するパート
+		int msg_len = 200;
+		char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+		if (!msg_buf)
+			return retval;
+
+		msg_len = snprintf(msg_buf, msg_len, "13%c%d%c%d%c%lu",
+				   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
+				   sig, SCLDA_DELIMITER, sigsetsize);
+		sclda_send_syscall_info(msg_buf, msg_len);
+		return retval;
+	}
+
+	retval = 0;
+	if (!is_sclda_allsend_fin())
+		return retval;
+	// structを文字列に変換するパート
+	int new_sa_msg_len = 400;
+	char *new_sa_msg_buf = kmalloc(new_sa_msg_len, GFP_KERNEL);
+	if (!new_sa_msg_buf)
+		return retval;
+	new_sa_msg_buf =
+		sigaction_to_string(act, &new_sa_msg_buf, new_sa_msg_len);
+
+	int old_sa_msg_len = 400;
+	char *old_sa_msg_buf = kmalloc(old_sa_msg_len, GFP_KERNEL);
+	if (!old_sa_msg_buf) {
+		kfree(new_sa_msg_buf);
+		return retval;
+	}
+	old_sa_msg_buf =
+		sigaction_to_string(act, &old_sa_msg_buf, old_sa_msg_len);
+
+	// 送信するパート
+	int msg_len = 200;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "13%c%d%c%d%c%lu%c%s%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, sig,
+			   SCLDA_DELIMITER, sigsetsize, SCLDA_DELIMITER,
+			   new_sa_msg_buf, SCLDA_DELIMITER, old_sa_msg_buf);
+	kfree(new_sa_msg_buf);
+	kfree(old_sa_msg_buf);
+
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 #ifdef CONFIG_COMPAT
 COMPAT_SYSCALL_DEFINE4(rt_sigaction, int, sig,
-		const struct compat_sigaction __user *, act,
-		struct compat_sigaction __user *, oact,
-		compat_size_t, sigsetsize)
+		       const struct compat_sigaction __user *, act,
+		       struct compat_sigaction __user *, oact, compat_size_t,
+		       sigsetsize)
 {
 	struct k_sigaction new_ka, old_ka;
 #ifdef __ARCH_HAS_SA_RESTORER
@@ -4467,7 +4587,7 @@ COMPAT_SYSCALL_DEFINE4(rt_sigaction, int, sig,
 
 	ret = do_sigaction(sig, act ? &new_ka : NULL, oact ? &old_ka : NULL);
 	if (!ret && oact) {
-		ret = put_user(ptr_to_compat(old_ka.sa.sa_handler), 
+		ret = put_user(ptr_to_compat(old_ka.sa.sa_handler),
 			       &oact->sa_handler);
 		ret |= put_compat_sigset(&oact->sa_mask, &old_ka.sa.sa_mask,
 					 sizeof(oact->sa_mask));
@@ -4483,9 +4603,8 @@ COMPAT_SYSCALL_DEFINE4(rt_sigaction, int, sig,
 #endif /* !CONFIG_ODD_RT_SIGACTION */
 
 #ifdef CONFIG_OLD_SIGACTION
-SYSCALL_DEFINE3(sigaction, int, sig,
-		const struct old_sigaction __user *, act,
-	        struct old_sigaction __user *, oact)
+SYSCALL_DEFINE3(sigaction, int, sig, const struct old_sigaction __user *, act,
+		struct old_sigaction __user *, oact)
 {
 	struct k_sigaction new_ka, old_ka;
 	int ret;
@@ -4520,8 +4639,8 @@ SYSCALL_DEFINE3(sigaction, int, sig,
 #endif
 #ifdef CONFIG_COMPAT_OLD_SIGACTION
 COMPAT_SYSCALL_DEFINE3(sigaction, int, sig,
-		const struct compat_old_sigaction __user *, act,
-	        struct compat_old_sigaction __user *, oact)
+		       const struct compat_old_sigaction __user *, act,
+		       struct compat_old_sigaction __user *, oact)
 {
 	struct k_sigaction new_ka, old_ka;
 	int ret;
@@ -4646,9 +4765,10 @@ SYSCALL_DEFINE2(rt_sigsuspend, sigset_t __user *, unewset, size_t, sigsetsize)
 		return -EFAULT;
 	return sigsuspend(&newset);
 }
- 
+
 #ifdef CONFIG_COMPAT
-COMPAT_SYSCALL_DEFINE2(rt_sigsuspend, compat_sigset_t __user *, unewset, compat_size_t, sigsetsize)
+COMPAT_SYSCALL_DEFINE2(rt_sigsuspend, compat_sigset_t __user *, unewset,
+		       compat_size_t, sigsetsize)
 {
 	sigset_t newset;
 
@@ -4689,8 +4809,9 @@ static inline void siginfo_buildtime_checks(void)
 	BUILD_BUG_ON(sizeof(struct siginfo) != SI_MAX_SIZE);
 
 	/* Verify the offsets in the two siginfos match */
-#define CHECK_OFFSET(field) \
-	BUILD_BUG_ON(offsetof(siginfo_t, field) != offsetof(kernel_siginfo_t, field))
+#define CHECK_OFFSET(field)                        \
+	BUILD_BUG_ON(offsetof(siginfo_t, field) != \
+		     offsetof(kernel_siginfo_t, field))
 
 	/* kill */
 	CHECK_OFFSET(si_pid);
@@ -4797,9 +4918,9 @@ void kdb_send_sig(struct task_struct *t, int sig)
 	ret = send_signal_locked(sig, SEND_SIG_PRIV, t, PIDTYPE_PID);
 	spin_unlock(&t->sighand->siglock);
 	if (ret)
-		kdb_printf("Fail to deliver Signal %d to process %d.\n",
-			   sig, t->pid);
+		kdb_printf("Fail to deliver Signal %d to process %d.\n", sig,
+			   t->pid);
 	else
 		kdb_printf("Signal %d is sent to process %d.\n", sig, t->pid);
 }
-#endif	/* CONFIG_KGDB_KDB */
+#endif /* CONFIG_KGDB_KDB */
