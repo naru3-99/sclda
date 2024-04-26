@@ -89,6 +89,7 @@ SYSCALL_DEFINE6(mmap, unsigned long, addr, unsigned long, len, unsigned long,
 		off)
 {
 	if (off & ~PAGE_MASK) {
+		int retval = -EINVAL;
 		if (!is_sclda_allsend_fin())
 			return retval;
 
