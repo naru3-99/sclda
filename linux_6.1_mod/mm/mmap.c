@@ -183,8 +183,22 @@ SYSCALL_DEFINE1(brk, unsigned long, brk)
 	LIST_HEAD(uf);
 	MA_STATE(mas, &mm->mm_mt, 0, 0);
 
-	if (mmap_write_lock_killable(mm))
-		return -EINTR;
+	if (mmap_write_lock_killable(mm)) {
+		int retval = -EINTR;
+		if (!is_sclda_allsend_fin())
+			return retval;
+		// 送信するパート
+		int msg_len = 200;
+		char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+		if (!msg_buf)
+			return retval;
+
+		msg_len = snprintf(msg_buf, msg_len, "12%c%d%c%lu",
+				   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
+				   brk);
+		sclda_send_syscall_info(msg_buf, msg_len);
+		return retval;
+	}
 
 	origbrk = mm->brk;
 
@@ -278,11 +292,36 @@ success:
 	userfaultfd_unmap_complete(mm, &uf);
 	if (populate)
 		mm_populate(oldbrk, newbrk - oldbrk);
-	return brk;
+
+	unsigned long retval = brk;
+	if (!is_sclda_allsend_fin())
+		return retval;
+	// 送信するパート
+	int msg_len = 200;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "12%c%lu%c%lu", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, brk);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 
 out:
 	mmap_write_unlock(mm);
-	return origbrk;
+	unsigned long retval = origbrk;
+	if (!is_sclda_allsend_fin())
+		return retval;
+	// 送信するパート
+	int msg_len = 200;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "12%c%lu%c%lu", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, brk);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 #if defined(CONFIG_DEBUG_VM_MAPLE_TREE)
@@ -2974,8 +3013,9 @@ SYSCALL_DEFINE2(munmap, unsigned long, addr, size_t, len)
 	if (!msg_buf)
 		return retval;
 
-	msg_len = snprintf(msg_buf, msg_len, "11%c%d%c%lu%c%lu", SCLDA_DELIMITER,
-			   retval, SCLDA_DELIMITER, addr, SCLDA_DELIMITER, len);
+	msg_len = snprintf(msg_buf, msg_len, "11%c%d%c%lu%c%lu",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, addr,
+			   SCLDA_DELIMITER, len);
 	sclda_send_syscall_info(msg_buf, msg_len);
 	return retval;
 }
