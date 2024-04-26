@@ -434,7 +434,7 @@ SYSCALL_DEFINE2(lstat, const char __user *, filename,
 		char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
 		if (!msg_buf) {
 			kfree(filename_buf);
-			return retval;
+			return error;
 		}
 
 		msg_len = snprintf(msg_buf, msg_len, "6%c%d%c%s",
