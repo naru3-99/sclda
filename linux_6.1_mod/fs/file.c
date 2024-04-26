@@ -1275,7 +1275,7 @@ SYSCALL_DEFINE3(dup3, unsigned int, oldfd, unsigned int, newfd, int, flags)
 	int msg_len = 200;
 	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
-		return error;
+		return ret;
 	msg_len = snprintf(msg_buf, msg_len, "292%c%d%c%u%c%u%c%d",
 			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, oldfd,
 			   SCLDA_DELIMITER, newfd, SCLDA_DELIMITER, flags);
