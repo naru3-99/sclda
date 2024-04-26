@@ -438,7 +438,7 @@ SYSCALL_DEFINE2(lstat, const char __user *, filename,
 		}
 
 		msg_len = snprintf(msg_buf, msg_len, "6%c%d%c%s",
-				   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
+				   SCLDA_DELIMITER, error, SCLDA_DELIMITER,
 				   filename_buf);
 		kfree(filename_buf);
 		sclda_send_syscall_info(msg_buf, msg_len);
