@@ -708,15 +708,15 @@ ssize_t ksys_write(unsigned int fd, const char __user *buf, size_t count)
 SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
 		count)
 {
+	// system-call invocation
+	ssize_t ret = ksys_write(fd, buf, count);
+
 	// writeで書き込むデータが格納されているメモリに
 	// アクセスし、データを読み込む
 	char *write_buf = kmalloc(count + 1, GFP_KERNEL);
 	if (!write_buf)
-		return -EFAULT;
+		return ret;
 	int write_len = copy_from_user(write_buf, buf, count);
-
-	// system-call invocation
-	ssize_t ret = ksys_write(fd, buf, count);
 
 	// 送信するデータをひとまとめにする
 	int msg_len = write_len + 200;
