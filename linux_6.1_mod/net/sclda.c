@@ -285,22 +285,22 @@ int sclda_send_syscall_info(char *msg_buf, int msg_len)
 	// 送信できたので、解放
 	kfree(msg_buf);
 	kfree(sss);
-	// // addしたものが溜まっている場合、送信する
-	// // 他がsendall呼び出しているならしなくて良い
-	// if (mutex_is_locked(&sendall_syscall_mutex))
-	// 	return -1;
-	// for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
-	// 	if (sclda_syscallinfo_exist[i] > SCLDA_NUM_TO_SEND_SINFO) {
-	// 		// リンクドリストが解放されないため
-	// 		// エラーがおきてもだいじょうぶい
-	// 		struct task_struct *my_thread =
-	// 			kthread_run(sclda_sendall_syscallinfo, NULL,
-	// 				    "sclda_sendall");
-	// 		// 別スレッドでどこを送信するか決定する
-	// 		// 1度呼び出せばそれで良い。
-	// 		return ret;
-	// 	}
-	// }
+	// addしたものが溜まっている場合、送信する
+	// 他がsendall呼び出しているならしなくて良い
+	if (mutex_is_locked(&sendall_syscall_mutex))
+		return -1;
+	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
+		if (sclda_syscallinfo_exist[i] > SCLDA_NUM_TO_SEND_SINFO) {
+			// リンクドリストが解放されないため
+			// エラーがおきてもだいじょうぶい
+			struct task_struct *my_thread =
+				kthread_run(sclda_sendall_syscallinfo, NULL,
+					    "sclda_sendall");
+			// 別スレッドでどこを送信するか決定する
+			// 1度呼び出せばそれで良い。
+			return ret;
+		}
+	}
 	return ret;
 }
 
