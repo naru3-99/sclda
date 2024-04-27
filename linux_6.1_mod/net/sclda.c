@@ -178,6 +178,7 @@ void sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr)
 	// 新しいリストを定義
 	struct sclda_syscallinfo_ls *new_node =
 		kmalloc(sizeof(struct sclda_syscallinfo_ls), GFP_KERNEL);
+	// 失敗したら諦めるしか無いか
 	if (!new_node)
 		return;
 
@@ -207,9 +208,9 @@ int __sclda_send_split(struct sclda_syscallinfo_struct *ptr,
 	// 送信する情報を確定する
 	int all_msg_len = ptr->memory_len + ptr->syscall_msg_len + 1;
 	char *all_msg = kmalloc(all_msg_len, GFP_KERNEL);
-	if (!all_msg) {
+	if (!all_msg)
 		return -1;
-	}
+
 	all_msg_len = snprintf(all_msg, all_msg_len, "%s%s", ptr->memory_msg,
 			       ptr->syscall_msg);
 
@@ -250,7 +251,7 @@ int __sclda_send_split(struct sclda_syscallinfo_struct *ptr,
 			kfree(all_msg);
 			kfree(chunkbuf);
 			kfree(sending_msg);
-			return send_ret;
+			return -1;
 		}
 		offset += len;
 	}
@@ -266,14 +267,11 @@ static DEFINE_MUTEX(sendall_syscall_mutex);
 // msg_buf, sclda_client_structを解放する責任を負う
 int sclda_send_syscall_info(char *msg_buf, int msg_len)
 {
-	if (!sclda_init_fin)
-		return -1;
-
 	// sclda_client_structの作成
 	struct sclda_syscallinfo_struct *sss = NULL;
 	if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len)) {
 		// こいつの初期化ができなかったときは、
-		// もうmsgの中身を送信できないため解放する
+		// もうmsgの中身を送信するチャンスはない。
 		kfree(msg_buf);
 		return -1;
 	}
@@ -282,14 +280,15 @@ int sclda_send_syscall_info(char *msg_buf, int msg_len)
 	int ret = __sclda_send_split(sss, sclda_decide_struct());
 	if (ret < 0) {
 		sclda_add_syscallinfo(sss);
-		return ret;
+		return -1;
 	}
 	// 送信できたので、解放
 	kfree(msg_buf);
 	kfree(sss);
 	// addしたものが溜まっている場合、送信する
+	// 他がsendall呼び出しているならしなくて良い
 	if (mutex_is_locked(&sendall_syscall_mutex))
-		return ret;
+		return -1;
 	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
 		if (sclda_syscallinfo_exist[i] > SCLDA_NUM_TO_SEND_SINFO) {
 			// リンクドリストが解放されないため
@@ -297,6 +296,8 @@ int sclda_send_syscall_info(char *msg_buf, int msg_len)
 			struct task_struct *my_thread =
 				kthread_run(sclda_sendall_syscallinfo, NULL,
 					    "sclda_sendall");
+			// 別スレッドでどこを送信するか決定する
+			// 1度呼び出せばそれで良い。
 			return ret;
 		}
 	}
