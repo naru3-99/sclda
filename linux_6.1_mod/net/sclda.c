@@ -334,9 +334,9 @@ int sclda_sendall_syscallinfo(void *data)
 		while (curptr != NULL) {
 			__sclda_send_split(curptr->s, &(syscall_sclda[i]));
 			next = curptr->next;
-			// kfree(curptr->s->syscall_msg); // msg_bufの解放
-			// kfree(curptr->s); // sclda_syscallinfo_structの解放
-			// kfree(curptr); // sclda_syscallinfo_lsの解放
+			kfree(curptr->s->syscall_msg); // msg_bufの解放
+			kfree(curptr->s); // sclda_syscallinfo_structの解放
+			kfree(curptr); // sclda_syscallinfo_lsの解放
 			curptr = next;
 		}
 		sclda_syscallinfo_exist[i] = 0;
