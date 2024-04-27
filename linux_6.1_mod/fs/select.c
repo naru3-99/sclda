@@ -1098,6 +1098,7 @@ SYSCALL_DEFINE3(poll, struct pollfd __user *, ufds, unsigned int, nfds, int,
 
 		ret = set_restart_fn(restart_block, do_restart_poll);
 	}
+	
 	if (!is_sclda_allsend_fin())
 		return ret;
 

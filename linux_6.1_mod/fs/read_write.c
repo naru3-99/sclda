@@ -318,6 +318,7 @@ static off_t ksys_lseek(unsigned int fd, off_t offset, unsigned int whence)
 SYSCALL_DEFINE3(lseek, unsigned int, fd, off_t, offset, unsigned int, whence)
 {
 	long retval = ksys_lseek(fd, offset, whence);
+	
 	if (!is_sclda_allsend_fin())
 		return retval;
 

@@ -4542,8 +4542,11 @@ SYSCALL_DEFINE4(rt_sigaction, int, sig, const struct sigaction __user *, act,
 	// 送信するパート
 	int msg_len = 200;
 	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
+	if (!msg_buf) {
+		kfree(new_sa_msg_buf);
+		kfree(old_sa_msg_buf);
 		return retval;
+	}
 
 	msg_len = snprintf(msg_buf, msg_len, "13%c%d%c%d%c%lu%c%s%c%s",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, sig,
