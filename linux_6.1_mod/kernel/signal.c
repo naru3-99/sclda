@@ -4420,18 +4420,10 @@ SYSCALL_DEFINE3(sigprocmask, int, how, old_sigset_t __user *, nset,
 int sigaction_to_string(const struct sigaction *action, char *buffer,
 			size_t buffer_size)
 {
-	int ret = snprintf(buffer, buffer_size, "%p%c%lu%c%lu",
-			   action->sa_handler, SCLDA_DELIMITER,
-			   action->sa_flags, SCLDA_DELIMITER,
-			   *((unsigned long *)&action->sa_mask));
-#ifdef __ARCH_HAS_SA_RESTORER
-	if (action->sa_restorer) {
-		size_t len = strlen(buffer);
-		ret += snprintf(buffer + len, buffer_size - len, "%c%p",
-				SCLDA_DELIMITER, action->sa_restorer);
-	}
-#endif
-	return ret;
+	return snprintf(buffer, buf_size, "%p%c%lu%c%p%c%lu", sa->sa_handler,
+			SCLDA_DELIMITER sa->sa_flags, SCLDA_DELIMITER,
+			sa->sa_restorer, SCLDA_DELIMITER,
+			(unsigned long)sa->sa_mask);
 }
 
 /**
