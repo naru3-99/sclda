@@ -4417,20 +4417,21 @@ SYSCALL_DEFINE3(sigprocmask, int, how, old_sigset_t __user *, nset,
 
 #ifndef CONFIG_ODD_RT_SIGACTION
 
-int sigaction_to_string(const struct sigaction *action, char **buffer,
+int sigaction_to_string(const struct sigaction *action, char *buffer,
 			size_t buffer_size)
 {
-#ifdef __i386__
-	return snprintf(*buffer, buffer_size, "%p%c%lu%c%p%c%lu",
-			action->sa_handler, SCLDA_DELIMITER, action->sa_flags,
-			SCLDA_DELIMITER, action->sa_restorer, SCLDA_DELIMITER,
-			*((unsigned long *)&action->sa_mask));
-#else
-	return snprintf(*buffer, buffer_size, "%p%c%lu%c%p%c%lu",
-			action->sa_handler, SCLDA_DELIMITER, action->sa_flags,
-			SCLDA_DELIMITER, action->sa_restorer, SCLDA_DELIMITER,
-			*((unsigned long *)&action->sa_mask));
+	int ret = snprintf(buffer, buffer_size, "%p%c%lu%c%lu",
+			   action->sa_handler, SCLDA_DELIMITER,
+			   action->sa_flags, SCLDA_DELIMITER,
+			   *((unsigned long *)&action->sa_mask));
+#ifdef __ARCH_HAS_SA_RESTORER
+	if (action->sa_restorer) {
+		size_t len = strlen(buffer);
+		ret += snprintf(buffer + len, buffer_size - len, "%c%p",
+				SCLDA_DELIMITER, action->sa_restorer);
+	}
 #endif
+	return ret;
 }
 
 /**
@@ -4472,57 +4473,47 @@ SYSCALL_DEFINE4(rt_sigaction, int, sig, const struct sigaction __user *, act,
 	// システムコールが成功したときだけ、
 	// sigaction構造体の中身を調べる
 	// retval=0のときだけ、成功
-	// int new_sigstruct_len = 300;
-	// int old_sigstruct_len = 300;
-	// char *new_sigaction_msg = kmalloc(new_sigstruct_len, GFP_KERNEL);
-	// if (!new_sigaction_msg)
-	// 	return retval;
-	// char *old_sigaction_msg = kmalloc(old_sigstruct_len, GFP_KERNEL);
-	// if (!old_sigaction_msg) {
-	// 	kfree(new_sigaction_msg);
-	// 	return retval;
-	// }
-
-	// if (retval) {
-	// 	// 失敗した時
-	// 	new_sigstruct_len = 1;
-	// 	old_sigstruct_len = 1;
-	// 	new_sigaction_msg = "\0";
-	// 	old_sigaction_msg = "\0";
-	// } else {
-	// 	// 成功した時
-	// 	new_sigstruct_len = sigaction_to_string(act, &new_sigaction_msg,
-	// 						new_sigstruct_len);
-	// 	old_sigstruct_len = sigaction_to_string(
-	// 		oact, &old_sigaction_msg, old_sigstruct_len);
-	// }
-
-	// int msg_len = new_sigstruct_len + old_sigstruct_len + 200;
-	// char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	// if (!msg_buf) {
-	// 	kfree(new_sigaction_msg);
-	// 	kfree(old_sigaction_msg);
-	// 	return retval;
-	// }
-
-	// msg_len = snprintf(msg_buf, msg_len, "13%c%d%c%d%c%zu%c%s%c%s",
-	// 		   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, sig,
-	// 		   SCLDA_DELIMITER, sigsetsize, SCLDA_DELIMITER,
-	// 		   new_sigaction_msg, SCLDA_DELIMITER,
-	// 		   old_sigaction_msg);
-
-	// kfree(new_sigaction_msg);
-	// kfree(old_sigaction_msg);
-	// sclda_send_syscall_info(msg_buf, msg_len);
-
-	int msg_len = 200;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
+	int new_sigstruct_len = 400;
+	int old_sigstruct_len = 400;
+	char *new_sigaction_msg = kmalloc(new_sigstruct_len, GFP_KERNEL);
+	if (!new_sigaction_msg)
 		return retval;
+	char *old_sigaction_msg = kmalloc(old_sigstruct_len, GFP_KERNEL);
+	if (!old_sigaction_msg) {
+		kfree(new_sigaction_msg);
+		return retval;
+	}
 
-	msg_len = snprintf(msg_buf, msg_len, "13%c%d%c%d%c%zu", SCLDA_DELIMITER,
-			   retval, SCLDA_DELIMITER, sig, SCLDA_DELIMITER,
-			   sigsetsize);
+	if (retval) {
+		// 失敗した時
+		new_sigstruct_len = 1;
+		old_sigstruct_len = 1;
+		new_sigaction_msg = "\0";
+		old_sigaction_msg = "\0";
+	} else {
+		// 成功した時
+		new_sigstruct_len = sigaction_to_string(act, &new_sigaction_msg,
+							new_sigstruct_len);
+		old_sigstruct_len = sigaction_to_string(
+			oact, &old_sigaction_msg, old_sigstruct_len);
+	}
+
+	int msg_len = new_sigstruct_len + old_sigstruct_len + 200;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(new_sigaction_msg);
+		kfree(old_sigaction_msg);
+		return retval;
+	}
+
+	msg_len = snprintf(msg_buf, msg_len, "13%c%d%c%d%c%zu%c%s%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, sig,
+			   SCLDA_DELIMITER, sigsetsize, SCLDA_DELIMITER,
+			   new_sigaction_msg, SCLDA_DELIMITER,
+			   old_sigaction_msg);
+
+	kfree(new_sigaction_msg);
+	kfree(old_sigaction_msg);
 	sclda_send_syscall_info(msg_buf, msg_len);
 	return retval;
 }
