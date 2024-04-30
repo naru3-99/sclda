@@ -4492,10 +4492,10 @@ SYSCALL_DEFINE4(rt_sigaction, int, sig, const struct sigaction __user *, act,
 		old_sigaction_msg = "\0";
 	} else {
 		// 成功した時
-		new_sigstruct_len = sigaction_to_string(act, &new_sigaction_msg,
+		new_sigstruct_len = sigaction_to_string(act, new_sigaction_msg,
 							new_sigstruct_len);
-		old_sigstruct_len = sigaction_to_string(
-			oact, &old_sigaction_msg, old_sigstruct_len);
+		old_sigstruct_len = sigaction_to_string(oact, old_sigaction_msg,
+							old_sigstruct_len);
 	}
 
 	int msg_len = new_sigstruct_len + old_sigstruct_len + 200;
