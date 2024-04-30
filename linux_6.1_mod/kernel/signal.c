@@ -4472,47 +4472,57 @@ SYSCALL_DEFINE4(rt_sigaction, int, sig, const struct sigaction __user *, act,
 	// システムコールが成功したときだけ、
 	// sigaction構造体の中身を調べる
 	// retval=0のときだけ、成功
-	int new_sigstruct_len = 300;
-	int old_sigstruct_len = 300;
-	char *new_sigaction_msg = kmalloc(new_sigstruct_len, GFP_KERNEL);
-	if (!new_sigaction_msg)
-		return retval;
-	char *old_sigaction_msg = kmalloc(old_sigstruct_len, GFP_KERNEL);
-	if (!old_sigaction_msg) {
-		kfree(new_sigaction_msg);
-		return retval;
-	}
+	// int new_sigstruct_len = 300;
+	// int old_sigstruct_len = 300;
+	// char *new_sigaction_msg = kmalloc(new_sigstruct_len, GFP_KERNEL);
+	// if (!new_sigaction_msg)
+	// 	return retval;
+	// char *old_sigaction_msg = kmalloc(old_sigstruct_len, GFP_KERNEL);
+	// if (!old_sigaction_msg) {
+	// 	kfree(new_sigaction_msg);
+	// 	return retval;
+	// }
 
-	if (retval) {
-		// 失敗した時
-		new_sigstruct_len = 1;
-		old_sigstruct_len = 1;
-		new_sigaction_msg = "\0";
-		old_sigaction_msg = "\0";
-	} else {
-		// 成功した時
-		new_sigstruct_len = sigaction_to_string(act, &new_sigaction_msg,
-							new_sigstruct_len);
-		old_sigstruct_len = sigaction_to_string(
-			oact, &old_sigaction_msg, old_sigstruct_len);
-	}
+	// if (retval) {
+	// 	// 失敗した時
+	// 	new_sigstruct_len = 1;
+	// 	old_sigstruct_len = 1;
+	// 	new_sigaction_msg = "\0";
+	// 	old_sigaction_msg = "\0";
+	// } else {
+	// 	// 成功した時
+	// 	new_sigstruct_len = sigaction_to_string(act, &new_sigaction_msg,
+	// 						new_sigstruct_len);
+	// 	old_sigstruct_len = sigaction_to_string(
+	// 		oact, &old_sigaction_msg, old_sigstruct_len);
+	// }
 
-	int msg_len = new_sigstruct_len + old_sigstruct_len + 200;
+	// int msg_len = new_sigstruct_len + old_sigstruct_len + 200;
+	// char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	// if (!msg_buf) {
+	// 	kfree(new_sigaction_msg);
+	// 	kfree(old_sigaction_msg);
+	// 	return retval;
+	// }
+
+	// msg_len = snprintf(msg_buf, msg_len, "13%c%d%c%d%c%zu%c%s%c%s",
+	// 		   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, sig,
+	// 		   SCLDA_DELIMITER, sigsetsize, SCLDA_DELIMITER,
+	// 		   new_sigaction_msg, SCLDA_DELIMITER,
+	// 		   old_sigaction_msg);
+
+	// kfree(new_sigaction_msg);
+	// kfree(old_sigaction_msg);
+	// sclda_send_syscall_info(msg_buf, msg_len);
+
+	int msg_len = 200;
 	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf) {
-		kfree(new_sigaction_msg);
-		kfree(old_sigaction_msg);
+	if (!msg_buf)
 		return retval;
-	}
 
-	msg_len = snprintf(msg_buf, msg_len, "13%c%d%c%d%c%zu%c%s%c%s",
-			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, sig,
-			   SCLDA_DELIMITER, sigsetsize, SCLDA_DELIMITER,
-			   new_sigaction_msg, SCLDA_DELIMITER,
-			   old_sigaction_msg);
-
-	kfree(new_sigaction_msg);
-	kfree(old_sigaction_msg);
+	msg_len = snprintf(msg_buf, msg_len, "13%c%d%c%d%c%zu", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, sig, SCLDA_DELIMITER,
+			   sigsetsize);
 	sclda_send_syscall_info(msg_buf, msg_len);
 	return retval;
 }
