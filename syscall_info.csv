@@ -12,6 +12,7 @@ mprotect,10,retval,start,len,prot
 munmap,11,retval,addr,len
 brk,12,retval,brk
 rt_sigaction,13,retval,sig,sigsetsize,new_sa_handler,new_sa_flags,new_sa_restorer,new_sa_mask
+rt_sigprocmask,14,retval,how,sigsetsize,nset,oset
 dup,32,retval,fd,,,,,,,,,,
 dup2,33,retval,old_fd,new_fd,,,,,,,,,
 openat,257,retval,dfd,flags,mode,filename,,,,,,,

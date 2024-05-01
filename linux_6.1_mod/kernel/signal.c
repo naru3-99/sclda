@@ -3171,26 +3171,57 @@ SYSCALL_DEFINE4(rt_sigprocmask, int, how, sigset_t __user *, nset,
 
 	/* XXX: Don't preclude handling different sized sigset_t's.  */
 	if (sigsetsize != sizeof(sigset_t))
-		return -EINVAL;
+		goto error_invalid;
 
 	old_set = current->blocked;
-
 	if (nset) {
 		if (copy_from_user(&new_set, nset, sizeof(sigset_t)))
-			return -EFAULT;
+			goto error_fault;
 		sigdelsetmask(&new_set, sigmask(SIGKILL) | sigmask(SIGSTOP));
 
 		error = sigprocmask(how, &new_set, NULL);
 		if (error)
-			return error;
+			goto error_sigprocmask;
 	}
-
 	if (oset) {
 		if (copy_to_user(oset, &old_set, sizeof(sigset_t)))
-			return -EFAULT;
+			goto error_fault;
 	}
+	goto success;
 
-	return 0;
+	int retval;
+	int sigset_msg_len = 1;
+	char sigset_msg_buf[200] = "\0";
+error_invalid:
+	retval = -EINVAL;
+	goto sclda;
+error_fault:
+	retval = -EFAULT;
+	goto sclda;
+error_sigprocmask:
+	retval = error;
+	goto sclda;
+success:
+	retval = 0;
+	// sigset_tはunsigned long(%lu)で処理する
+	sigset_msg_len = snprintf(sigset_msg_buf, 200, "%lu%c%lu", new_set,
+				  SCLDA_DELIMITER, old_set);
+	goto sclda;
+sclda:
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	int msg_len = 300 + sigset_msg_len;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+	msg_len = snprintf(msg_buf, msg_len, "14%c%d%c%d%c%zu%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, how,
+			   SCLDA_DELIMITER, sigsetsize, SCLDA_DELIMITER,
+			   sigset_msg_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 #ifdef CONFIG_COMPAT
