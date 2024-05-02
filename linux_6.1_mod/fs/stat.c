@@ -441,7 +441,7 @@ cpstat:
 	retval = cp_old_stat(&stat, statbuf);
 
 	stat_msg_len = 300;
-	stat_msg_buf = kmalloc(stat_msg_len, GFP_KERNEL);
+	stat_msg_buf = (char *)kmalloc(stat_msg_len, GFP_KERNEL);
 	if (!stat_msg_buf)
 		return retval;
 	stat_msg_len = kstat_to_str(&stat, stat_msg_buf, stat_msg_len);
@@ -480,34 +480,50 @@ sclda:
 SYSCALL_DEFINE2(fstat, unsigned int, fd, struct __old_kernel_stat __user *,
 		statbuf)
 {
+	int retval;
+	// statを文字列にするための変数
+	int stat_msg_len;
+	char *stat_msg_buf;
+
 	struct kstat stat;
 	int error = vfs_fstat(fd, &stat);
-
-	if (!error)
-		error = cp_old_stat(&stat, statbuf);
-
-	if (!is_sclda_allsend_fin())
-		return error;
-
-	int stat_msg_len = 300;
-	char *stat_msg_buf = kmalloc(stat_msg_len, GFP_KERNEL);
-	if (!stat_msg_buf)
-		return error;
-	stat_msg_len = kstat_to_str(&stat, stat_msg_buf, stat_msg_len);
-
-	// 送信するメッセージを決定
+	if (error) {
+		// kstatが失敗している場合。
+		retval = error;
+		if (!is_sclda_allsend_fin())
+			return retval;
+		// kstat構造体を文字列にはできない。
+		stat_msg_len = 6;
+		stat_msg_buf = (char *)kmalloc(stat_msg_len, GFP_KERNEL);
+		if (!stat_msg_buf)
+			return retval;
+		stat_msg_buf = "error\0";
+	} else {
+		// kstatが成功している場合
+		retval = cp_old_stat(&stat, statbuf);
+		if (!is_sclda_allsend_fin())
+			return retval;
+		// kstat構造体を文字列にする
+		stat_msg_len = 300;
+		stat_msg_buf = (char *)kmalloc(stat_msg_len, GFP_KERNEL);
+		if (!stat_msg_buf)
+			return retval;
+		stat_msg_len = kstat_to_str(&stat, stat_msg_buf, stat_msg_len);
+	}
+	// その他情報をまとめ送信する
 	int msg_len = stat_msg_len + 200;
 	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf) {
 		kfree(stat_msg_buf);
-		return error;
+		return retval;
 	}
+
 	msg_len = snprintf(msg_buf, msg_len, "5%c%d%c%u%c%s", SCLDA_DELIMITER,
-			   error, SCLDA_DELIMITER, fd, SCLDA_DELIMITER,
-			   stat_msg_buf);
+			   retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER,
+			   stat_msg_len);
 	kfree(stat_msg_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
-	return error;
+	return retval;
 }
 
 #endif /* __ARCH_WANT_OLD_STAT */
