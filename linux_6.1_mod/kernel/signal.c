@@ -3166,6 +3166,10 @@ int set_compat_user_sigmask(const compat_sigset_t __user *umask,
 SYSCALL_DEFINE4(rt_sigprocmask, int, how, sigset_t __user *, nset,
 		sigset_t __user *, oset, size_t, sigsetsize)
 {
+	int retval;
+	int sigset_msg_len = 1;
+	char sigset_msg_buf[200] = "\0";
+	
 	sigset_t old_set, new_set;
 	int error;
 
@@ -3188,10 +3192,6 @@ SYSCALL_DEFINE4(rt_sigprocmask, int, how, sigset_t __user *, nset,
 			goto error_fault;
 	}
 	goto success;
-
-	int retval;
-	int sigset_msg_len = 1;
-	char sigset_msg_buf[200] = "\0";
 error_invalid:
 	retval = -EINVAL;
 	goto sclda;

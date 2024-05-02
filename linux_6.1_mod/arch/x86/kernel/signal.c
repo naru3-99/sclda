@@ -652,6 +652,7 @@ badframe:
 
 SYSCALL_DEFINE0(rt_sigreturn)
 {
+	int retval;
 	struct pt_regs *regs = current_pt_regs();
 	struct rt_sigframe __user *frame;
 	sigset_t set;
@@ -674,8 +675,6 @@ SYSCALL_DEFINE0(rt_sigreturn)
 		goto badframe;
 
 	goto success;
-
-	int retval;
 badframe:
 	signal_fault(regs, frame, "rt_sigreturn");
 	retval = 0;
