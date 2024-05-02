@@ -819,7 +819,33 @@ ssize_t ksys_pwrite64(unsigned int fd, const char __user *buf, size_t count,
 SYSCALL_DEFINE4(pwrite64, unsigned int, fd, const char __user *, buf, size_t,
 		count, loff_t, pos)
 {
-	return ksys_pwrite64(fd, buf, count, pos);
+	ssize_t retval = ksys_pwrite64(fd, buf, count, pos);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// bufの中身を取得
+	int write_len = count;
+	char *write_buf = kmalloc(count + 1, GFP_KERNEL);
+	if (!write_buf)
+		return retval;
+	write_len -= copy_from_user(write_buf, buf, count);
+	write_buf[write_len] = '\0';
+
+	// 送信するパート
+	int msg_len = write_len + 200;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(write_buf);
+		return retval;
+	}
+
+	msg_len = snprintf(msg_buf, msg_len, "18%c%zd%c%u%c%zu%c%lld%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, count, SCLDA_DELIMITER,
+			   (long long)pos, SCLDA_DELIMITER, write_buf);
+	kfree(write_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 #if defined(CONFIG_COMPAT) && defined(__ARCH_WANT_COMPAT_PWRITE64)
