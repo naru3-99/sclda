@@ -317,30 +317,32 @@ static int cp_old_stat(struct kstat *stat,
 	return copy_to_user(statbuf, &tmp, sizeof(tmp)) ? -EFAULT : 0;
 }
 
-int old_kernel_stat_to_string(const struct __old_kernel_stat *stat,
-			      char **buffer, size_t buffer_size)
+int kstat_to_str(struct kstat *stat, char *buffer, size_t max_len)
 {
-#ifdef __i386__
-	return snprintf(*buffer, buffer_size,
-			"%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%lu%c%lu%c%lu%c%lu",
-			stat->st_dev, SCLDA_DELIMITER, stat->st_ino,
-			SCLDA_DELIMITER, stat->st_mode, SCLDA_DELIMITER,
-			stat->st_nlink, SCLDA_DELIMITER, stat->st_uid,
-			SCLDA_DELIMITER, stat->st_gid, SCLDA_DELIMITER,
-			stat->st_rdev, SCLDA_DELIMITER, stat->st_size,
-			SCLDA_DELIMITER, stat->st_atime, SCLDA_DELIMITER,
-			stat->st_mtime, SCLDA_DELIMITER, stat->st_ctime);
-#else
-	return snprintf(*buffer, buffer_size,
-			"%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%hu%c%u%c%u%c%u%c%u",
-			stat->st_dev, SCLDA_DELIMITER, stat->st_ino,
-			SCLDA_DELIMITER, stat->st_mode, SCLDA_DELIMITER,
-			stat->st_nlink, SCLDA_DELIMITER, stat->st_uid,
-			SCLDA_DELIMITER, stat->st_gid, SCLDA_DELIMITER,
-			stat->st_rdev, SCLDA_DELIMITER, stat->st_size,
-			SCLDA_DELIMITER, stat->st_atime, SCLDA_DELIMITER,
-			stat->st_mtime, SCLDA_DELIMITER, stat->st_ctime);
-#endif
+	int written = snprintf(
+		buffer, max_len,
+		"%u%c%u%c%u%c%llu%c"
+		"%llu%c%u%c%u%c%u%c%u%c"
+		"%llu%c%lld.%09ld%c%lld.%09ld%c"
+		"%lld.%09ld%c%lld.%09ld%c%llu%c"
+		"%llu%c%u%c%u",
+		stat->mode, SCLDA_DELIMITER, stat->nlink, SCLDA_DELIMITER,
+		stat->blksize, SCLDA_DELIMITER, stat->attributes,
+		SCLDA_DELIMITER, stat->ino, SCLDA_DELIMITER, stat->dev,
+		SCLDA_DELIMITER, stat->rdev, SCLDA_DELIMITER,
+		from_kuid(&init_user_ns, stat->uid), SCLDA_DELIMITER,
+		from_kgid(&init_user_ns, stat->gid), SCLDA_DELIMITER,
+		stat->size, SCLDA_DELIMITER, (long long)stat->atime.tv_sec,
+		stat->atime.tv_nsec, SCLDA_DELIMITER,
+		(long long)stat->mtime.tv_sec, stat->mtime.tv_nsec,
+		SCLDA_DELIMITER, (long long)stat->ctime.tv_sec,
+		stat->ctime.tv_nsec, SCLDA_DELIMITER,
+		(long long)stat->btime.tv_sec, stat->btime.tv_nsec,
+		SCLDA_DELIMITER, stat->blocks, SCLDA_DELIMITER, stat->mnt_id,
+		SCLDA_DELIMITER, stat->dio_mem_align, SCLDA_DELIMITER,
+		stat->dio_offset_align);
+
+	return (written >= max_len) ? max_len : written;
 }
 
 SYSCALL_DEFINE2(stat, const char __user *, filename,
@@ -362,24 +364,21 @@ SYSCALL_DEFINE2(stat, const char __user *, filename,
 
 ret_error:
 	retval = error;
-	stat_msg_len = 1;
-	stat_msg_buf = kmalloc(stat_msg_len, GFP_KERNEL);
+
+	stat_msg_len = 6;
+	stat_msg_buf = (char *)kmalloc(stat_msg_len, GFP_KERNEL);
 	if (!stat_msg_buf)
 		return retval;
-	stat_msg_buf = "\0";
+	stat_msg_buf = "error\0";
 	goto sclda;
 cpstat:
 	retval = cp_old_stat(&stat, statbuf);
-	struct __old_kernel_stat sclda_stat_buf;
-	if (copy_from_user(&sclda_stat_buf, statbuf,
-			   sizeof(struct __old_kernel_stat)))
-		return retval;
+
 	stat_msg_len = 300;
 	stat_msg_buf = kmalloc(stat_msg_len, GFP_KERNEL);
 	if (!stat_msg_buf)
 		return retval;
-	stat_msg_len = old_kernel_stat_to_string(&sclda_stat_buf, &stat_msg_buf,
-						 stat_msg_len);
+	stat_msg_len = kstat_to_str(&stat, stat_msg_buf, stat_msg_len);
 	goto sclda;
 sclda:
 	if (!is_sclda_allsend_fin())
@@ -431,24 +430,21 @@ SYSCALL_DEFINE2(lstat, const char __user *, filename,
 
 ret_error:
 	retval = error;
-	stat_msg_len = 1;
-	stat_msg_buf = kmalloc(stat_msg_len, GFP_KERNEL);
+
+	stat_msg_len = 6;
+	stat_msg_buf = (char *)kmalloc(stat_msg_len, GFP_KERNEL);
 	if (!stat_msg_buf)
 		return retval;
-	stat_msg_buf = "\0";
+	stat_msg_buf = "error\0";
 	goto sclda;
 cpstat:
 	retval = cp_old_stat(&stat, statbuf);
-	struct __old_kernel_stat sclda_stat_buf;
-	if (copy_from_user(&sclda_stat_buf, statbuf,
-			   sizeof(struct __old_kernel_stat)))
-		return retval;
+
 	stat_msg_len = 300;
 	stat_msg_buf = kmalloc(stat_msg_len, GFP_KERNEL);
 	if (!stat_msg_buf)
 		return retval;
-	stat_msg_len = old_kernel_stat_to_string(&sclda_stat_buf, &stat_msg_buf,
-						 stat_msg_len);
+	stat_msg_len = kstat_to_str(&stat, stat_msg_buf, stat_msg_len);
 	goto sclda;
 sclda:
 	if (!is_sclda_allsend_fin())
@@ -472,7 +468,7 @@ sclda:
 		kfree(filename_buf);
 		return retval;
 	}
-	msg_len = snprintf(msg_buf, msg_len, "6%c%d%c%s%c%s", SCLDA_DELIMITER,
+	msg_len = snprintf(msg_buf, msg_len, "4%c%d%c%s%c%s", SCLDA_DELIMITER,
 			   retval, SCLDA_DELIMITER, filename_buf,
 			   SCLDA_DELIMITER, stat_msg_buf);
 	kfree(stat_msg_buf);
@@ -497,8 +493,7 @@ SYSCALL_DEFINE2(fstat, unsigned int, fd, struct __old_kernel_stat __user *,
 	char *stat_msg_buf = kmalloc(stat_msg_len, GFP_KERNEL);
 	if (!stat_msg_buf)
 		return error;
-	stat_msg_len =
-		old_kernel_stat_to_string(statbuf, &stat_msg_buf, stat_msg_len);
+	stat_msg_len = kstat_to_str(&stat, stat_msg_buf, stat_msg_len);
 
 	// 送信するメッセージを決定
 	int msg_len = stat_msg_len + 200;
