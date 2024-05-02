@@ -1182,7 +1182,69 @@ static ssize_t do_pwritev(unsigned long fd, const struct iovec __user *vec,
 SYSCALL_DEFINE3(readv, unsigned long, fd, const struct iovec __user *, vec,
 		unsigned long, vlen)
 {
-	return do_readv(fd, vec, vlen, 0);
+	ssize_t retval = do_readv(fd, vec, vlen, 0);
+
+	// 以下、エラーした場合は、基本的に諦める。
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// カーネル空間に、iovecをコピーする
+	struct iovec *kvec = kmalloc(sizeof(struct iovec) * vlen, GFP_KERNEL);
+	if (!kvec)
+		return retval;
+	if (copy_from_user(kvec, vec, sizeof(struct iovec) * vlen)) {
+		kfree(kvec);
+		return retval;
+	}
+
+	// 全バッファのサイズを計算
+	unsigned long i;
+	unsigned long total_size = 0;
+	for (i = 0; i < vlen; i++) {
+		total_size += kvec[i].iov_len + 1;
+	}
+
+	// バッファを段取りする
+	unsigned long buf_len = 0;
+	char *buf = kmalloc(total_size, GFP_KERNEL);
+	if (!buf) {
+		kfree(kvec);
+		return retval;
+	}
+	// iovecからmsg_bufへのデータコピー、区切り文字の挿入
+	for (i = 0; i < vlen; i++) {
+		// ユーザ空間からコピーする
+		if (copy_from_user(buf + buf_len, kvec[i].iov_base,
+				   kvec[i].iov_len)) {
+			kfree(buf);
+			kfree(kvec);
+			return retval;
+		}
+		buf_len += kvec[i].iov_len;
+		if (i < vlen - 1) {
+			// 最後の要素以外に区切り文字を挿入
+			buf[buf_len] = SCLDA_DELIMITER;
+			buf_len++;
+		}
+	}
+	buf[buf_len] = '\0';
+
+	// 送信するパート
+	int msg_len = buf_len + 200;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(buf);
+		kfree(kvec);
+		return retval;
+	}
+
+	msg_len = snprintf(msg_buf, msg_len, "19%c%zd%c%lu%c%lu%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, vlen, SCLDA_DELIMITER, buf);
+	kfree(buf);
+	kfree(kvec);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 SYSCALL_DEFINE3(writev, unsigned long, fd, const struct iovec __user *, vec,

@@ -17,6 +17,7 @@ rt_sigreturn,15,retval
 ioctl,16,retval,fd,cmd,arg
 pread64,17,retval,fd,count,pos,read_content
 pwrite64,18,retval,fd,count,pos,write_content
+readv,19,retval,fd,vlen,read_content
 dup,32,retval,fd,,,,,,,,,,
 dup2,33,retval,old_fd,new_fd,,,,,,,,,
 openat,257,retval,dfd,flags,mode,filename,,,,,,,
