@@ -19,6 +19,7 @@ pread64,17,retval,fd,count,pos,read_content,,,,,,,
 pwrite64,18,retval,fd,count,pos,write_content,,,,,,,
 readv,19,retval,fd,vlen,read_content,,,,,,,,
 writev,20,retval,fd,vlen,read_content,,,,,,,,
+access,21,retval,mode,filename
 dup,32,retval,fd,,,,,,,,,,
 dup2,33,retval,old_fd,new_fd,,,,,,,,,
 openat,257,retval,dfd,flags,mode,filename,,,,,,,

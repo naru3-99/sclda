@@ -504,17 +504,33 @@ SYSCALL_DEFINE4(faccessat2, int, dfd, const char __user *, filename, int, mode,
 
 SYSCALL_DEFINE2(access, const char __user *, filename, int, mode)
 {
-	return do_faccessat(AT_FDCWD, filename, mode, 0);
-	// long retval = do_faccessat(AT_FDCWD, filename, mode, 0);
-	// if (!is_sclda_allsend_fin())
-	// 	return retval;
+	long retval = do_faccessat(AT_FDCWD, filename, mode, 0);
 
-	// // ファイル名を取得する
-	// int filename_len = strnlen_user(filename, 1000);
-	// char *filename_buf = kmalloc(filename_len, GFP_KERNEL);
-	// if (!filename_buf)
-	// 	return retval;
-	// copy_from_user(filename_buf, filename, filename_len);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// ファイル名を取得する
+	int filename_len = strnlen_user(filename, 1000);
+	char *filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
+	if (!filename_buf)
+		return retval;
+	filename_len -= copy_from_user(filename_buf, filename, filename_len);
+	filename_buf[filename_len] = '\0';
+
+	// 文字列を送信する
+	int msg_len = filename_len + 200;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(filename_buf);
+		return retval;
+	}
+
+	msg_len = snprintf(msg_buf, msg_len, "21%c%ld%c%u%c%s", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, mode, SCLDA_DELIMITER,
+			   filename_buf);
+	kfree(filename_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 SYSCALL_DEFINE1(chdir, const char __user *, filename)
