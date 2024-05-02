@@ -349,64 +349,67 @@ SYSCALL_DEFINE2(stat, const char __user *, filename,
 	struct kstat stat;
 	int error;
 
+	// 返り値を保持しておくための変数
+	int retval;
+	// statを文字列にするための変数
+	int stat_msg_len;
+	char *stat_msg_buf;
+
 	error = vfs_stat(filename, &stat);
+	if (error)
+		goto ret_error;
+	goto cpstat;
+
+ret_error:
+	retval = error;
+	stat_msg_len = 1;
+	stat_msg_buf = kmalloc(stat_msg_len, GFP_KERNEL);
+	if (!stat_msg_buf)
+		return retval;
+	stat_msg_buf = "\0";
+	goto sclda;
+cpstat:
+	retval = cp_old_stat(&stat, statbuf);
+	struct __old_kernel_stat sclda_stat_buf;
+	if (copy_from_user(&sclda_stat_buf, statbuf,
+			   sizeof(struct __old_kernel_stat)))
+		return retval;
+	stat_msg_len = 300;
+	stat_msg_buf = kmalloc(stat_msg_len, GFP_KERNEL);
+	if (!stat_msg_buf)
+		return retval;
+	stat_msg_len = old_kernel_stat_to_string(&sclda_stat_buf, &stat_msg_buf,
+						 stat_msg_len);
+	goto sclda;
+sclda:
+	if (!is_sclda_allsend_fin())
+		return retval;
 
 	// ファイル名を取得する
 	int filename_len = strnlen_user(filename, 1000);
 	char *filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
-	if (!filename_buf)
+	if (!filename_buf) {
+		kfree(stat_msg_buf);
 		return retval;
+	}
 	filename_len -= copy_from_user(filename_buf, filename, filename_len);
 	filename_buf[filename_len] = '\0';
 
-	if (error) {
-		if (!is_sclda_allsend_fin())
-			return error;
-
-		// 送信するメッセージを決定
-		int msg_len = filename_len + 200;
-		char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-		if (!msg_buf) {
-			kfree(filename_buf);
-			return error;
-		}
-		msg_len = snprintf(msg_buf, msg_len, "4%c%d%c%s",
-				   SCLDA_DELIMITER, error, SCLDA_DELIMITER,
-				   filename_buf);
-		kfree(filename_buf);
-
-		sclda_send_syscall_info(msg_buf, msg_len);
-		return error;
-	}
-
-	int retval = cp_old_stat(&stat, statbuf);
-	if (!is_sclda_allsend_fin())
-		return retval;
-
-	int stat_msg_len = 300;
-	char *stat_msg_buf = kmalloc(stat_msg_len, GFP_KERNEL);
-	if (!stat_msg_buf) {
-		kfree(filename_buf);
-		return retval;
-	}
-	stat_msg_len =
-		old_kernel_stat_to_string(statbuf, &stat_msg_buf, stat_msg_len);
-
-	// 送信するメッセージを決定
+	// 送信する情報を確定する
 	int msg_len = filename_len + stat_msg_len + 200;
 	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf) {
-		kfree(filename_buf);
 		kfree(stat_msg_buf);
+		kfree(filename_buf);
 		return retval;
 	}
 	msg_len = snprintf(msg_buf, msg_len, "4%c%d%c%s%c%s", SCLDA_DELIMITER,
 			   retval, SCLDA_DELIMITER, filename_buf,
 			   SCLDA_DELIMITER, stat_msg_buf);
-	kfree(filename_buf);
 	kfree(stat_msg_buf);
+	kfree(filename_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
-	return error;
+	return retval;
 }
 
 SYSCALL_DEFINE2(lstat, const char __user *, filename,
@@ -415,63 +418,65 @@ SYSCALL_DEFINE2(lstat, const char __user *, filename,
 	struct kstat stat;
 	int error;
 
+	// 返り値を保持しておくための変数
+	int retval;
+	// statを文字列にするための変数
+	int stat_msg_len;
+	char *stat_msg_buf;
+
 	error = vfs_lstat(filename, &stat);
+	if (error)
+		goto ret_error;
+	goto cpstat;
+
+ret_error:
+	retval = error;
+	stat_msg_len = 1;
+	stat_msg_buf = kmalloc(stat_msg_len, GFP_KERNEL);
+	if (!stat_msg_buf)
+		return retval;
+	stat_msg_buf = "\0";
+	goto sclda;
+cpstat:
+	retval = cp_old_stat(&stat, statbuf);
+	struct __old_kernel_stat sclda_stat_buf;
+	if (copy_from_user(&sclda_stat_buf, statbuf,
+			   sizeof(struct __old_kernel_stat)))
+		return retval;
+	stat_msg_len = 300;
+	stat_msg_buf = kmalloc(stat_msg_len, GFP_KERNEL);
+	if (!stat_msg_buf)
+		return retval;
+	stat_msg_len = old_kernel_stat_to_string(&sclda_stat_buf, &stat_msg_buf,
+						 stat_msg_len);
+	goto sclda;
+sclda:
+	if (!is_sclda_allsend_fin())
+		return retval;
 
 	// ファイル名を取得する
 	int filename_len = strnlen_user(filename, 1000);
 	char *filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
-	if (!filename_buf)
+	if (!filename_buf) {
+		kfree(stat_msg_buf);
 		return retval;
+	}
 	filename_len -= copy_from_user(filename_buf, filename, filename_len);
 	filename_buf[filename_len] = '\0';
 
-	if (error) {
-		if (!is_sclda_allsend_fin())
-			return error;
-
-		// 送信するパート
-		int msg_len = filename_len + 200;
-		char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-		if (!msg_buf) {
-			kfree(filename_buf);
-			return error;
-		}
-
-		msg_len = snprintf(msg_buf, msg_len, "6%c%d%c%s",
-				   SCLDA_DELIMITER, error, SCLDA_DELIMITER,
-				   filename_buf);
-		kfree(filename_buf);
-		sclda_send_syscall_info(msg_buf, msg_len);
-		return error;
-	}
-	int retval = cp_old_stat(&stat, statbuf);
-	if (!is_sclda_allsend_fin())
-		return retval;
-
-	// statの中身を取得
-	int stat_msg_len = 300;
-	char *stat_msg_buf = kmalloc(stat_msg_len, GFP_KERNEL);
-	if (!stat_msg_buf) {
-		kfree(filename_buf);
-		return retval;
-	}
-	stat_msg_len =
-		old_kernel_stat_to_string(statbuf, &stat_msg_buf, stat_msg_len);
-
-	// 送信するパート
+	// 送信する情報を確定する
 	int msg_len = filename_len + stat_msg_len + 200;
 	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf) {
-		kfree(filename_buf);
 		kfree(stat_msg_buf);
+		kfree(filename_buf);
 		return retval;
 	}
 	msg_len = snprintf(msg_buf, msg_len, "6%c%d%c%s%c%s", SCLDA_DELIMITER,
 			   retval, SCLDA_DELIMITER, filename_buf,
 			   SCLDA_DELIMITER, stat_msg_buf);
-	kfree(filename_buf);
 	kfree(stat_msg_buf);
-
+	kfree(filename_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
 	return retval;
 }
