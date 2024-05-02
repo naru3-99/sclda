@@ -318,7 +318,7 @@ static off_t ksys_lseek(unsigned int fd, off_t offset, unsigned int whence)
 SYSCALL_DEFINE3(lseek, unsigned int, fd, off_t, offset, unsigned int, whence)
 {
 	long retval = ksys_lseek(fd, offset, whence);
-	
+
 	if (!is_sclda_allsend_fin())
 		return retval;
 
@@ -758,7 +758,34 @@ ssize_t ksys_pread64(unsigned int fd, char __user *buf, size_t count,
 SYSCALL_DEFINE4(pread64, unsigned int, fd, char __user *, buf, size_t, count,
 		loff_t, pos)
 {
-	return ksys_pread64(fd, buf, count, pos);
+	ssize_t retval = ksys_pread64(fd, buf, count, pos);
+
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// bufの中身を取得
+	int read_len = count;
+	char *read_buf = kmalloc(count + 1, GFP_KERNEL);
+	if (!read_buf)
+		return retval;
+	read_len -= copy_from_user(read_buf, buf, count);
+	read_buf[read_len] = '\0';
+
+	// 送信するパート
+	int msg_len = read_len + 200;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(read_buf);
+		return retval;
+	}
+
+	msg_len = snprintf(msg_buf, msg_len, "17%c%zd%c%u%c%zu%c%lld%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, count, SCLDA_DELIMITER,
+			   (long long)pos, SCLDA_DELIMITER, read_buf);
+	kfree(read_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 #if defined(CONFIG_COMPAT) && defined(__ARCH_WANT_COMPAT_PREAD64)
