@@ -1375,11 +1375,13 @@ SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
 		return ret;
 
 	// ファイル名を取得する
-	int filename_len = strnlen_user(filename, 1000);
-	char *filename_buf = kmalloc(filename_len, GFP_KERNEL);
-	if (!filename_buf)
-		return ret;
-	copy_from_user(filename_buf, filename, filename_len);
+    // ファイル名を取得する
+    int filename_len = strnlen_user(filename, 1000);
+    char *filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
+    if (!filename_buf)
+        return ret;
+    filename_len -= copy_from_user(filename_buf, filename, filename_len);
+    filename_buf[filename_len] = '\0';
 
 	// 送信するパート
 	int msg_len = filename_len + 200;
@@ -1414,7 +1416,7 @@ SYSCALL_DEFINE4(openat, int, dfd, const char __user *, filename, int, flags,
 	int filename_len = strnlen_user(filename, 1000);
 	char *filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
 	if (!filename_buf)
-		return retval;
+		return ret;
 	filename_len -= copy_from_user(filename_buf, filename, filename_len);
 	filename_buf[filename_len] = '\0';
 
