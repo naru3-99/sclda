@@ -504,7 +504,16 @@ SYSCALL_DEFINE4(faccessat2, int, dfd, const char __user *, filename, int, mode,
 
 SYSCALL_DEFINE2(access, const char __user *, filename, int, mode)
 {
-	return do_faccessat(AT_FDCWD, filename, mode, 0);
+	long retval = do_faccessat(AT_FDCWD, filename, mode, 0);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// ファイル名を取得する
+	int filename_len = strnlen_user(filename, 1000);
+	char *filename_buf = kmalloc(filename_len, GFP_KERNEL);
+	if (!filename_buf)
+		return retval;
+	copy_from_user(filename_buf, filename, filename_len);
 }
 
 SYSCALL_DEFINE1(chdir, const char __user *, filename)
@@ -1353,8 +1362,7 @@ SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
 	char *filename_buf = kmalloc(filename_len, GFP_KERNEL);
 	if (!filename_buf)
 		return ret;
-	filename_len =
-		(int)copy_from_user(filename_buf, filename, filename_len);
+	copy_from_user(filename_buf, filename, filename_len);
 
 	// 送信するパート
 	int msg_len = filename_len + 200;
@@ -1387,11 +1395,11 @@ SYSCALL_DEFINE4(openat, int, dfd, const char __user *, filename, int, flags,
 
 	// ファイル名を取得する
 	int filename_len = strnlen_user(filename, 1000);
-	char *filename_buf = kmalloc(filename_len, GFP_KERNEL);
+	char *filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
 	if (!filename_buf)
-		return ret;
-	filename_len =
-		(int)copy_from_user(filename_buf, filename, filename_len);
+		return retval;
+	filename_len -= copy_from_user(filename_buf, filename, filename_len);
+	filename_buf[filename_len] = '\0';
 
 	// 送信するmsgを決定
 	int msg_len = filename_len + 200;

@@ -21,9 +21,9 @@ int filename()
 {
     // ファイル名を取得する
     int filename_len = strnlen_user(filename, 1000);
-    char *filename_buf = kmalloc(filename_len, GFP_KERNEL);
+    char *filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
     if (!filename_buf)
         return retval;
-    filename_len =
-        (int)copy_from_user(filename_buf, filename, filename_len);
+    filename_len -= copy_from_user(filename_buf, filename, filename_len);
+    filename_buf[filename_len] = '\0';
 }
