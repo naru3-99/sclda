@@ -874,7 +874,8 @@ SYSCALL_DEFINE3(ioctl, unsigned int, fd, unsigned int, cmd, unsigned long, arg)
 	if (error == -ENOIOCTLCMD)
 		error = vfs_ioctl(f.file, cmd, arg);
 	goto out;
-evadf:
+
+ebadf:
 	retval = -EBADF;
 	goto sclda;
 out:
