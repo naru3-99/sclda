@@ -504,16 +504,17 @@ SYSCALL_DEFINE4(faccessat2, int, dfd, const char __user *, filename, int, mode,
 
 SYSCALL_DEFINE2(access, const char __user *, filename, int, mode)
 {
-	long retval = do_faccessat(AT_FDCWD, filename, mode, 0);
-	if (!is_sclda_allsend_fin())
-		return retval;
+	return do_faccessat(AT_FDCWD, filename, mode, 0);
+	// long retval = do_faccessat(AT_FDCWD, filename, mode, 0);
+	// if (!is_sclda_allsend_fin())
+	// 	return retval;
 
-	// ファイル名を取得する
-	int filename_len = strnlen_user(filename, 1000);
-	char *filename_buf = kmalloc(filename_len, GFP_KERNEL);
-	if (!filename_buf)
-		return retval;
-	copy_from_user(filename_buf, filename, filename_len);
+	// // ファイル名を取得する
+	// int filename_len = strnlen_user(filename, 1000);
+	// char *filename_buf = kmalloc(filename_len, GFP_KERNEL);
+	// if (!filename_buf)
+	// 	return retval;
+	// copy_from_user(filename_buf, filename, filename_len);
 }
 
 SYSCALL_DEFINE1(chdir, const char __user *, filename)
