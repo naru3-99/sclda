@@ -34,7 +34,6 @@
 #include <linux/vmalloc.h>
 
 #include <net/sclda.h>
-
 #include <linux/uaccess.h>
 
 /*
@@ -725,6 +724,9 @@ static int kern_select(int n, fd_set __user *inp, fd_set __user *outp,
 	return poll_select_finish(&end_time, tvp, PT_TIMEVAL, ret);
 }
 
+#define FD_ISSET(fd, fdsetp)                             \
+	((fdsetp)->fds_bits[(fd) / (8 * sizeof(long))] & \
+	 (1UL << ((fd) % (8 * sizeof(long)))))
 int fdset_to_string(fd_set __user *user_fdset, char *buf, int buf_size)
 {
 	fd_set kernel_fdset;
