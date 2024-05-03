@@ -25,6 +25,7 @@
 #include <linux/uaccess.h>
 #include <linux/userfaultfd_k.h>
 #include <linux/mempolicy.h>
+#include <net/sclda.h>
 
 #include <asm/cacheflush.h>
 #include <asm/tlb.h>
@@ -134,9 +135,9 @@ static pte_t move_soft_dirty_pte(pte_t pte)
 }
 
 static void move_ptes(struct vm_area_struct *vma, pmd_t *old_pmd,
-		unsigned long old_addr, unsigned long old_end,
-		struct vm_area_struct *new_vma, pmd_t *new_pmd,
-		unsigned long new_addr, bool need_rmap_locks)
+		      unsigned long old_addr, unsigned long old_end,
+		      struct vm_area_struct *new_vma, pmd_t *new_pmd,
+		      unsigned long new_addr, bool need_rmap_locks)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	pte_t *old_pte, *new_pte, pte;
@@ -177,8 +178,8 @@ static void move_ptes(struct vm_area_struct *vma, pmd_t *old_pmd,
 	flush_tlb_batched_pending(vma->vm_mm);
 	arch_enter_lazy_mmu_mode();
 
-	for (; old_addr < old_end; old_pte++, old_addr += PAGE_SIZE,
-				   new_pte++, new_addr += PAGE_SIZE) {
+	for (; old_addr < old_end; old_pte++, old_addr += PAGE_SIZE, new_pte++,
+				   new_addr += PAGE_SIZE) {
 		if (pte_none(*old_pte))
 			continue;
 
@@ -217,13 +218,14 @@ static void move_ptes(struct vm_area_struct *vma, pmd_t *old_pmd,
 static inline bool arch_supports_page_table_move(void)
 {
 	return IS_ENABLED(CONFIG_HAVE_MOVE_PMD) ||
-		IS_ENABLED(CONFIG_HAVE_MOVE_PUD);
+	       IS_ENABLED(CONFIG_HAVE_MOVE_PUD);
 }
 #endif
 
 #ifdef CONFIG_HAVE_MOVE_PMD
 static bool move_normal_pmd(struct vm_area_struct *vma, unsigned long old_addr,
-		  unsigned long new_addr, pmd_t *old_pmd, pmd_t *new_pmd)
+			    unsigned long new_addr, pmd_t *old_pmd,
+			    pmd_t *new_pmd)
 {
 	spinlock_t *old_ptl, *new_ptl;
 	struct mm_struct *mm = vma->vm_mm;
@@ -282,8 +284,9 @@ static bool move_normal_pmd(struct vm_area_struct *vma, unsigned long old_addr,
 }
 #else
 static inline bool move_normal_pmd(struct vm_area_struct *vma,
-		unsigned long old_addr, unsigned long new_addr, pmd_t *old_pmd,
-		pmd_t *new_pmd)
+				   unsigned long old_addr,
+				   unsigned long new_addr, pmd_t *old_pmd,
+				   pmd_t *new_pmd)
 {
 	return false;
 }
@@ -291,7 +294,8 @@ static inline bool move_normal_pmd(struct vm_area_struct *vma,
 
 #if CONFIG_PGTABLE_LEVELS > 2 && defined(CONFIG_HAVE_MOVE_PUD)
 static bool move_normal_pud(struct vm_area_struct *vma, unsigned long old_addr,
-		  unsigned long new_addr, pud_t *old_pud, pud_t *new_pud)
+			    unsigned long new_addr, pud_t *old_pud,
+			    pud_t *new_pud)
 {
 	spinlock_t *old_ptl, *new_ptl;
 	struct mm_struct *mm = vma->vm_mm;
@@ -331,8 +335,9 @@ static bool move_normal_pud(struct vm_area_struct *vma, unsigned long old_addr,
 }
 #else
 static inline bool move_normal_pud(struct vm_area_struct *vma,
-		unsigned long old_addr, unsigned long new_addr, pud_t *old_pud,
-		pud_t *new_pud)
+				   unsigned long old_addr,
+				   unsigned long new_addr, pud_t *old_pud,
+				   pud_t *new_pud)
 {
 	return false;
 }
@@ -340,7 +345,8 @@ static inline bool move_normal_pud(struct vm_area_struct *vma,
 
 #ifdef CONFIG_HAVE_ARCH_TRANSPARENT_HUGEPAGE_PUD
 static bool move_huge_pud(struct vm_area_struct *vma, unsigned long old_addr,
-			  unsigned long new_addr, pud_t *old_pud, pud_t *new_pud)
+			  unsigned long new_addr, pud_t *old_pud,
+			  pud_t *new_pud)
 {
 	spinlock_t *old_ptl, *new_ptl;
 	struct mm_struct *mm = vma->vm_mm;
@@ -380,11 +386,11 @@ static bool move_huge_pud(struct vm_area_struct *vma, unsigned long old_addr,
 }
 #else
 static bool move_huge_pud(struct vm_area_struct *vma, unsigned long old_addr,
-			  unsigned long new_addr, pud_t *old_pud, pud_t *new_pud)
+			  unsigned long new_addr, pud_t *old_pud,
+			  pud_t *new_pud)
 {
 	WARN_ON_ONCE(1);
 	return false;
-
 }
 #endif
 
@@ -401,8 +407,9 @@ enum pgt_entry {
  * destination pgt_entry.
  */
 static __always_inline unsigned long get_extent(enum pgt_entry entry,
-			unsigned long old_addr, unsigned long old_end,
-			unsigned long new_addr)
+						unsigned long old_addr,
+						unsigned long old_end,
+						unsigned long new_addr)
 {
 	unsigned long next, extent, mask, size;
 
@@ -438,8 +445,9 @@ static __always_inline unsigned long get_extent(enum pgt_entry entry,
  * pgt_entry. Returns true if the move was successful, else false.
  */
 static bool move_pgt_entry(enum pgt_entry entry, struct vm_area_struct *vma,
-			unsigned long old_addr, unsigned long new_addr,
-			void *old_entry, void *new_entry, bool need_rmap_locks)
+			   unsigned long old_addr, unsigned long new_addr,
+			   void *old_entry, void *new_entry,
+			   bool need_rmap_locks)
 {
 	bool moved = false;
 
@@ -479,9 +487,10 @@ static bool move_pgt_entry(enum pgt_entry entry, struct vm_area_struct *vma,
 }
 
 unsigned long move_page_tables(struct vm_area_struct *vma,
-		unsigned long old_addr, struct vm_area_struct *new_vma,
-		unsigned long new_addr, unsigned long len,
-		bool need_rmap_locks)
+			       unsigned long old_addr,
+			       struct vm_area_struct *new_vma,
+			       unsigned long new_addr, unsigned long len,
+			       bool need_rmap_locks)
 {
 	unsigned long extent, old_end;
 	struct mmu_notifier_range range;
@@ -518,13 +527,14 @@ unsigned long move_page_tables(struct vm_area_struct *vma,
 			break;
 		if (pud_trans_huge(*old_pud) || pud_devmap(*old_pud)) {
 			if (extent == HPAGE_PUD_SIZE) {
-				move_pgt_entry(HPAGE_PUD, vma, old_addr, new_addr,
-					       old_pud, new_pud, need_rmap_locks);
+				move_pgt_entry(HPAGE_PUD, vma, old_addr,
+					       new_addr, old_pud, new_pud,
+					       need_rmap_locks);
 				/* We ignore and continue on error? */
 				continue;
 			}
-		} else if (IS_ENABLED(CONFIG_HAVE_MOVE_PUD) && extent == PUD_SIZE) {
-
+		} else if (IS_ENABLED(CONFIG_HAVE_MOVE_PUD) &&
+			   extent == PUD_SIZE) {
 			if (move_pgt_entry(NORMAL_PUD, vma, old_addr, new_addr,
 					   old_pud, new_pud, true))
 				continue;
@@ -565,14 +575,15 @@ unsigned long move_page_tables(struct vm_area_struct *vma,
 
 	mmu_notifier_invalidate_range_end(&range);
 
-	return len + old_addr - old_end;	/* how much done */
+	return len + old_addr - old_end; /* how much done */
 }
 
 static unsigned long move_vma(struct vm_area_struct *vma,
-		unsigned long old_addr, unsigned long old_len,
-		unsigned long new_len, unsigned long new_addr,
-		bool *locked, unsigned long flags,
-		struct vm_userfaultfd_ctx *uf, struct list_head *uf_unmap)
+			      unsigned long old_addr, unsigned long old_len,
+			      unsigned long new_len, unsigned long new_addr,
+			      bool *locked, unsigned long flags,
+			      struct vm_userfaultfd_ctx *uf,
+			      struct list_head *uf_unmap)
 {
 	long to_account = new_len - old_len;
 	struct mm_struct *mm = vma->vm_mm;
@@ -612,8 +623,8 @@ static unsigned long move_vma(struct vm_area_struct *vma,
 	 * pages recently unmapped.  But leave vma->vm_flags as it was,
 	 * so KSM can come around to merge on vma and new_vma afterwards.
 	 */
-	err = ksm_madvise(vma, old_addr, old_addr + old_len,
-						MADV_UNMERGEABLE, &vm_flags);
+	err = ksm_madvise(vma, old_addr, old_addr + old_len, MADV_UNMERGEABLE,
+			  &vm_flags);
 	if (err)
 		return err;
 
@@ -623,8 +634,8 @@ static unsigned long move_vma(struct vm_area_struct *vma,
 	}
 
 	new_pgoff = vma->vm_pgoff + ((old_addr - vma->vm_start) >> PAGE_SHIFT);
-	new_vma = copy_vma(&vma, new_addr, new_len, new_pgoff,
-			   &need_rmap_locks);
+	new_vma =
+		copy_vma(&vma, new_addr, new_len, new_pgoff, &need_rmap_locks);
 	if (!new_vma) {
 		if (vm_flags & VM_ACCOUNT)
 			vm_unacct_memory(to_account >> PAGE_SHIFT);
@@ -693,7 +704,7 @@ static unsigned long move_vma(struct vm_area_struct *vma,
 		 * table has been moved.
 		 */
 		if (new_vma != vma && vma->vm_start == old_addr &&
-			vma->vm_end == (old_addr + old_len))
+		    vma->vm_end == (old_addr + old_len))
 			unlink_anon_vmas(vma);
 
 		/* Because we won't unmap we don't need to touch locked_vm */
@@ -725,7 +736,9 @@ static unsigned long move_vma(struct vm_area_struct *vma,
 }
 
 static struct vm_area_struct *vma_to_resize(unsigned long addr,
-	unsigned long old_len, unsigned long new_len, unsigned long flags)
+					    unsigned long old_len,
+					    unsigned long new_len,
+					    unsigned long flags)
 {
 	struct mm_struct *mm = current->mm;
 	struct vm_area_struct *vma;
@@ -744,12 +757,14 @@ static struct vm_area_struct *vma_to_resize(unsigned long addr,
 	 * behavior.  As a result, fail such attempts.
 	 */
 	if (!old_len && !(vma->vm_flags & (VM_SHARED | VM_MAYSHARE))) {
-		pr_warn_once("%s (%d): attempted to duplicate a private mapping with mremap.  This is not supported.\n", current->comm, current->pid);
+		pr_warn_once(
+			"%s (%d): attempted to duplicate a private mapping with mremap.  This is not supported.\n",
+			current->comm, current->pid);
 		return ERR_PTR(-EINVAL);
 	}
 
 	if ((flags & MREMAP_DONTUNMAP) &&
-			(vma->vm_flags & (VM_DONTEXPAND | VM_PFNMAP)))
+	    (vma->vm_flags & (VM_DONTEXPAND | VM_PFNMAP)))
 		return ERR_PTR(-EINVAL);
 
 	/* We can't remap across vm area boundaries */
@@ -772,17 +787,18 @@ static struct vm_area_struct *vma_to_resize(unsigned long addr,
 		return ERR_PTR(-EAGAIN);
 
 	if (!may_expand_vm(mm, vma->vm_flags,
-				(new_len - old_len) >> PAGE_SHIFT))
+			   (new_len - old_len) >> PAGE_SHIFT))
 		return ERR_PTR(-ENOMEM);
 
 	return vma;
 }
 
 static unsigned long mremap_to(unsigned long addr, unsigned long old_len,
-		unsigned long new_addr, unsigned long new_len, bool *locked,
-		unsigned long flags, struct vm_userfaultfd_ctx *uf,
-		struct list_head *uf_unmap_early,
-		struct list_head *uf_unmap)
+			       unsigned long new_addr, unsigned long new_len,
+			       bool *locked, unsigned long flags,
+			       struct vm_userfaultfd_ctx *uf,
+			       struct list_head *uf_unmap_early,
+			       struct list_head *uf_unmap)
 {
 	struct mm_struct *mm = current->mm;
 	struct vm_area_struct *vma;
@@ -823,7 +839,8 @@ static unsigned long mremap_to(unsigned long addr, unsigned long old_len,
 	}
 
 	if (old_len > new_len) {
-		ret = do_munmap(mm, addr+new_len, old_len - new_len, uf_unmap);
+		ret = do_munmap(mm, addr + new_len, old_len - new_len,
+				uf_unmap);
 		if (ret)
 			goto out;
 		old_len = new_len;
@@ -837,7 +854,7 @@ static unsigned long mremap_to(unsigned long addr, unsigned long old_len,
 
 	/* MREMAP_DONTUNMAP expands by old_len since old_len == new_len */
 	if (flags & MREMAP_DONTUNMAP &&
-		!may_expand_vm(mm, vma->vm_flags, old_len >> PAGE_SHIFT)) {
+	    !may_expand_vm(mm, vma->vm_flags, old_len >> PAGE_SHIFT)) {
 		ret = -ENOMEM;
 		goto out;
 	}
@@ -848,8 +865,9 @@ static unsigned long mremap_to(unsigned long addr, unsigned long old_len,
 	if (vma->vm_flags & VM_MAYSHARE)
 		map_flags |= MAP_SHARED;
 
-	ret = get_unmapped_area(vma->vm_file, new_addr, new_len, vma->vm_pgoff +
-				((addr - vma->vm_start) >> PAGE_SHIFT),
+	ret = get_unmapped_area(vma->vm_file, new_addr, new_len,
+				vma->vm_pgoff +
+					((addr - vma->vm_start) >> PAGE_SHIFT),
 				map_flags);
 	if (IS_ERR_VALUE(ret))
 		goto out;
@@ -873,8 +891,9 @@ static int vma_expandable(struct vm_area_struct *vma, unsigned long delta)
 		return 0;
 	if (find_vma_intersection(vma->vm_mm, vma->vm_end, end))
 		return 0;
-	if (get_unmapped_area(NULL, vma->vm_start, end - vma->vm_start,
-			      0, MAP_FIXED) & ~PAGE_MASK)
+	if (get_unmapped_area(NULL, vma->vm_start, end - vma->vm_start, 0,
+			      MAP_FIXED) &
+	    ~PAGE_MASK)
 		return 0;
 	return 1;
 }
@@ -887,8 +906,8 @@ static int vma_expandable(struct vm_area_struct *vma, unsigned long delta)
  * This option implies MREMAP_MAYMOVE.
  */
 SYSCALL_DEFINE5(mremap, unsigned long, addr, unsigned long, old_len,
-		unsigned long, new_len, unsigned long, flags,
-		unsigned long, new_addr)
+		unsigned long, new_len, unsigned long, flags, unsigned long,
+		new_addr)
 {
 	struct mm_struct *mm = current->mm;
 	struct vm_area_struct *vma;
@@ -912,22 +931,21 @@ SYSCALL_DEFINE5(mremap, unsigned long, addr, unsigned long, old_len,
 	addr = untagged_addr(addr);
 
 	if (flags & ~(MREMAP_FIXED | MREMAP_MAYMOVE | MREMAP_DONTUNMAP))
-		return ret;
+		goto sclda;
 
 	if (flags & MREMAP_FIXED && !(flags & MREMAP_MAYMOVE))
-		return ret;
+		goto sclda;
 
 	/*
 	 * MREMAP_DONTUNMAP is always a move and it does not allow resizing
 	 * in the process.
 	 */
 	if (flags & MREMAP_DONTUNMAP &&
-			(!(flags & MREMAP_MAYMOVE) || old_len != new_len))
-		return ret;
-
+	    (!(flags & MREMAP_MAYMOVE) || old_len != new_len))
+		goto sclda;
 
 	if (offset_in_page(addr))
-		return ret;
+		goto sclda;
 
 	old_len = PAGE_ALIGN(old_len);
 	new_len = PAGE_ALIGN(new_len);
@@ -938,10 +956,12 @@ SYSCALL_DEFINE5(mremap, unsigned long, addr, unsigned long, old_len,
 	 * a zero new-len is nonsensical.
 	 */
 	if (!new_len)
-		return ret;
+		goto sclda;
 
-	if (mmap_write_lock_killable(current->mm))
-		return -EINTR;
+	if (mmap_write_lock_killable(current->mm)) {
+		ret = -EINTR;
+		goto sclda;
+	}
 	vma = vma_lookup(mm, addr);
 	if (!vma) {
 		ret = -EFAULT;
@@ -969,9 +989,8 @@ SYSCALL_DEFINE5(mremap, unsigned long, addr, unsigned long, old_len,
 	}
 
 	if (flags & (MREMAP_FIXED | MREMAP_DONTUNMAP)) {
-		ret = mremap_to(addr, old_len, new_addr, new_len,
-				&locked, flags, &uf, &uf_unmap_early,
-				&uf_unmap);
+		ret = mremap_to(addr, old_len, new_addr, new_len, &locked,
+				flags, &uf, &uf_unmap_early, &uf_unmap);
 		goto out;
 	}
 
@@ -1016,8 +1035,10 @@ SYSCALL_DEFINE5(mremap, unsigned long, addr, unsigned long, old_len,
 			long pages = (new_len - old_len) >> PAGE_SHIFT;
 			unsigned long extension_start = addr + old_len;
 			unsigned long extension_end = addr + new_len;
-			pgoff_t extension_pgoff = vma->vm_pgoff +
-				((extension_start - vma->vm_start) >> PAGE_SHIFT);
+			pgoff_t extension_pgoff =
+				vma->vm_pgoff +
+				((extension_start - vma->vm_start) >>
+				 PAGE_SHIFT);
 
 			if (vma->vm_flags & VM_ACCOUNT) {
 				if (security_vm_enough_memory_mm(mm, pages)) {
@@ -1042,12 +1063,16 @@ SYSCALL_DEFINE5(mremap, unsigned long, addr, unsigned long, old_len,
 			 * when a vma would be actually removed due to a merge.
 			 */
 			if (!vma->vm_ops || !vma->vm_ops->close) {
-				vma = vma_merge(mm, vma, extension_start, extension_end,
-					vma->vm_flags, vma->anon_vma, vma->vm_file,
-					extension_pgoff, vma_policy(vma),
-					vma->vm_userfaultfd_ctx, anon_vma_name(vma));
-			} else if (vma_adjust(vma, vma->vm_start, addr + new_len,
-				   vma->vm_pgoff, NULL)) {
+				vma = vma_merge(mm, vma, extension_start,
+						extension_end, vma->vm_flags,
+						vma->anon_vma, vma->vm_file,
+						extension_pgoff,
+						vma_policy(vma),
+						vma->vm_userfaultfd_ctx,
+						anon_vma_name(vma));
+			} else if (vma_adjust(vma, vma->vm_start,
+					      addr + new_len, vma->vm_pgoff,
+					      NULL)) {
 				vma = NULL;
 			}
 			if (!vma) {
@@ -1077,17 +1102,17 @@ SYSCALL_DEFINE5(mremap, unsigned long, addr, unsigned long, old_len,
 		if (vma->vm_flags & VM_MAYSHARE)
 			map_flags |= MAP_SHARED;
 
-		new_addr = get_unmapped_area(vma->vm_file, 0, new_len,
-					vma->vm_pgoff +
-					((addr - vma->vm_start) >> PAGE_SHIFT),
-					map_flags);
+		new_addr = get_unmapped_area(
+			vma->vm_file, 0, new_len,
+			vma->vm_pgoff + ((addr - vma->vm_start) >> PAGE_SHIFT),
+			map_flags);
 		if (IS_ERR_VALUE(new_addr)) {
 			ret = new_addr;
 			goto out;
 		}
 
-		ret = move_vma(vma, addr, old_len, new_len, new_addr,
-			       &locked, flags, &uf, &uf_unmap);
+		ret = move_vma(vma, addr, old_len, new_len, new_addr, &locked,
+			       flags, &uf, &uf_unmap);
 	}
 out:
 	if (offset_in_page(ret))
@@ -1101,5 +1126,21 @@ out:
 	userfaultfd_unmap_complete(mm, &uf_unmap_early);
 	mremap_userfaultfd_complete(&uf, addr, ret, old_len);
 	userfaultfd_unmap_complete(mm, &uf_unmap);
+	goto sclda;
+sclda:
+	if (!is_sclda_allsend_fin())
+		return ret;
+
+	// 送信するパート
+	int msg_len = 400;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return ret;
+
+	msg_len = snprintf(msg_buf, msg_len, "25%c%lu%c%lu%c%lu%c%lu%c%lu%c%lu",
+			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, addr,
+			   SCLDA_DELIMITER, old_len, SCLDA_DELIMITER, new_len,
+			   SCLDA_DELIMITER, flags, SCLDA_DELIMITER, new_addr);
+	sclda_send_syscall_info(msg_buf, msg_len);
 	return ret;
 }
