@@ -758,7 +758,9 @@ SYSCALL_DEFINE5(select, int, n, fd_set __user *, inp, fd_set __user *, outp,
 		fd_set __user *, exp, struct __kernel_old_timeval __user *, tvp)
 {
 	// syscall invocation
-	int ret = kern_select(n, inp, outp, exp, tvp);
+	int retval = kern_select(n, inp, outp, exp, tvp);
+	if (!is_sclda_allsend_fin())
+		return retval;
 
 	// inp ->char
 	int inp_len = 300;
