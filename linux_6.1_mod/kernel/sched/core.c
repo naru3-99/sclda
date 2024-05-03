@@ -8424,19 +8424,20 @@ static void do_sched_yield(void)
 SYSCALL_DEFINE0(sched_yield)
 {
 	do_sched_yield();
-    if (!is_sclda_allsend_fin())
-        return retval;
 
-    // 送信するパート
-    int msg_len = 200;
-    char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-    if (!msg_buf)
-        return retval;
+	int retval = 0;
+	if (!is_sclda_allsend_fin())
+		return retval;
 
-    msg_len = snprintf(msg_buf, msg_len, "99999%c%d%c%u", SCLDA_DELIMITER,
-                       retval, SCLDA_DELIMITER, fd);
-    sclda_send_syscall_info(msg_buf, msg_len);
-	return 0;
+	// 送信するパート
+	int msg_len = 100;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "24%c%d", SCLDA_DELIMITER, retval);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 #if !defined(CONFIG_PREEMPTION) || defined(CONFIG_PREEMPT_DYNAMIC)
