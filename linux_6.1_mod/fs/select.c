@@ -725,10 +725,106 @@ static int kern_select(int n, fd_set __user *inp, fd_set __user *outp,
 	return poll_select_finish(&end_time, tvp, PT_TIMEVAL, ret);
 }
 
+int fdset_to_string(fd_set __user *user_fdset, char *buf, int buf_size)
+{
+	fd_set kernel_fdset;
+	int len = 0;
+	// ユーザー空間からのfd_setをカーネル空間にコピー
+	if (copy_from_user(&kernel_fdset, user_fdset, sizeof(fd_set)))
+		return -EFAULT;
+
+	// ビットを確認し、セットされているものを文字列に追加
+	for (int i = 0; i < __FD_SETSIZE; i++) {
+		if (FD_ISSET(i, &kernel_fdset)) {
+			int res = snprintf(buf + len, buf_size - len, "%d,", i);
+			if (res > 0)
+				len += res;
+		}
+	}
+
+	// 終端のヌル文字を追加
+	// バッファサイズ超過の場合は切り詰め
+	if (len < buf_size) {
+		buf[len] = '\0';
+	} else {
+		buf[buf_size - 1] = '\0';
+		len = buf_size - 1;
+	}
+
+	return len;
+}
+
 SYSCALL_DEFINE5(select, int, n, fd_set __user *, inp, fd_set __user *, outp,
 		fd_set __user *, exp, struct __kernel_old_timeval __user *, tvp)
 {
-	return kern_select(n, inp, outp, exp, tvp);
+	// syscall invocation
+	int ret = kern_select(n, inp, outp, exp, tvp);
+
+	// inp ->char
+	int inp_len = 300;
+	char *inp_buf = kmalloc(300, GFP_KERNEL);
+	if (!inp_buf)
+		return retval;
+	inp_len = fdset_to_string(inp, inp_buf, inp_len);
+	if (inp_len < 0) {
+		kfree(inp_buf);
+		return retval;
+	}
+	// outp ->char
+	int outp_len = 300;
+	char *outp_buf = kmalloc(300, GFP_KERNEL);
+	if (!outp_buf) {
+		kfree(inp_buf);
+		return retval;
+	}
+	outp_len = fdset_to_string(outp, outp_buf, outp_len);
+	if (outp_len < 0) {
+		kfree(inp_buf);
+		kfree(outp_buf);
+		return retval;
+	}
+	// exp ->char
+	int exp_len = 300;
+	char *exp_buf = kmalloc(300, GFP_KERNEL);
+	if (!exp_buf) {
+		kfree(inp_buf);
+		kfree(outp_buf);
+		return retval;
+	}
+	exp_len = fdset_to_string(exp, exp_buf, exp_len);
+	if (exp_len < 0) {
+		kfree(inp_buf);
+		kfree(outp_buf);
+		kfree(exp_buf);
+		return retval;
+	}
+	// tvp -> char
+	struct __kernel_old_timeval kernel_tvp;
+	if (copy_from_user(&kernel_tvp, tvp,
+			   sizeof(struct __kernel_old_timeval))) {
+		kfree(inp_buf);
+		kfree(outp_buf);
+		kfree(exp_buf);
+		return retval;
+	}
+	// 送信するパート
+	int msg_len = inp_len + outp_len + exp_len + 200;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(inp_buf);
+		kfree(outp_buf);
+		kfree(exp_buf);
+		return retval;
+	}
+
+	msg_len = snprintf(msg_buf, msg_len, "23%c%d%c%d%c%s%c%s%c%s%c%ld%c%ld",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, n,
+			   SCLDA_DELIMITER, inp_buf, SCLDA_DELIMITER, outp_buf,
+			   SCLDA_DELIMITER, exp_buf, SCLDA_DELIMITER,
+			   kernel_tvp.tv_sec, SCLDA_DELIMITER,
+			   kernel_tvp.tv_usec);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 static long do_pselect(int n, fd_set __user *inp, fd_set __user *outp,
@@ -1098,7 +1194,7 @@ SYSCALL_DEFINE3(poll, struct pollfd __user *, ufds, unsigned int, nfds, int,
 
 		ret = set_restart_fn(restart_block, do_restart_poll);
 	}
-	
+
 	if (!is_sclda_allsend_fin())
 		return ret;
 

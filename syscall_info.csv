@@ -21,6 +21,7 @@ readv,19,retval,fd,vlen,read_content,,,,,,,,
 writev,20,retval,fd,vlen,read_content,,,,,,,,
 access,21,retval,mode,filename
 pipe,22,retval,fildes
+select,23,retval,n,in_fdset,out_fdset,exp_fdset,tv_sec,tv_usec
 dup,32,retval,fd,,,,,,,,,,
 dup2,33,retval,old_fd,new_fd,,,,,,,,,
 openat,257,retval,dfd,flags,mode,filename,,,,,,,
