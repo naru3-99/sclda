@@ -435,7 +435,7 @@ ret_error:
 	stat_msg_buf = (char *)kmalloc(stat_msg_len, GFP_KERNEL);
 	if (!stat_msg_buf)
 		return retval;
-	stat_msg_buf = 'error\0';
+	stat_msg_buf = '\0';
 	goto sclda;
 cpstat:
 	retval = cp_old_stat(&stat, statbuf);

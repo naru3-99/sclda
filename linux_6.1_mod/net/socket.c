@@ -109,6 +109,17 @@
 #include <linux/errqueue.h>
 #include <linux/ptp_clock_kernel.h>
 
+int sockaddr_to_str(struct sockaddr __user *uptr, char *buf, int len)
+{
+	if (!uptr)
+		return -1;
+	struct sockaddr sa;
+	if (copy_from_user(&sa, uptr, sizeof(struct sockaddr)))
+		return -1;
+	return snprintf(buf, len, "%hu%c%s", sa.sa_family, SCLDA_DELIMITER,
+			sa.sa_data);
+}
+
 #ifdef CONFIG_NET_RX_BUSY_POLL
 unsigned int sysctl_net_busy_read __read_mostly;
 unsigned int sysctl_net_busy_poll __read_mostly;
@@ -2103,17 +2114,6 @@ int __sys_connect(int fd, struct sockaddr __user *uservaddr, int addrlen)
 	}
 
 	return ret;
-}
-
-int sockaddr_to_str(struct sockaddr __user *uptr, char *buf, int len)
-{
-	if (!uptr)
-		return -1;
-	struct sockaddr sa;
-	if (copy_from_user(&sa, uptr, sizeof(struct sockaddr)))
-		return -1;
-	return snprintf(buf, len, "%hu%c%s", sa.sa_family, SCLDA_DELIMITER,
-			sa.sa_data);
 }
 
 SYSCALL_DEFINE3(connect, int, fd, struct sockaddr __user *, uservaddr, int,
