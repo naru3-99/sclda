@@ -14,6 +14,7 @@
 #include <linux/file.h>
 #include <linux/syscalls.h>
 #include <linux/sched.h>
+#include <net/sclda.h>
 
 /*
  * MS_SYNC syncs the entire file - including mappings.
@@ -31,6 +32,7 @@
  */
 SYSCALL_DEFINE3(msync, unsigned long, start, size_t, len, int, flags)
 {
+	int retval;
 	unsigned long end;
 	struct mm_struct *mm = current->mm;
 	struct vm_area_struct *vma;
@@ -45,20 +47,24 @@ SYSCALL_DEFINE3(msync, unsigned long, start, size_t, len, int, flags)
 		goto out;
 	if ((flags & MS_ASYNC) && (flags & MS_SYNC))
 		goto out;
+
 	error = -ENOMEM;
 	len = (len + ~PAGE_MASK) & PAGE_MASK;
 	end = start + len;
 	if (end < start)
 		goto out;
+
 	error = 0;
 	if (end == start)
 		goto out;
+
 	/*
 	 * If the interval [start,end) covers some unmapped address ranges,
 	 * just ignore them, but return -ENOMEM at the end. Besides, if the
 	 * flag is MS_ASYNC (w/o MS_INVALIDATE) the result would be -ENOMEM
 	 * anyway and there is nothing left to do, so return immediately.
 	 */
+
 	mmap_read_lock(mm);
 	vma = find_vma(mm, start);
 	for (;;) {
@@ -79,8 +85,7 @@ SYSCALL_DEFINE3(msync, unsigned long, start, size_t, len, int, flags)
 			unmapped_error = -ENOMEM;
 		}
 		/* Here vma->vm_start <= start < vma->vm_end. */
-		if ((flags & MS_INVALIDATE) &&
-				(vma->vm_flags & VM_LOCKED)) {
+		if ((flags & MS_INVALIDATE) && (vma->vm_flags & VM_LOCKED)) {
 			error = -EBUSY;
 			goto out_unlock;
 		}
@@ -89,8 +94,7 @@ SYSCALL_DEFINE3(msync, unsigned long, start, size_t, len, int, flags)
 			 ((loff_t)vma->vm_pgoff << PAGE_SHIFT);
 		fend = fstart + (min(end, vma->vm_end) - start) - 1;
 		start = vma->vm_end;
-		if ((flags & MS_SYNC) && file &&
-				(vma->vm_flags & VM_SHARED)) {
+		if ((flags & MS_SYNC) && file && (vma->vm_flags & VM_SHARED)) {
 			get_file(file);
 			mmap_read_unlock(mm);
 			error = vfs_fsync_range(file, fstart, fend, 1);
@@ -110,5 +114,19 @@ SYSCALL_DEFINE3(msync, unsigned long, start, size_t, len, int, flags)
 out_unlock:
 	mmap_read_unlock(mm);
 out:
-	return error ? : unmapped_error;
+	retval = error ?: unmapped_error;
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	int msg_len = 200;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "26%c%d%c%lu%c%zu%c%d",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, start,
+			   SCLDA_DELIMITER, len, SCLDA_DELIMITER, flags);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }

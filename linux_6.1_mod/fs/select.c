@@ -727,6 +727,7 @@ static int kern_select(int n, fd_set __user *inp, fd_set __user *outp,
 #define FD_ISSET(fd, fdsetp)                             \
 	((fdsetp)->fds_bits[(fd) / (8 * sizeof(long))] & \
 	 (1UL << ((fd) % (8 * sizeof(long)))))
+
 int fdset_to_string(fd_set __user *user_fdset, char *buf, int buf_size)
 {
 	fd_set kernel_fdset;
