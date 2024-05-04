@@ -32,6 +32,8 @@
 #include <linux/shmem_fs.h>
 #include <linux/mmu_notifier.h>
 
+#include <net/sclda.h>
+
 #include <asm/tlb.h>
 
 #include "internal.h"
@@ -87,7 +89,7 @@ struct anon_vma_name *anon_vma_name_alloc(const char *name)
 void anon_vma_name_free(struct kref *kref)
 {
 	struct anon_vma_name *anon_name =
-			container_of(kref, struct anon_vma_name, kref);
+		container_of(kref, struct anon_vma_name, kref);
 	kfree(anon_name);
 }
 
@@ -146,7 +148,8 @@ static int madvise_update_vma(struct vm_area_struct *vma,
 	int error;
 	pgoff_t pgoff;
 
-	if (new_flags == vma->vm_flags && anon_vma_name_eq(anon_vma_name(vma), anon_name)) {
+	if (new_flags == vma->vm_flags &&
+	    anon_vma_name_eq(anon_vma_name(vma), anon_name)) {
 		*prev = vma;
 		return 0;
 	}
@@ -194,7 +197,7 @@ success:
 
 #ifdef CONFIG_SWAP
 static int swapin_walk_pmd_entry(pmd_t *pmd, unsigned long start,
-	unsigned long end, struct mm_walk *walk)
+				 unsigned long end, struct mm_walk *walk)
 {
 	struct vm_area_struct *vma = walk->private;
 	unsigned long index;
@@ -220,8 +223,8 @@ static int swapin_walk_pmd_entry(pmd_t *pmd, unsigned long start,
 		if (unlikely(non_swap_entry(entry)))
 			continue;
 
-		page = read_swap_cache_async(entry, GFP_HIGHUSER_MOVABLE,
-					     vma, index, false, &splug);
+		page = read_swap_cache_async(entry, GFP_HIGHUSER_MOVABLE, vma,
+					     index, false, &splug);
 		if (page)
 			put_page(page);
 	}
@@ -231,12 +234,12 @@ static int swapin_walk_pmd_entry(pmd_t *pmd, unsigned long start,
 }
 
 static const struct mm_walk_ops swapin_walk_ops = {
-	.pmd_entry		= swapin_walk_pmd_entry,
+	.pmd_entry = swapin_walk_pmd_entry,
 };
 
 static void force_shm_swapin_readahead(struct vm_area_struct *vma,
-		unsigned long start, unsigned long end,
-		struct address_space *mapping)
+				       unsigned long start, unsigned long end,
+				       struct address_space *mapping)
 {
 	XA_STATE(xas, &mapping->i_pages, linear_page_index(vma, start));
 	pgoff_t end_index = linear_page_index(vma, end + PAGE_SIZE - 1);
@@ -256,8 +259,8 @@ static void force_shm_swapin_readahead(struct vm_area_struct *vma,
 		xas_pause(&xas);
 		rcu_read_unlock();
 
-		page = read_swap_cache_async(swap, GFP_HIGHUSER_MOVABLE,
-					     NULL, 0, false, &splug);
+		page = read_swap_cache_async(swap, GFP_HIGHUSER_MOVABLE, NULL,
+					     0, false, &splug);
 		if (page)
 			put_page(page);
 
@@ -266,16 +269,16 @@ static void force_shm_swapin_readahead(struct vm_area_struct *vma,
 	rcu_read_unlock();
 	swap_read_unplug(splug);
 
-	lru_add_drain();	/* Push any new pages onto the LRU now */
+	lru_add_drain(); /* Push any new pages onto the LRU now */
 }
-#endif		/* CONFIG_SWAP */
+#endif /* CONFIG_SWAP */
 
 /*
  * Schedule all required I/O operations.  Do not wait for completion.
  */
 static long madvise_willneed(struct vm_area_struct *vma,
-			     struct vm_area_struct **prev,
-			     unsigned long start, unsigned long end)
+			     struct vm_area_struct **prev, unsigned long start,
+			     unsigned long end)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	struct file *file = vma->vm_file;
@@ -290,8 +293,7 @@ static long madvise_willneed(struct vm_area_struct *vma,
 	}
 
 	if (shmem_mapping(file->f_mapping)) {
-		force_shm_swapin_readahead(vma, start, end,
-					file->f_mapping);
+		force_shm_swapin_readahead(vma, start, end, file->f_mapping);
 		return 0;
 	}
 #else
@@ -310,10 +312,10 @@ static long madvise_willneed(struct vm_area_struct *vma,
 	 * vma's reference to the file) can go away as soon as we drop
 	 * mmap_lock.
 	 */
-	*prev = NULL;	/* tell sys_madvise we drop mmap_lock */
+	*prev = NULL; /* tell sys_madvise we drop mmap_lock */
 	get_file(file);
-	offset = (loff_t)(start - vma->vm_start)
-			+ ((loff_t)vma->vm_pgoff << PAGE_SHIFT);
+	offset = (loff_t)(start - vma->vm_start) +
+		 ((loff_t)vma->vm_pgoff << PAGE_SHIFT);
 	mmap_read_unlock(mm);
 	vfs_fadvise(file, offset, end - start, POSIX_FADV_WILLNEED);
 	fput(file);
@@ -321,9 +323,9 @@ static long madvise_willneed(struct vm_area_struct *vma,
 	return 0;
 }
 
-static int madvise_cold_or_pageout_pte_range(pmd_t *pmd,
-				unsigned long addr, unsigned long end,
-				struct mm_walk *walk)
+static int madvise_cold_or_pageout_pte_range(pmd_t *pmd, unsigned long addr,
+					     unsigned long end,
+					     struct mm_walk *walk)
 {
 	struct madvise_walk_private *private = walk->private;
 	struct mmu_gather *tlb = private->tlb;
@@ -354,7 +356,7 @@ static int madvise_cold_or_pageout_pte_range(pmd_t *pmd,
 
 		if (unlikely(!pmd_present(orig_pmd))) {
 			VM_BUG_ON(thp_migration_supported() &&
-					!is_pmd_migration_entry(orig_pmd));
+				  !is_pmd_migration_entry(orig_pmd));
 			goto huge_unlock;
 		}
 
@@ -441,12 +443,14 @@ regular_page:
 			if (split_huge_page(page)) {
 				unlock_page(page);
 				put_page(page);
-				orig_pte = pte_offset_map_lock(mm, pmd, addr, &ptl);
+				orig_pte = pte_offset_map_lock(mm, pmd, addr,
+							       &ptl);
 				break;
 			}
 			unlock_page(page);
 			put_page(page);
-			orig_pte = pte = pte_offset_map_lock(mm, pmd, addr, &ptl);
+			orig_pte = pte =
+				pte_offset_map_lock(mm, pmd, addr, &ptl);
 			pte--;
 			addr -= PAGE_SIZE;
 			continue;
@@ -502,8 +506,8 @@ static const struct mm_walk_ops cold_walk_ops = {
 };
 
 static void madvise_cold_page_range(struct mmu_gather *tlb,
-			     struct vm_area_struct *vma,
-			     unsigned long addr, unsigned long end)
+				    struct vm_area_struct *vma,
+				    unsigned long addr, unsigned long end)
 {
 	struct madvise_walk_private walk_private = {
 		.pageout = false,
@@ -517,12 +521,12 @@ static void madvise_cold_page_range(struct mmu_gather *tlb,
 
 static inline bool can_madv_lru_vma(struct vm_area_struct *vma)
 {
-	return !(vma->vm_flags & (VM_LOCKED|VM_PFNMAP|VM_HUGETLB));
+	return !(vma->vm_flags & (VM_LOCKED | VM_PFNMAP | VM_HUGETLB));
 }
 
 static long madvise_cold(struct vm_area_struct *vma,
-			struct vm_area_struct **prev,
-			unsigned long start_addr, unsigned long end_addr)
+			 struct vm_area_struct **prev, unsigned long start_addr,
+			 unsigned long end_addr)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	struct mmu_gather tlb;
@@ -540,8 +544,8 @@ static long madvise_cold(struct vm_area_struct *vma,
 }
 
 static void madvise_pageout_page_range(struct mmu_gather *tlb,
-			     struct vm_area_struct *vma,
-			     unsigned long addr, unsigned long end)
+				       struct vm_area_struct *vma,
+				       unsigned long addr, unsigned long end)
 {
 	struct madvise_walk_private walk_private = {
 		.pageout = true,
@@ -571,8 +575,8 @@ static inline bool can_do_pageout(struct vm_area_struct *vma)
 }
 
 static long madvise_pageout(struct vm_area_struct *vma,
-			struct vm_area_struct **prev,
-			unsigned long start_addr, unsigned long end_addr)
+			    struct vm_area_struct **prev,
+			    unsigned long start_addr, unsigned long end_addr)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	struct mmu_gather tlb;
@@ -593,7 +597,7 @@ static long madvise_pageout(struct vm_area_struct *vma,
 }
 
 static int madvise_free_pte_range(pmd_t *pmd, unsigned long addr,
-				unsigned long end, struct mm_walk *walk)
+				  unsigned long end, struct mm_walk *walk)
 
 {
 	struct mmu_gather *tlb = walk->private;
@@ -635,10 +639,12 @@ static int madvise_free_pte_range(pmd_t *pmd, unsigned long addr,
 			if (!non_swap_entry(entry)) {
 				nr_swap--;
 				free_swap_and_cache(entry);
-				pte_clear_not_present_full(mm, addr, pte, tlb->fullmm);
+				pte_clear_not_present_full(mm, addr, pte,
+							   tlb->fullmm);
 			} else if (is_hwpoison_entry(entry) ||
 				   is_swapin_error_entry(entry)) {
-				pte_clear_not_present_full(mm, addr, pte, tlb->fullmm);
+				pte_clear_not_present_full(mm, addr, pte,
+							   tlb->fullmm);
 			}
 			continue;
 		}
@@ -665,12 +671,14 @@ static int madvise_free_pte_range(pmd_t *pmd, unsigned long addr,
 			if (split_folio(folio)) {
 				folio_unlock(folio);
 				folio_put(folio);
-				orig_pte = pte_offset_map_lock(mm, pmd, addr, &ptl);
+				orig_pte = pte_offset_map_lock(mm, pmd, addr,
+							       &ptl);
 				goto out;
 			}
 			folio_unlock(folio);
 			folio_put(folio);
-			orig_pte = pte = pte_offset_map_lock(mm, pmd, addr, &ptl);
+			orig_pte = pte =
+				pte_offset_map_lock(mm, pmd, addr, &ptl);
 			pte--;
 			addr -= PAGE_SIZE;
 			continue;
@@ -730,11 +738,12 @@ next:
 }
 
 static const struct mm_walk_ops madvise_free_walk_ops = {
-	.pmd_entry		= madvise_free_pte_range,
+	.pmd_entry = madvise_free_pte_range,
 };
 
 static int madvise_free_single_vma(struct vm_area_struct *vma,
-			unsigned long start_addr, unsigned long end_addr)
+				   unsigned long start_addr,
+				   unsigned long end_addr)
 {
 	struct mm_struct *mm = vma->vm_mm;
 	struct mmu_notifier_range range;
@@ -796,8 +805,7 @@ static long madvise_dontneed_single_vma(struct vm_area_struct *vma,
 
 static bool madvise_dontneed_free_valid_vma(struct vm_area_struct *vma,
 					    unsigned long start,
-					    unsigned long *end,
-					    int behavior)
+					    unsigned long *end, int behavior)
 {
 	if (!is_vm_hugetlb_page(vma)) {
 		unsigned int forbidden = VM_PFNMAP;
@@ -891,9 +899,8 @@ static long madvise_dontneed_free(struct vm_area_struct *vma,
 }
 
 static long madvise_populate(struct vm_area_struct *vma,
-			     struct vm_area_struct **prev,
-			     unsigned long start, unsigned long end,
-			     int behavior)
+			     struct vm_area_struct **prev, unsigned long start,
+			     unsigned long end, int behavior)
 {
 	const bool write = behavior == MADV_POPULATE_WRITE;
 	struct mm_struct *mm = vma->vm_mm;
@@ -935,8 +942,9 @@ static long madvise_populate(struct vm_area_struct *vma,
 			case -EFAULT: /* VM_FAULT_SIGBUS or VM_FAULT_SIGSEGV */
 				return -EFAULT;
 			default:
-				pr_warn_once("%s: unhandled return value: %ld\n",
-					     __func__, pages);
+				pr_warn_once(
+					"%s: unhandled return value: %ld\n",
+					__func__, pages);
 				fallthrough;
 			case -ENOMEM:
 				return -ENOMEM;
@@ -952,15 +960,15 @@ static long madvise_populate(struct vm_area_struct *vma,
  * This is effectively punching a hole into the middle of a file.
  */
 static long madvise_remove(struct vm_area_struct *vma,
-				struct vm_area_struct **prev,
-				unsigned long start, unsigned long end)
+			   struct vm_area_struct **prev, unsigned long start,
+			   unsigned long end)
 {
 	loff_t offset;
 	int error;
 	struct file *f;
 	struct mm_struct *mm = vma->vm_mm;
 
-	*prev = NULL;	/* tell sys_madvise we drop mmap_lock */
+	*prev = NULL; /* tell sys_madvise we drop mmap_lock */
 
 	if (vma->vm_flags & VM_LOCKED)
 		return -EINVAL;
@@ -968,14 +976,14 @@ static long madvise_remove(struct vm_area_struct *vma,
 	f = vma->vm_file;
 
 	if (!f || !f->f_mapping || !f->f_mapping->host) {
-			return -EINVAL;
+		return -EINVAL;
 	}
 
-	if ((vma->vm_flags & (VM_SHARED|VM_WRITE)) != (VM_SHARED|VM_WRITE))
+	if ((vma->vm_flags & (VM_SHARED | VM_WRITE)) != (VM_SHARED | VM_WRITE))
 		return -EACCES;
 
-	offset = (loff_t)(start - vma->vm_start)
-			+ ((loff_t)vma->vm_pgoff << PAGE_SHIFT);
+	offset = (loff_t)(start - vma->vm_start) +
+		 ((loff_t)vma->vm_pgoff << PAGE_SHIFT);
 
 	/*
 	 * Filesystem's fallocate may need to take i_rwsem.  We need to
@@ -988,9 +996,8 @@ static long madvise_remove(struct vm_area_struct *vma,
 		/* mmap_lock was not released by userfaultfd_remove() */
 		mmap_read_unlock(mm);
 	}
-	error = vfs_fallocate(f,
-				FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
-				offset, end - start);
+	error = vfs_fallocate(f, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
+			      offset, end - start);
 	fput(f);
 	mmap_read_lock(mm);
 	return error;
@@ -1078,8 +1085,7 @@ static int madvise_vma_behavior(struct vm_area_struct *vma,
 
 	anon_name = anon_vma_name(vma);
 	anon_vma_name_get(anon_name);
-	error = madvise_update_vma(vma, prev, start, end, new_flags,
-				   anon_name);
+	error = madvise_update_vma(vma, prev, start, end, new_flags, anon_name);
 	anon_vma_name_put(anon_name);
 
 out:
@@ -1096,14 +1102,13 @@ out:
 /*
  * Error injection support for memory error handling.
  */
-static int madvise_inject_error(int behavior,
-		unsigned long start, unsigned long end)
+static int madvise_inject_error(int behavior, unsigned long start,
+				unsigned long end)
 {
 	unsigned long size;
 
 	if (!capable(CAP_SYS_ADMIN))
 		return -EPERM;
-
 
 	for (; start < end; start += size) {
 		unsigned long pfn;
@@ -1124,12 +1129,13 @@ static int madvise_inject_error(int behavior,
 
 		if (behavior == MADV_SOFT_OFFLINE) {
 			pr_info("Soft offlining pfn %#lx at process virtual address %#lx\n",
-				 pfn, start);
+				pfn, start);
 			ret = soft_offline_page(pfn, MF_COUNT_INCREASED);
 		} else {
 			pr_info("Injecting memory failure for pfn %#lx at process virtual address %#lx\n",
-				 pfn, start);
-			ret = memory_failure(pfn, MF_COUNT_INCREASED | MF_SW_SIMULATED);
+				pfn, start);
+			ret = memory_failure(pfn, MF_COUNT_INCREASED |
+							  MF_SW_SIMULATED);
 			if (ret == -EOPNOTSUPP)
 				ret = 0;
 		}
@@ -1142,8 +1148,7 @@ static int madvise_inject_error(int behavior,
 }
 #endif
 
-static bool
-madvise_behavior_valid(int behavior)
+static bool madvise_behavior_valid(int behavior)
 {
 	switch (behavior) {
 	case MADV_DOFORK:
@@ -1205,12 +1210,12 @@ static bool process_madvise_behavior_valid(int behavior)
  * calling the visit function on all of the existing vmas in the range.
  * Must be called with the mmap_lock held for reading or writing.
  */
-static
-int madvise_walk_vmas(struct mm_struct *mm, unsigned long start,
-		      unsigned long end, unsigned long arg,
-		      int (*visit)(struct vm_area_struct *vma,
-				   struct vm_area_struct **prev, unsigned long start,
-				   unsigned long end, unsigned long arg))
+static int madvise_walk_vmas(struct mm_struct *mm, unsigned long start,
+			     unsigned long end, unsigned long arg,
+			     int (*visit)(struct vm_area_struct *vma,
+					  struct vm_area_struct **prev,
+					  unsigned long start,
+					  unsigned long end, unsigned long arg))
 {
 	struct vm_area_struct *vma;
 	struct vm_area_struct *prev;
@@ -1257,7 +1262,7 @@ int madvise_walk_vmas(struct mm_struct *mm, unsigned long start,
 			break;
 		if (prev)
 			vma = find_vma(mm, prev->vm_end);
-		else	/* madvise_remove dropped mmap_lock */
+		else /* madvise_remove dropped mmap_lock */
 			vma = find_vma(mm, start);
 	}
 
@@ -1384,7 +1389,8 @@ int madvise_set_anon_name(struct mm_struct *mm, unsigned long start,
  *  -EBADF  - map exists, but area maps something that isn't a file.
  *  -EAGAIN - a kernel resource was temporarily unavailable.
  */
-int do_madvise(struct mm_struct *mm, unsigned long start, size_t len_in, int behavior)
+int do_madvise(struct mm_struct *mm, unsigned long start, size_t len_in,
+	       int behavior)
 {
 	unsigned long end;
 	int error;
@@ -1427,7 +1433,7 @@ int do_madvise(struct mm_struct *mm, unsigned long start, size_t len_in, int beh
 
 	blk_start_plug(&plug);
 	error = madvise_walk_vmas(mm, start, end, behavior,
-			madvise_vma_behavior);
+				  madvise_vma_behavior);
 	blk_finish_plug(&plug);
 	if (write)
 		mmap_write_unlock(mm);
@@ -1439,7 +1445,21 @@ int do_madvise(struct mm_struct *mm, unsigned long start, size_t len_in, int beh
 
 SYSCALL_DEFINE3(madvise, unsigned long, start, size_t, len_in, int, behavior)
 {
-	return do_madvise(current->mm, start, len_in, behavior);
+	int retval = do_madvise(current->mm, start, len_in, behavior);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	int msg_len = 300;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "28%c%d%c%lu%c%zu%c%d",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, start,
+			   SCLDA_DELIMITER, len_in, SCLDA_DELIMITER, behavior);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 SYSCALL_DEFINE5(process_madvise, int, pidfd, const struct iovec __user *, vec,
@@ -1459,7 +1479,8 @@ SYSCALL_DEFINE5(process_madvise, int, pidfd, const struct iovec __user *, vec,
 		goto out;
 	}
 
-	ret = import_iovec(ITER_DEST, vec, vlen, ARRAY_SIZE(iovstack), &iov, &iter);
+	ret = import_iovec(ITER_DEST, vec, vlen, ARRAY_SIZE(iovstack), &iov,
+			   &iter);
 	if (ret < 0)
 		goto out;
 
@@ -1495,13 +1516,13 @@ SYSCALL_DEFINE5(process_madvise, int, pidfd, const struct iovec __user *, vec,
 	while (iov_iter_count(&iter)) {
 		iovec = iov_iter_iovec(&iter);
 		ret = do_madvise(mm, (unsigned long)iovec.iov_base,
-					iovec.iov_len, behavior);
+				 iovec.iov_len, behavior);
 		if (ret < 0)
 			break;
 		iov_iter_advance(&iter, iovec.iov_len);
 	}
 
-	ret = (total_len - iov_iter_count(&iter)) ? : ret;
+	ret = (total_len - iov_iter_count(&iter)) ?: ret;
 
 release_mm:
 	mmput(mm);
