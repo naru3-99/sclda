@@ -1963,13 +1963,93 @@ int __sys_accept4(int fd, struct sockaddr __user *upeer_sockaddr,
 SYSCALL_DEFINE4(accept4, int, fd, struct sockaddr __user *, upeer_sockaddr,
 		int __user *, upeer_addrlen, int, flags)
 {
-	return __sys_accept4(fd, upeer_sockaddr, upeer_addrlen, flags);
+	int retval = __sys_accept4(fd, upeer_sockaddr, upeer_addrlen, flags);
+
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// sockaddrを文字列に変換
+	int struct_len = 200;
+	char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
+	if (!struct_buf)
+		return retval;
+	struct_len = sockaddr_to_str(upeer_sockaddr, struct_buf, struct_len);
+	if (struct_len < 0) {
+		struct_len = 1;
+		struct_buf = '\0';
+	}
+	// upeer_addrlenを取得
+	// 失敗したら-1とする
+	int addlen;
+	if (upeer_addrlen) {
+		if (unlikely(get_user(&addlen, upeer_addrlen))) {
+			addlen = -1;
+		}
+	} else {
+		addlen = -1;
+	}
+
+	// 送信するパート
+	int msg_len = struct_len + 100;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(struct_buf);
+		return retval;
+	}
+
+	msg_len = snprintf(msg_buf, msg_len, "43%c%d%c%d%c%d%c%d%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, addlen, SCLDA_DELIMITER, flags,
+			   SCLDA_DELIMITER, struct_buf);
+	kfree(struct_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 SYSCALL_DEFINE3(accept, int, fd, struct sockaddr __user *, upeer_sockaddr,
 		int __user *, upeer_addrlen)
 {
-	return __sys_accept4(fd, upeer_sockaddr, upeer_addrlen, 0);
+	int retval = __sys_accept4(fd, upeer_sockaddr, upeer_addrlen, 0);
+
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// sockaddrを文字列に変換
+	int struct_len = 200;
+	char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
+	if (!struct_buf)
+		return retval;
+	struct_len = sockaddr_to_str(upeer_sockaddr, struct_buf, struct_len);
+	if (struct_len < 0) {
+		struct_len = 1;
+		struct_buf = '\0';
+	}
+	// upeer_addrlenを取得
+	// 失敗したら-1とする
+	int addlen;
+	if (upeer_addrlen) {
+		if (unlikely(get_user(&addlen, upeer_addrlen))) {
+			addlen = -1;
+		}
+	} else {
+		addlen = -1;
+	}
+
+	// 送信するパート
+	int msg_len = struct_len + 100;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(struct_buf);
+		return retval;
+	}
+
+	msg_len = snprintf(msg_buf, msg_len, "43%c%d%c%d%c%d%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, addlen, SCLDA_DELIMITER,
+			   struct_buf);
+	kfree(struct_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 /*

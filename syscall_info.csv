@@ -41,5 +41,7 @@ getpid,39,retval
 sendfile,40,retval,out_fd,in_fd,offset,count
 socket,41,retval,family,type,protocol
 connect,42,retval,fd,addrlen,sa_family,sa_data
+accept,43,retval,fd,addrlen,sa_family,sa_data
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
+accept4,288,retval,fd,addrlen,flags,sa_family,sa_data
 dup3,292,retval,old_fd,new_fd,flags,,,,,,,,,,,,,,
