@@ -1314,9 +1314,63 @@ static long ksys_shmctl(int shmid, int cmd, struct shmid_ds __user *buf,
 	}
 }
 
+int shmid_ds_to_str(struct shmid_ds __user *user_buf, char *msg_buf,
+		    int msg_len)
+{
+	struct shmid_ds buf;
+	if (copy_from_user(&buf, user_buf, sizeof(struct shmid_ds)))
+		return -1;
+	return snprintf(msg_buf, msg_len,
+			"%d%c%u%c%u%c%u%c%u%c%u%c%u%c"
+			"%d%c%ld%c%ld%c%ld%c%d%c%d%c%hu%c%hu",
+			buf.shm_perm.key, 	SCLDA_DELIMITER,
+			buf.shm_perm.uid,	SCLDA_DELIMITER,
+			buf.shm_perm.gid, 	SCLDA_DELIMITER,
+			buf.shm_perm.cuid, 	SCLDA_DELIMITER,
+			buf.shm_perm.cgid,	SCLDA_DELIMITER,
+			buf.shm_perm.mode, 	SCLDA_DELIMITER,
+			buf.shm_perm.seq, 	SCLDA_DELIMITER,
+			buf.shm_segsz,		SCLDA_DELIMITER,
+			buf.shm_atime, 		SCLDA_DELIMITER,
+			buf.shm_dtime, 		SCLDA_DELIMITER,
+			buf.shm_ctime,		SCLDA_DELIMITER,
+			buf.shm_cpid, 		SCLDA_DELIMITER,
+			buf.shm_lpid, 		SCLDA_DELIMITER,
+			buf.shm_nattch,		SCLDA_DELIMITER,
+			buf.shm_unused);
+}
+
 SYSCALL_DEFINE3(shmctl, int, shmid, int, cmd, struct shmid_ds __user *, buf)
 {
-	return ksys_shmctl(shmid, cmd, buf, IPC_64);
+	long retval = ksys_shmctl(shmid, cmd, buf, IPC_64);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	int struct_len = 400;
+	char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
+	if (!struct_buf)
+		return retval;
+	struct_len = shmid_ds_to_str(buf, struct_buf, struct_len);
+	if (struct_len < 0) {
+		// 失敗したみたいだが、一応送信を試みる
+		struct_len = 1;
+		struct_buf = "\0";
+	}
+
+	// 送信するパート
+	int msg_len = struct_len + 200;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(struct_buf);
+		return retval;
+	}
+	msg_len = snprintf(msg_buf, msg_len, "31%c%ld%c%d%c%d%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, shmid,
+			   SCLDA_DELIMITER, cmd, SCLDA_DELIMITER, struct_buf);
+	kfree(struct_buf);
+
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 #ifdef CONFIG_ARCH_WANT_IPC_PARSE_VERSION
