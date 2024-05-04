@@ -2181,7 +2181,7 @@ sclda:
 	rqtp_len = __kernel_timespec_to_str(rqtp, rqtp_buf, rqtp_len);
 	if (rqtp_len < 0) {
 		rqtp_len = 1;
-		rqtp_buf = "\0";
+		rqtp_buf = '\0';
 	}
 
 	// 第2引数を文字列に変換
@@ -2194,7 +2194,7 @@ sclda:
 	rmtp_len = __kernel_timespec_to_str(rqtp, rmtp_buf, rmtp_len);
 	if (rmtp_len < 0) {
 		rmtp_len = 1;
-		rmtp_buf = "\0";
+		rmtp_buf = '\0';
 	}
 
 	// 送信するパート

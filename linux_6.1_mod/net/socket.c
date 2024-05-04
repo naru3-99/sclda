@@ -2051,7 +2051,7 @@ SYSCALL_DEFINE3(connect, int, fd, struct sockaddr __user *, uservaddr, int,
 	struct_len = sockaddr_to_str(uservaddr, struct_buf, struct_len);
 	if (struct_len < 0) {
 		struct_len = 1;
-		struct_buf = "\0";
+		struct_buf = '\0';
 	}
 
 	// 送信するパート
@@ -2066,7 +2066,7 @@ SYSCALL_DEFINE3(connect, int, fd, struct sockaddr __user *, uservaddr, int,
 			   SCLDA_DELIMITER, addrlen, SCLDA_DELIMITER,
 			   struct_buf);
 	kfree(struct_buf);
-	
+
 	sclda_send_syscall_info(msg_buf, msg_len);
 	return retval;
 }

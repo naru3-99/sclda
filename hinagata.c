@@ -39,7 +39,7 @@ int struct_to_str()
     if (struct_len < 0)
     {
         struct_len = 1;
-        struct_buf = "\0";
+        struct_buf = '\0';
     }
 }
 
