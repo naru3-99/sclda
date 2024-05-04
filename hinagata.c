@@ -27,3 +27,18 @@ int filename()
     filename_len -= copy_from_user(filename_buf, filename, filename_len);
     filename_buf[filename_len] = '\0';
 }
+
+int struct_to_str()
+{
+    int struct_len = 200;
+    char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
+    if (!struct_buf)
+        return retval;
+    struct_len =
+        __kernel_old_itimerval_to_str(value, struct_buf, struct_len);
+    if (struct_len < 0)
+    {
+        struct_len = 1;
+        struct_buf = "\0";
+    }
+}

@@ -20,6 +20,20 @@
 
 #include <linux/uaccess.h>
 
+int __kernel_old_itimerval_to_str(struct __kernel_old_itimerval __user *uptr,
+				  char *buf, int len)
+{
+	if (!uptr)
+		return -1;
+	struct __kernel_old_itimerval koi;
+	if (copy_from_user(&koi, uptr, sizeof(struct __kernel_old_itimerval)))
+		return -1;
+	return snprintf(buf, len, "%ld%c%ld%c%ld%c%ld", koi.it_interval.tv_sec,
+			SCLDA_DELIMITER, koi.it_interval.tv_usec,
+			SCLDA_DELIMITER, koi.it_value.tv_sec, SCLDA_DELIMITER,
+			koi.it_value.tv_usec);
+}
+
 /**
  * itimer_get_remtime - get remaining time for the timer
  *
@@ -125,24 +139,30 @@ SYSCALL_DEFINE2(getitimer, int, which, struct __kernel_old_itimerval __user *,
 		return retval;
 
 	// struct __kernel_old_itimerval __user * valueを文字列に
-	if (!value)
+	int struct_len = 200;
+	char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
+	if (!struct_buf)
 		return retval;
-	struct __kernel_old_itimerval koi;
-	if (copy_from_user(&koi, value, sizeof(struct __kernel_old_itimerval)))
-		return retval;
+	struct_len =
+		__kernel_old_itimerval_to_str(value, struct_buf, struct_len);
+	if (struct_len < 0) {
+		struct_len = 1;
+		struct_buf = "\0";
+	}
 
 	// 送信するパート
-	int msg_len = 300;
+	int msg_len = struct_len + 100;
 	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
+	if (!msg_buf) {
+		kfree(struct_buf);
 		return retval;
+	}
 
-	msg_len = snprintf(msg_buf, msg_len, "36%c%d%c%d%c%ld%c%ld%c%ld%c%ld",
-			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, which,
-			   SCLDA_DELIMITER, koi.it_interval.tv_sec,
-			   SCLDA_DELIMITER, koi.it_interval.tv_usec,
-			   SCLDA_DELIMITER, koi.it_value.tv_sec,
-			   SCLDA_DELIMITER, koi.it_value.tv_usec);
+	msg_len = snprintf(msg_buf, msg_len, "36%c%d%c%d%c%s", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, which, SCLDA_DELIMITER,
+			   struct_buf);
+	kfree(struct_buf);
+
 	sclda_send_syscall_info(msg_buf, msg_len);
 	return retval;
 }
@@ -374,13 +394,16 @@ static int get_itimerval(struct itimerspec64 *o,
 SYSCALL_DEFINE3(setitimer, int, which, struct __kernel_old_itimerval __user *,
 		value, struct __kernel_old_itimerval __user *, ovalue)
 {
+	int retval;
 	struct itimerspec64 set_buffer, get_buffer;
 	int error;
 
 	if (value) {
 		error = get_itimerval(&set_buffer, value);
-		if (error)
-			return error;
+		if (error) {
+			retval = error;
+			goto sclda;
+		}
 	} else {
 		memset(&set_buffer, 0, sizeof(set_buffer));
 		printk_once(KERN_WARNING
@@ -390,12 +413,60 @@ SYSCALL_DEFINE3(setitimer, int, which, struct __kernel_old_itimerval __user *,
 	}
 
 	error = do_setitimer(which, &set_buffer, ovalue ? &get_buffer : NULL);
-	if (error || !ovalue)
-		return error;
+	if (error || !ovalue) {
+		retval = error;
+		goto sclda;
+	}
+	if (put_itimerval(ovalue, &get_buffer)) {
+		retval = -EFAULT;
+		goto sclda;
+	}
+	retval = 0;
+	goto sclda;
+sclda:
+	if (!is_sclda_allsend_fin())
+		return retval;
 
-	if (put_itimerval(ovalue, &get_buffer))
-		return -EFAULT;
-	return 0;
+	int value_len = 200;
+	char *value_buf = kmalloc(value_len, GFP_KERNEL);
+	if (!value_buf)
+		return retval;
+	value_len = __kernel_old_itimerval_to_str(value, value_buf, value_len);
+	if (value_len < 0) {
+		value_len = 1;
+		value_buf = "\0";
+	}
+
+	int ovalue_len = 200;
+	char *ovalue_buf = kmalloc(ovalue_len, GFP_KERNEL);
+	if (!ovalue_buf) {
+		kfree(value_buf);
+		return retval;
+	}
+	ovalue_len =
+		__kernel_old_itimerval_to_str(ovalue, ovalue_buf, ovalue_len);
+	if (ovalue_len < 0) {
+		ovalue_len = 1;
+		ovalue_buf = "\0";
+	}
+
+	// 送信するパート
+	int msg_len = 200;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(value_buf);
+		kfree(ovalue_buf);
+		return retval;
+	}
+
+	msg_len = snprintf(msg_buf, msg_len, "38%c%d%c%d%c%s%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, which,
+			   SCLDA_DELIMITER, value_buf, SCLDA_DELIMITER,
+			   ovalue_buf);
+	kfree(value_buf);
+	kfree(ovalue_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 #if defined(CONFIG_COMPAT) || defined(CONFIG_ALPHA)
