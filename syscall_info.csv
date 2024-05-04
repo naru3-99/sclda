@@ -37,5 +37,6 @@ nanosleep,35,retval,rqtp_tvsec,rqtp_tvnsec,rmtp_tvsec,rmtp_tvnsec,
 getitimer,36,retval,which,it_interval.tv_sec,it_interval.tv_usec,it_value.tv_sec,it_value.tv_usec
 alarm,37,retval,seconds
 setitimer,38,retval,which,it_interval.tv_sec,it_interval.tv_usec,it_value.tv_sec,it_value.tv_usec,oit_interval.tv_sec,oit_interval.tv_usec,oit_value.tv_sec,oit_value.tv_usec
+getpid,39,retval
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 dup3,292,retval,old_fd,new_fd,flags,,,,,,,,,,,,,,
