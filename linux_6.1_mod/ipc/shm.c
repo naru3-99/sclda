@@ -1730,24 +1730,16 @@ sclda:
 	if (!is_sclda_allsend_fin())
 		return retval;
 
-	int addr_len = strnlen_user(user_str, 1000);
-	char *addr_buf = kmalloc(addr_len, GFP_KERNEL);
-	if (!addr_buf)
-		return retval;
-	if (copy_from_user(addr_buf, shmaddr, addr_len)) {
-		kfree(addr_buf);
-		return retval;
-	}
-
 	// 送信するパート
-	int msg_len = addr_len + 200;
+	int msg_len = 300;
 	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		return retval;
 
-	msg_len = snprintf(msg_buf, msg_len, "30%c%ld%c%d%c%d%c%s",
+	msg_len = snprintf(msg_buf, msg_len, "30%c%ld%c%d%c%d%c%lu",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, shmid,
-			   SCLDA_DELIMITER, shmflg, SCLDA_DELIMITER, addr_buf);
+			   SCLDA_DELIMITER, shmflg, SCLDA_DELIMITER,
+			   (unsigned long)shmaddr);
 	sclda_send_syscall_info(msg_buf, msg_len);
 	return retval;
 }
