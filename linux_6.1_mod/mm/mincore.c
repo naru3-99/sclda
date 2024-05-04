@@ -19,11 +19,13 @@
 #include <linux/hugetlb.h>
 #include <linux/pgtable.h>
 
+#include <net/sclda.h>
+
 #include <linux/uaccess.h>
 #include "swap.h"
 
 static int mincore_hugetlb(pte_t *pte, unsigned long hmask, unsigned long addr,
-			unsigned long end, struct mm_walk *walk)
+			   unsigned long end, struct mm_walk *walk)
 {
 #ifdef CONFIG_HUGETLB_PAGE
 	unsigned char present;
@@ -70,7 +72,8 @@ static unsigned char mincore_page(struct address_space *mapping, pgoff_t index)
 }
 
 static int __mincore_unmapped_range(unsigned long addr, unsigned long end,
-				struct vm_area_struct *vma, unsigned char *vec)
+				    struct vm_area_struct *vma,
+				    unsigned char *vec)
 {
 	unsigned long nr = (end - addr) >> PAGE_SHIFT;
 	int i;
@@ -89,16 +92,16 @@ static int __mincore_unmapped_range(unsigned long addr, unsigned long end,
 }
 
 static int mincore_unmapped_range(unsigned long addr, unsigned long end,
-				   __always_unused int depth,
-				   struct mm_walk *walk)
+				  __always_unused int depth,
+				  struct mm_walk *walk)
 {
-	walk->private += __mincore_unmapped_range(addr, end,
-						  walk->vma, walk->private);
+	walk->private +=
+		__mincore_unmapped_range(addr, end, walk->vma, walk->private);
 	return 0;
 }
 
 static int mincore_pte_range(pmd_t *pmd, unsigned long addr, unsigned long end,
-			struct mm_walk *walk)
+			     struct mm_walk *walk)
 {
 	spinlock_t *ptl;
 	struct vm_area_struct *vma = walk->vma;
@@ -124,8 +127,8 @@ static int mincore_pte_range(pmd_t *pmd, unsigned long addr, unsigned long end,
 
 		/* We need to do cache lookup too for pte markers */
 		if (pte_none_mostly(pte))
-			__mincore_unmapped_range(addr, addr + PAGE_SIZE,
-						 vma, vec);
+			__mincore_unmapped_range(addr, addr + PAGE_SIZE, vma,
+						 vec);
 		else if (pte_present(pte))
 			*vec = 1;
 		else { /* pte is a swap entry */
@@ -174,9 +177,9 @@ static inline bool can_do_mincore(struct vm_area_struct *vma)
 }
 
 static const struct mm_walk_ops mincore_walk_ops = {
-	.pmd_entry		= mincore_pte_range,
-	.pte_hole		= mincore_unmapped_range,
-	.hugetlb_entry		= mincore_hugetlb,
+	.pmd_entry = mincore_pte_range,
+	.pte_hole = mincore_unmapped_range,
+	.hugetlb_entry = mincore_hugetlb,
 };
 
 /*
@@ -184,7 +187,8 @@ static const struct mm_walk_ops mincore_walk_ops = {
  * all the arguments, we hold the mmap semaphore: we should
  * just return the amount of info we're asked for.
  */
-static long do_mincore(unsigned long addr, unsigned long pages, unsigned char *vec)
+static long do_mincore(unsigned long addr, unsigned long pages,
+		       unsigned char *vec)
 {
 	struct vm_area_struct *vma;
 	unsigned long end;
@@ -232,6 +236,10 @@ static long do_mincore(unsigned long addr, unsigned long pages, unsigned char *v
 SYSCALL_DEFINE3(mincore, unsigned long, start, size_t, len,
 		unsigned char __user *, vec)
 {
+	long sclda_ret;
+	long vec_len = 0;
+	char *vec_buf;
+
 	long retval;
 	unsigned long pages;
 	unsigned char *tmp;
@@ -239,23 +247,31 @@ SYSCALL_DEFINE3(mincore, unsigned long, start, size_t, len,
 	start = untagged_addr(start);
 
 	/* Check the start address: needs to be page-aligned.. */
-	if (start & ~PAGE_MASK)
-		return -EINVAL;
+	if (start & ~PAGE_MASK) {
+		sclda_ret = -EINVAL;
+		goto sclda_err;
+	}
 
 	/* ..and we need to be passed a valid user-space range */
-	if (!access_ok((void __user *) start, len))
-		return -ENOMEM;
+	if (!access_ok((void __user *)start, len)) {
+		sclda_ret = -ENOMEM;
+		goto sclda_err;
+	}
 
 	/* This also avoids any overflows on PAGE_ALIGN */
 	pages = len >> PAGE_SHIFT;
 	pages += (offset_in_page(len)) != 0;
 
-	if (!access_ok(vec, pages))
-		return -EFAULT;
+	if (!access_ok(vec, pages)) {
+		sclda_ret = -EFAULT;
+		goto sclda_err;
+	}
 
-	tmp = (void *) __get_free_page(GFP_USER);
-	if (!tmp)
-		return -EAGAIN;
+	tmp = (void *)__get_free_page(GFP_USER);
+	if (!tmp) {
+		sclda_ret = -EAGAIN;
+		goto sclda_err;
+	}
 
 	retval = 0;
 	while (pages) {
@@ -275,9 +291,47 @@ SYSCALL_DEFINE3(mincore, unsigned long, start, size_t, len,
 		}
 		pages -= retval;
 		vec += retval;
+		vec_len += retval;
 		start += retval << PAGE_SHIFT;
 		retval = 0;
 	}
-	free_page((unsigned long) tmp);
-	return retval;
+	free_page((unsigned long)tmp);
+	sclda_ret = retval;
+	goto sclda_success;
+sclda_err:
+	// うまく行かなかった時
+	// vecは参照できない
+	vec_len = 1;
+	vec_buf = kmalloc(vec_len, GFP_KERNEL);
+	if (!vec_buf)
+		return sclda_ret;
+	vec_buf = "\0";
+	goto sclda;
+sclda_success:
+	// うまく行ったときはvecの中身を参照する
+	vec_buf = kmalloc(vec_len, GFP_KERNEL);
+	if (!vec_buf) {
+		return sclda_ret;
+	}
+	if (copy_from_user(vec_buf, vec, vec_len)) {
+		kfree(vec_buf);
+		goto sclda_err;
+	}
+	goto sclda;
+sclda:
+	if (!is_sclda_allsend_fin())
+		return sclda_ret;
+
+	// 送信するパート
+	int msg_len = vec_len + 200;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(vec_buf);
+		return sclda_ret;
+	}
+	msg_len = snprintf(msg_buf, msg_len, "27%c%ld%c%lu%c%zu%c%s",
+			   SCLDA_DELIMITER, sclda_ret, SCLDA_DELIMITER, start,
+			   SCLDA_DELIMITER, len, SCLDA_DELIMITER, vec_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return sclda_ret;
 }
