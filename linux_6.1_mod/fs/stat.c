@@ -497,7 +497,7 @@ SYSCALL_DEFINE2(fstat, unsigned int, fd, struct __old_kernel_stat __user *,
 		stat_msg_buf = (char *)kmalloc(stat_msg_len, GFP_KERNEL);
 		if (!stat_msg_buf)
 			return retval;
-		stat_msg_buf = "error\0";
+		stat_msg_buf ='\0';
 	} else {
 		// kstatが成功している場合
 		retval = cp_old_stat(&stat, statbuf);
