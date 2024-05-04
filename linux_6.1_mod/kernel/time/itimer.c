@@ -334,7 +334,20 @@ static unsigned int alarm_setitimer(unsigned int seconds)
  */
 SYSCALL_DEFINE1(alarm, unsigned int, seconds)
 {
-	return alarm_setitimer(seconds);
+	unsigned int retval = alarm_setitimer(seconds);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	int msg_len = 200;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "37%c%u%c%u", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, seconds);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 #endif

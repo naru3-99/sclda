@@ -35,5 +35,6 @@ dup2,33,retval,old_fd,new_fd,,,,,,,,,,,,,,,
 pause,34,retval,,,,,,,,,,,,,,,,,
 nanosleep,35,retval,rqtp_tvsec,rqtp_tvnsec,rmtp_tvsec,rmtp_tvnsec,
 getitimer,36,retval,which,it_interval.tv_sec,it_interval.tv_usec,it_value.tv_sec,it_value.tv_usec
+alarm,37,retval,seconds
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 dup3,292,retval,old_fd,new_fd,flags,,,,,,,,,,,,,,
