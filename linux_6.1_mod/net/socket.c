@@ -2171,7 +2171,17 @@ int __sys_getsockname(int fd, struct sockaddr __user *usockaddr,
 	if (err)
 		goto out_put;
 
-	err = sock->ops->getname(sock, (struct sockaddr *)&address, 0);
+	err = sock->ops->g // sockaddrを文字列に変換
+	      int struct_len = 100;
+	char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
+	if (!struct_buf)
+		return retval;
+	struct_len = sockaddr_to_str(uservaddr, struct_buf, struct_len);
+	if (struct_len < 0) {
+		struct_len = 1;
+		struct_buf = '\0';
+	}
+	etname(sock, (struct sockaddr *)&address, 0);
 	if (err < 0)
 		goto out_put;
 	/* "err" is actually length in this case */
@@ -2273,7 +2283,59 @@ out:
 SYSCALL_DEFINE6(sendto, int, fd, void __user *, buff, size_t, len, unsigned int,
 		flags, struct sockaddr __user *, addr, int, addr_len)
 {
-	return __sys_sendto(fd, buff, len, flags, addr, addr_len);
+	int retval = __sys_sendto(fd, buff, len, flags, addr, addr_len);
+
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// sockaddrを文字列に変換
+	int struct_len = 100;
+	char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
+	if (!struct_buf)
+		return retval;
+	struct_len = sockaddr_to_str(uservaddr, struct_buf, struct_len);
+	if (struct_len < 0) {
+		struct_len = 1;
+		struct_buf = '\0';
+	}
+	// buffを参照するが、エラーの場合は何もしない
+	size_t buff_len = (retval < 0) ? 1 : len;
+	char *buff_buf = kmalloc(buff_len, GFP_KERNEL);
+	if (!buff_buf) {
+		kfree(struct_buf);
+		return retval;
+	}
+	if (retval < 0) {
+		// 失敗しているため、何もしない
+		buff_buf = '\0';
+	} else {
+		// 成功しているため、buffを読み込む
+		if (copy_from_user(buff_buf, buff, len)) {
+			buff_buf = '\0';
+		}
+	}
+
+	// 送信するパート
+	int msg_len = buff_len + struct_len + 200;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(struct_buf);
+		kfree(buff_buf);
+		return retval;
+	}
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "44%c%d%c%d%c%zu%c%u%c%d"
+			   "%c%s%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, len, SCLDA_DELIMITER, flags,
+			   SCLDA_DELIMITER, addr_len, SCLDA_DELIMITER,
+			   struct_buf, SCLDA_DELIMITER, buff_buf);
+	kfree(struct_buf);
+	kfree(buff_buf);
+
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 /*
