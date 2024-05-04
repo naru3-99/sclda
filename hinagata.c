@@ -42,3 +42,17 @@ int struct_to_str()
         struct_buf = "\0";
     }
 }
+
+int __kernel_old_itimerval_to_str(struct __kernel_old_itimerval __user *uptr,
+                                  char *buf, int len)
+{
+    if (!uptr)
+        return -1;
+    struct __kernel_old_itimerval koi;
+    if (copy_from_user(&koi, uptr, sizeof(struct __kernel_old_itimerval)))
+        return -1;
+    return snprintf(buf, len, "%ld%c%ld%c%ld%c%ld", koi.it_interval.tv_sec,
+                    SCLDA_DELIMITER, koi.it_interval.tv_usec,
+                    SCLDA_DELIMITER, koi.it_value.tv_sec, SCLDA_DELIMITER,
+                    koi.it_value.tv_usec);
+}
