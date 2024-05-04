@@ -451,7 +451,7 @@ sclda:
 	}
 
 	// 送信するパート
-	int msg_len = 200;
+	int msg_len = value_len + ovalue_len + 200;
 	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf) {
 		kfree(value_buf);
