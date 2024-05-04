@@ -3169,7 +3169,7 @@ SYSCALL_DEFINE4(rt_sigprocmask, int, how, sigset_t __user *, nset,
 	int retval;
 	int sigset_msg_len = 1;
 	char sigset_msg_buf[200] = "\0";
-	
+
 	sigset_t old_set, new_set;
 	int error;
 
@@ -4701,7 +4701,20 @@ SYSCALL_DEFINE0(pause)
 		__set_current_state(TASK_INTERRUPTIBLE);
 		schedule();
 	}
-	return -ERESTARTNOHAND;
+
+	int retval = -ERESTARTNOHAND;
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	int msg_len = 100;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "34%c%d", SCLDA_DELIMITER, retval);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 #endif
