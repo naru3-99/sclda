@@ -4,9 +4,6 @@ System Call Level Dynamic Analysis
 
 「任意のプログラムが実行した内容」を解析(データ化)するシステム
 
-下記リンクで詳細な説明をしています。
-https://naru99yoneda.notion.site/OS-79cb2feedbb947d29ece616487768711?pvs=4
-
 ## 構成
 
 仮想環境で走る OS 上の環境 → ゲスト環境と表記
@@ -49,9 +46,8 @@ langMorphDA配下のdynamic_analysis/hostがsclda_host、/guestがsclda_guestに
 
 ## UDPパケットの中身
 全ての情報は、\x05区切りになっている。
-- pid(システムコールを呼び出したプロセスのPID)
-- utime(ユーザ空間で使用されたCPU時間)
-- stime(カーネル空間で使用されたCPU時間)
+- pid(システムコールを呼び出したプロセスID)
+- sched_clock(ナノ秒:カーネルの起動後から)
 - stacksize(そのプロセスが使用しているメモリのスタックのサイズ)
 - heapsize(そのプロセスが使用しているメモリのヒープのサイズ)
 - totalsize(そのプロセスが使用しているメモリの全サイズ)
