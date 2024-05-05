@@ -656,18 +656,18 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 		return ret;
 
 	// システムコールで読み込んだ情報を取得
-	int read_len = 0;
-	char *read_buf = kmalloc(count + 1, GFP_KERNEL);
+	int read_len = count + 1;
+	char *read_buf = kmalloc(read_len, GFP_KERNEL);
 	if (!read_buf)
 		return ret;
 
 	if (ret >= 0) {
 		// 成功しているため、読み込む
-		read_len = copy_from_user(read_buf, buf, count);
+		read_len -= copy_from_user(read_buf, buf, count);
 		read_buf[count] = '\0';
 	} else {
 		// 失敗しているため、\0で処理する
-		read_buf[0] = '\0';
+		read_buf = '\0';
 	}
 
 	// その他情報をまとめ、送信する
@@ -714,10 +714,12 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
 
 	// writeで書き込むデータが格納されているメモリに
 	// アクセスし、データを読み込む
-	char *write_buf = kmalloc(count + 1, GFP_KERNEL);
+	int write_len = count + 1;
+	char *write_buf = kmalloc(write_len, GFP_KERNEL);
 	if (!write_buf)
 		return ret;
-	int write_len = copy_from_user(write_buf, buf, count);
+	write_len -= copy_from_user(write_buf, buf, count);
+	write_buf[write_len] = '\0';
 
 	// 送信するデータをひとまとめにする
 	int msg_len = write_len + 200;
