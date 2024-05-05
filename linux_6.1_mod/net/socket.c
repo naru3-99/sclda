@@ -2283,7 +2283,7 @@ SYSCALL_DEFINE6(sendto, int, fd, void __user *, buff, size_t, len, unsigned int,
 	char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
 	if (!struct_buf)
 		return retval;
-	struct_len = sockaddr_to_str(uservaddr, struct_buf, struct_len);
+	struct_len = sockaddr_to_str(addr, struct_buf, struct_len);
 	if (struct_len < 0) {
 		struct_len = 1;
 		struct_buf = '\0';
