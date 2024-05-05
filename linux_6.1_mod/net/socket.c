@@ -2171,17 +2171,7 @@ int __sys_getsockname(int fd, struct sockaddr __user *usockaddr,
 	if (err)
 		goto out_put;
 
-	err = sock->ops->g // sockaddrを文字列に変換
-	      int struct_len = 100;
-	char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
-	if (!struct_buf)
-		return retval;
-	struct_len = sockaddr_to_str(uservaddr, struct_buf, struct_len);
-	if (struct_len < 0) {
-		struct_len = 1;
-		struct_buf = '\0';
-	}
-	etname(sock, (struct sockaddr *)&address, 0);
+	err = sock->ops->getname(sock, (struct sockaddr *)&address, 0);
 	if (err < 0)
 		goto out_put;
 	/* "err" is actually length in this case */
