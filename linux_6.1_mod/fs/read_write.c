@@ -664,7 +664,7 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 	if (ret >= 0) {
 		// 成功しているため、読み込む
 		int cfu_ret = copy_from_user(read_buf, buf, count);
-		if (cfuret >= 0) {
+		if (cfu_ret >= 0) {
 			// 0または正なら、送信できる情報を決定
 			read_len -= cfu_ret;
 			read_buf[read_len] = '\0';
@@ -691,7 +691,7 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, fd,
 			   SCLDA_DELIMITER, count, SCLDA_DELIMITER, read_buf);
 	kfree(read_buf);
-	
+
 	sclda_send_syscall_info(msg_buf, msg_len);
 	return ret;
 }
@@ -734,7 +734,7 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
 		return retval;
 
 	int cfu_ret = copy_from_user(write_buf, buf, count);
-	if (cfuret >= 0) {
+	if (cfu_ret >= 0) {
 		// 0または正なら、送信できる情報を決定
 		write_len -= cfu_ret;
 		write_buf[write_len] = '\0';
@@ -749,15 +749,15 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
 	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf) {
 		kfree(write_buf);
-		return ret;
+		return retval;
 	}
 	msg_len = snprintf(msg_buf, msg_len, "1%c%zd%c%u%c%zu%c%s",
-			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
 			   SCLDA_DELIMITER, count, SCLDA_DELIMITER, write_buf);
 	kfree(write_buf);
 
 	sclda_send_syscall_info(msg_buf, msg_len);
-	return ret;
+	return retval;
 }
 
 ssize_t ksys_pread64(unsigned int fd, char __user *buf, size_t count,
