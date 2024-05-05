@@ -656,17 +656,26 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 		return ret;
 
 	// システムコールで読み込んだ情報を取得
-	int read_len = count + 1;
-	char *read_buf = kmalloc(read_len, GFP_KERNEL);
+	int read_len = (int)count;
+	char *read_buf = kmalloc(read_len + 1, GFP_KERNEL);
 	if (!read_buf)
 		return ret;
 
 	if (ret >= 0) {
 		// 成功しているため、読み込む
-		read_len -= copy_from_user(read_buf, buf, count);
-		read_buf[count] = '\0';
+		int cfu_ret = copy_from_user(read_buf, buf, count);
+		if (cfuret >= 0) {
+			// 0または正なら、送信できる情報を決定
+			read_len -= cfu_ret;
+			read_buf[read_len] = '\0';
+		} else {
+			// 負なら、なかったことに
+			read_len = 1;
+			read_buf = '\0';
+		}
 	} else {
 		// 失敗しているため、\0で処理する
+		read_len = 1;
 		read_buf = '\0';
 	}
 
@@ -682,6 +691,7 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, fd,
 			   SCLDA_DELIMITER, count, SCLDA_DELIMITER, read_buf);
 	kfree(read_buf);
+	
 	sclda_send_syscall_info(msg_buf, msg_len);
 	return ret;
 }
@@ -710,16 +720,29 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
 		count)
 {
 	// system-call invocation
-	ssize_t ret = ksys_write(fd, buf, count);
+	ssize_t retval = ksys_write(fd, buf, count);
+	// allsendが終わるまでは、初期化プロセス関係なので、
+	// 取得しないようにする。
+	if (!is_sclda_allsend_fin())
+		return retval;
 
 	// writeで書き込むデータが格納されているメモリに
 	// アクセスし、データを読み込む
-	int write_len = count + 1;
-	char *write_buf = kmalloc(write_len, GFP_KERNEL);
+	int write_len = (int)count;
+	char *write_buf = kmalloc(write_len + 1, GFP_KERNEL);
 	if (!write_buf)
-		return ret;
-	write_len -= copy_from_user(write_buf, buf, count);
-	write_buf[write_len] = '\0';
+		return retval;
+
+	int cfu_ret = copy_from_user(write_buf, buf, count);
+	if (cfuret >= 0) {
+		// 0または正なら、送信できる情報を決定
+		write_len -= cfu_ret;
+		write_buf[write_len] = '\0';
+	} else {
+		// 負なら、なかったことに
+		write_len = 1;
+		write_buf = '\0';
+	}
 
 	// 送信するデータをひとまとめにする
 	int msg_len = write_len + 200;
