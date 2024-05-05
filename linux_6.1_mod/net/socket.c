@@ -1993,7 +1993,7 @@ SYSCALL_DEFINE4(accept4, int, fd, struct sockaddr __user *, upeer_sockaddr,
 	// 失敗したら-1とする
 	int addlen;
 	if (upeer_addrlen) {
-		if (unlikely(get_user(&addlen, upeer_addrlen))) {
+		if (copy_from_user(&addlen, upeer_addrlen, sizeof(int))) {
 			addlen = -1;
 		}
 	} else {
