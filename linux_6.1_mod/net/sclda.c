@@ -331,20 +331,35 @@ int sclda_sendall_syscallinfo(void *data)
 
 		// 送信を開始する
 		mutex_lock(&syscall_mutex[i]);
+		int ret;
+		int count = 0;
+		struct sclda_syscallinfo_ls temp_head;
+		struct sclda_syscallinfo_ls *temp_tail;
+		temp_tail = &temp_head;
 		while (curptr != NULL) {
-			__sclda_send_split(curptr->s, &(syscall_sclda[i]));
+			ret = __sclda_send_split(curptr->s,
+						 &(syscall_sclda[i]));
+			if (ret < 0) {
+				// 送信できていないため、削除せず
+				// tempに退避する
+				temp_tail->next = curptr;
+				temp_tail = temp_tail->next;
+				temp_tail->next = NULL;
+				count += 1;
+			}
 			next = curptr->next;
-			kfree(curptr->s->syscall_msg); // msg_bufの解放
-			kfree(curptr->s); // sclda_syscallinfo_structの解放
-			kfree(curptr); // sclda_syscallinfo_lsの解放
+			if (ret >= 0) {
+				// 送信できたので解放する
+				kfree(curptr->s->syscall_msg); // msg_bufの解放
+				kfree(curptr->s); // sclda_syscallinfo_structの解放
+				kfree(curptr); // sclda_syscallinfo_lsの解放
+			}
 			curptr = next;
 		}
-		sclda_syscallinfo_exist[i] = 0;
-		sclda_syscall_heads[i].s =
-			(struct sclda_syscallinfo_struct *)NULL;
-		sclda_syscall_heads[i].next =
-			(struct sclda_syscallinfo_ls *)NULL;
-		sclda_syscall_tails[i] = &sclda_syscall_heads[i];
+		// headとtailの再初期化
+		sclda_syscallinfo_exist[i] = count;
+		sclda_syscall_heads[i] = temp_head;
+		sclda_syscall_tails[i] = temp_tail;
 		mutex_unlock(&syscall_mutex[i]);
 	}
 	mutex_unlock(&sendall_syscall_mutex);
