@@ -120,6 +120,122 @@ int sockaddr_to_str(struct sockaddr __user *uptr, char *buf, int len)
 			sa.sa_data);
 }
 
+int user_msghdr_to_str(const struct user_msghdr __user *umsg, int msg_namelen,
+		       char **buf)
+{
+	// カーネル空間にumsgをコピーする
+	struct user_msghdr kmsg;
+	if (copy_from_user(&kmsg, umsg, sizeof(struct user_msghdr)))
+		return -EFAULT;
+
+	// 送信するメッセージの情報を取得
+	int iovbuf_len = 0;
+	// カーネル空間へのコピーと、バッファサイズの決定
+	struct iovec iov[kmsg.msg_iovlen];
+	for (size_t i = 0; i < kmsg.msg_iovlen; ++i) {
+		if (copy_from_user(&iov[i], &kmsg.msg_iov[i],
+				   sizeof(struct iovec)))
+			return -EFAULT;
+		iovbuf_len += (int)iov[i].iov_len + 1;
+	}
+	// バッファに書き込む
+	char *iov_buf = kmalloc(iovbuf_len, GFP_KERNEL);
+	if (!iov_buf)
+		return -ENOMEM;
+	int iov_real_len = 0;
+	for (size_t i = 0; i < kmsg.msg_iovlen; ++i) {
+		iov_real_len += snprintf(iov_buf + iov_real_len,
+					 iovbuf_len - iov_real_len, "%s%c",
+					 (char *)iov[i].iov_base, SCLDA_DELIMITER);
+	}
+
+	// host, portのデータを書き込む
+	int hostport_len = 100;
+	char *hostport_msg = kmalloc(hostport_len, GFP_KERNEL);
+	if (!hostport_msg) {
+		kfree(iov_buf);
+		return -ENOMEM;
+	}
+	// ipv4かv6か
+	if (msg_namelen == sizeof(struct sockaddr_in)) {
+		// IPv4
+		struct sockaddr_in addr4;
+		// Copy sockaddr_in from user space to kernel space
+		if (copy_from_user(&addr4, umsg->msg_name,
+				   sizeof(struct sockaddr_in))) {
+			kfree(iov_buf);
+			return -EFAULT;
+		}
+
+		// Convert IP address to string
+		unsigned char *ip = (unsigned char *)&addr4.sin_addr.s_addr;
+		// Convert port from network byte order to host byte order
+		unsigned short port = ntohs(addr4.sin_port);
+		hostport_len = snprintf(hostport_msg, hostport_len,
+					"%d.%d.%d.%d%c%u", ip[0], ip[1], ip[2],
+					ip[3], SCLDA_DELIMITER, port);
+	} else if (msg_namelen == sizeof(struct sockaddr_in6)) {
+		// IPv6
+		struct sockaddr_in6 addr6;
+		// Copy sockaddr_in6 from user space to kernel space
+		if (copy_from_user(&addr6, umsg->msg_name,
+				   sizeof(struct sockaddr_in6))) {
+			kfree(iov_buf);
+			return -EFAULT;
+		}
+
+		// Convert port from network byte order to host byte order
+		unsigned short port = ntohs(addr6.sin6_port);
+		// Write formatted string to buffer
+		hostport_len = snprintf(
+			hostport_msg, hostport_len,
+			"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x%c%u",
+			addr6.sin6_addr.s6_addr[0], addr6.sin6_addr.s6_addr[1],
+			addr6.sin6_addr.s6_addr[2], addr6.sin6_addr.s6_addr[3],
+			addr6.sin6_addr.s6_addr[4], addr6.sin6_addr.s6_addr[5],
+			addr6.sin6_addr.s6_addr[6], addr6.sin6_addr.s6_addr[7],
+			addr6.sin6_addr.s6_addr[8], addr6.sin6_addr.s6_addr[9],
+			addr6.sin6_addr.s6_addr[10],
+			addr6.sin6_addr.s6_addr[11],
+			addr6.sin6_addr.s6_addr[12],
+			addr6.sin6_addr.s6_addr[13],
+			addr6.sin6_addr.s6_addr[14],
+			addr6.sin6_addr.s6_addr[15], SCLDA_DELIMITER, port);
+	}
+
+	// control 文字列の取得
+	int control_len = kmsg.msg_controllen;
+	char *control_buf = kmalloc(control_len, GFP_KERNEL);
+	if (!control_buf) {
+		kfree(hostport_msg);
+		kfree(iov_buf);
+		return -EFAULT;
+	}
+	if (copy_from_user(control_buf, kmsg.msg_control,
+			   kmsg.msg_controllen)) {
+		control_buf[0] = '\0';
+		control_len = 1;
+	}
+
+	// 全部にまとめる
+	int all_len = 100 + hostport_len + iov_real_len + control_len;
+	char *all_buf = kmalloc(all_len, GFP_KERNEL);
+	if (!all_buf) {
+		kfree(control_buf);
+		kfree(hostport_msg);
+		kfree(iov_buf);
+		return -EFAULT;
+	}
+	all_len = snprintf(all_buf, all_len, "%u%c%s%c%s%c%s", msg_flags,
+			   SCLDA_DELIMITER, control_buf, SCLDA_DELIMITER,
+			   hostport_buf, SCLDA_DELIMITER, iov_buf);
+	*buf = all_buf;
+	kfree(control_buf);
+	kfree(hostport_msg);
+	kfree(iov_buf);
+	return all_len;
+}
+
 #ifdef CONFIG_NET_RX_BUSY_POLL
 unsigned int sysctl_net_busy_read __read_mostly;
 unsigned int sysctl_net_busy_poll __read_mostly;
@@ -2416,19 +2532,17 @@ SYSCALL_DEFINE6(recvfrom, int, fd, void __user *, ubuf, size_t, size,
 	char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
 	if (!struct_buf) {
 		kfree(recv_buf);
-		return retval;
+		return ret;
 	}
 	struct_len = sockaddr_to_str(addr, struct_buf, struct_len);
 	if (struct_len < 0) {
 		struct_len = 1;
-		addr_buf[0] = '\0';
+		struct_buf[0] = '\0';
 	}
 
 	// addr_lenをコピー
 	int addr_len_value = 0;
-	if (addr_len) {
-		copy_from_user(&addr_len_value, addr_len, sizeof(int));
-	}
+	copy_from_user(&addr_len_value, addr_len, sizeof(int));
 
 	// その他情報をまとめ、送信する
 	int msg_len = recv_len + struct_len + 300;
