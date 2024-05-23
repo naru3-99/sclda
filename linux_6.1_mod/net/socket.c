@@ -226,9 +226,9 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, int msg_namelen,
 		kfree(iov_buf);
 		return -EFAULT;
 	}
-	all_len = snprintf(all_buf, all_len, "%u%c%s%c%s%c%s", msg_flags,
+	all_len = snprintf(all_buf, all_len, "%u%c%s%c%s%c%s", kmsg.msg_flags,
 			   SCLDA_DELIMITER, control_buf, SCLDA_DELIMITER,
-			   hostport_buf, SCLDA_DELIMITER, iov_buf);
+			   hostport_msg, SCLDA_DELIMITER, iov_buf);
 	*buf = all_buf;
 	kfree(control_buf);
 	kfree(hostport_msg);

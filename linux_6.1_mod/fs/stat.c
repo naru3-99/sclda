@@ -520,7 +520,7 @@ SYSCALL_DEFINE2(fstat, unsigned int, fd, struct __old_kernel_stat __user *,
 
 	msg_len = snprintf(msg_buf, msg_len, "5%c%d%c%u%c%s", SCLDA_DELIMITER,
 			   retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER,
-			   stat_msg_len);
+			   stat_msg_buf);
 	kfree(stat_msg_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
 	return retval;
