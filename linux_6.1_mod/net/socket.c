@@ -124,10 +124,8 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 {
 	// カーネル空間にumsgをコピーする
 	struct user_msghdr kmsg;
-	if (copy_from_user(&kmsg, umsg, sizeof(struct user_msghdr))) {
-		printk(KERN_ERR "SCLDA_ERR copy_from_user kmsg");
+	if (copy_from_user(&kmsg, umsg, sizeof(struct user_msghdr)))
 		return -EFAULT;
-	}
 
 	// 送信するメッセージの情報を取得
 	int iovbuf_len = 0;
@@ -135,18 +133,15 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 	struct iovec iov[kmsg.msg_iovlen];
 	for (size_t i = 0; i < kmsg.msg_iovlen; ++i) {
 		if (copy_from_user(&iov[i], &kmsg.msg_iov[i],
-				   sizeof(struct iovec))) {
-			printk(KERN_ERR "SCLDA_ERR copy_from_user iov");
+				   sizeof(struct iovec)))
 			return -EFAULT;
-		}
 		iovbuf_len += (int)iov[i].iov_len + 1;
 	}
 	// バッファに書き込む
 	char *iov_buf = kmalloc(iovbuf_len, GFP_KERNEL);
-	if (!iov_buf) {
-		printk(KERN_ERR "SCLDA_ERR kmalloc iov_buf");
+	if (!iov_buf)
 		return -ENOMEM;
-	}
+
 	int iov_real_len = 0;
 	for (size_t i = 0; i < kmsg.msg_iovlen; ++i) {
 		iov_real_len += snprintf(iov_buf + iov_real_len,
@@ -155,61 +150,43 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 					 SCLDA_DELIMITER);
 	}
 
-	// host, portのデータを書き込む
+	// host, portを取得
 	int hostport_len = 100;
 	char *hostport_msg = kmalloc(hostport_len, GFP_KERNEL);
 	if (!hostport_msg) {
 		kfree(iov_buf);
-		printk(KERN_ERR "SCLDA_ERR kmalloc hostport_msg");
 		return -ENOMEM;
 	}
-	// ipv4かv6か
-	if (kmsg.msg_namelen == sizeof(struct sockaddr_in)) {
+
+	struct msghdr msg_sys;
+	struct sockaddr_storage address;
+	msg_sys.msg_name = &address;
+
+	struct user_msghdr msg;
+	ssize_t err;
+
+	err = __copy_msghdr(msg_sys, &msg, NULL);
+	if (err)
+		return err;
+
+	struct sockaddr *sa = (struct sockaddr *)msg_sys.msg_name;
+	if (sa->sa_family == AF_INET) {
 		// IPv4
-		struct sockaddr_in addr4;
-		// Copy sockaddr_in from user space to kernel space
-		if (copy_from_user(&addr4, umsg->msg_name,
-				   sizeof(struct sockaddr_in))) {
-			kfree(iov_buf);
-			printk(KERN_ERR "SCLDA_ERR copy_from_user addr4");
-			return -EFAULT;
-		}
-
-		// Convert IP address to string
-		unsigned char *ip = (unsigned char *)&addr4.sin_addr.s_addr;
-		// Convert port from network byte order to host byte order
-		unsigned short port = ntohs(addr4.sin_port);
-		hostport_len = snprintf(hostport_msg, hostport_len,
-					"%d.%d.%d.%d%c%u", ip[0], ip[1], ip[2],
-					ip[3], SCLDA_DELIMITER, port);
-	} else if (kmsg.msg_namelen == sizeof(struct sockaddr_in6)) {
+		struct sockaddr_in *addr_in = (struct sockaddr_in *)sa;
+		hostport_len = snprintf(hostport_msg, hostport_len, "%pI4%c%d",
+					&addr_in->sin_addr, SCLDA_DELIMITER,
+					ntohs(addr_in->sin_port));
+	} else if (sa->sa_family == AF_INET6) {
 		// IPv6
-		struct sockaddr_in6 addr6;
-		// Copy sockaddr_in6 from user space to kernel space
-		if (copy_from_user(&addr6, umsg->msg_name,
-				   sizeof(struct sockaddr_in6))) {
-			printk(KERN_ERR "SCLDA_ERR copy_from_user addr6");
-			kfree(iov_buf);
-			return -EFAULT;
-		}
-
-		// Convert port from network byte order to host byte order
-		unsigned short port = ntohs(addr6.sin6_port);
-		// Write formatted string to buffer
-		hostport_len = snprintf(
-			hostport_msg, hostport_len,
-			"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x%c%u",
-			addr6.sin6_addr.s6_addr[0], addr6.sin6_addr.s6_addr[1],
-			addr6.sin6_addr.s6_addr[2], addr6.sin6_addr.s6_addr[3],
-			addr6.sin6_addr.s6_addr[4], addr6.sin6_addr.s6_addr[5],
-			addr6.sin6_addr.s6_addr[6], addr6.sin6_addr.s6_addr[7],
-			addr6.sin6_addr.s6_addr[8], addr6.sin6_addr.s6_addr[9],
-			addr6.sin6_addr.s6_addr[10],
-			addr6.sin6_addr.s6_addr[11],
-			addr6.sin6_addr.s6_addr[12],
-			addr6.sin6_addr.s6_addr[13],
-			addr6.sin6_addr.s6_addr[14],
-			addr6.sin6_addr.s6_addr[15], SCLDA_DELIMITER, port);
+		struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)sa;
+		hostport_len = snprintf(hostport_msg, hostport_len, "%pI6%c%d",
+					&addr_in6->sin6_addr, SCLDA_DELIMITER,
+					ntohs(addr_in6->sin6_port));
+	} else {
+		// unknown IP and Port
+		hostport_len = snprintf(hostport_msg, hostport_len,
+					"UnknownIP%cUnknownPort",
+					SCLDA_DELIMITER);
 	}
 
 	// control 文字列の取得
@@ -218,7 +195,6 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 	if (!control_buf) {
 		kfree(hostport_msg);
 		kfree(iov_buf);
-		printk(KERN_ERR "SCLDA_ERR kmalloc controlbuf");
 		return -EFAULT;
 	}
 	if (copy_from_user(control_buf, kmsg.msg_control,
@@ -234,7 +210,6 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 		kfree(control_buf);
 		kfree(hostport_msg);
 		kfree(iov_buf);
-		printk(KERN_ERR "SCLDA_ERR kmalloc allbuf");
 		return -EFAULT;
 	}
 	all_len = snprintf(all_buf, all_len, "%u%c%s%c%s%c%s", kmsg.msg_flags,
@@ -244,8 +219,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 	kfree(control_buf);
 	kfree(hostport_msg);
 	kfree(iov_buf);
-	
-	printk(KERN_ERR "SCLDA_ERR all_complete %d", all_len);
+
 	return all_len;
 }
 
