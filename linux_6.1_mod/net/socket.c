@@ -165,7 +165,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 	struct user_msghdr msg;
 	ssize_t err;
 
-	err = __copy_msghdr(msg_sys, &msg, NULL);
+	err = __copy_msghdr(&msg_sys, &msg, NULL);
 	if (err)
 		return err;
 
