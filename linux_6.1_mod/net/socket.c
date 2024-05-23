@@ -124,8 +124,10 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 {
 	// カーネル空間にumsgをコピーする
 	struct user_msghdr kmsg;
-	if (copy_from_user(&kmsg, umsg, sizeof(struct user_msghdr)))
+	if (copy_from_user(&kmsg, umsg, sizeof(struct user_msghdr))) {
+		printk(KERN_ERR "SCLDA_ERR copy_from_user kmsg");
 		return -EFAULT;
+	}
 
 	// 送信するメッセージの情報を取得
 	int iovbuf_len = 0;
@@ -133,14 +135,18 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 	struct iovec iov[kmsg.msg_iovlen];
 	for (size_t i = 0; i < kmsg.msg_iovlen; ++i) {
 		if (copy_from_user(&iov[i], &kmsg.msg_iov[i],
-				   sizeof(struct iovec)))
+				   sizeof(struct iovec))) {
+			printk(KERN_ERR "SCLDA_ERR copy_from_user iov");
 			return -EFAULT;
+		}
 		iovbuf_len += (int)iov[i].iov_len + 1;
 	}
 	// バッファに書き込む
 	char *iov_buf = kmalloc(iovbuf_len, GFP_KERNEL);
-	if (!iov_buf)
+	if (!iov_buf) {
+		printk(KERN_ERR "SCLDA_ERR kmalloc iov_buf");
 		return -ENOMEM;
+	}
 	int iov_real_len = 0;
 	for (size_t i = 0; i < kmsg.msg_iovlen; ++i) {
 		iov_real_len += snprintf(iov_buf + iov_real_len,
@@ -154,6 +160,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 	char *hostport_msg = kmalloc(hostport_len, GFP_KERNEL);
 	if (!hostport_msg) {
 		kfree(iov_buf);
+		printk(KERN_ERR "SCLDA_ERR kmalloc hostport_msg");
 		return -ENOMEM;
 	}
 	// ipv4かv6か
@@ -164,6 +171,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 		if (copy_from_user(&addr4, umsg->msg_name,
 				   sizeof(struct sockaddr_in))) {
 			kfree(iov_buf);
+			printk(KERN_ERR "SCLDA_ERR copy_from_user addr4");
 			return -EFAULT;
 		}
 
@@ -180,6 +188,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 		// Copy sockaddr_in6 from user space to kernel space
 		if (copy_from_user(&addr6, umsg->msg_name,
 				   sizeof(struct sockaddr_in6))) {
+			printk(KERN_ERR "SCLDA_ERR copy_from_user addr6");
 			kfree(iov_buf);
 			return -EFAULT;
 		}
@@ -209,6 +218,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 	if (!control_buf) {
 		kfree(hostport_msg);
 		kfree(iov_buf);
+		printk(KERN_ERR "SCLDA_ERR kmalloc controlbuf");
 		return -EFAULT;
 	}
 	if (copy_from_user(control_buf, kmsg.msg_control,
@@ -224,6 +234,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 		kfree(control_buf);
 		kfree(hostport_msg);
 		kfree(iov_buf);
+		printk(KERN_ERR "SCLDA_ERR kmalloc allbuf");
 		return -EFAULT;
 	}
 	all_len = snprintf(all_buf, all_len, "%u%c%s%c%s%c%s", kmsg.msg_flags,
@@ -233,6 +244,8 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 	kfree(control_buf);
 	kfree(hostport_msg);
 	kfree(iov_buf);
+	
+	printk(KERN_ERR "SCLDA_ERR all_complete %d", all_len);
 	return all_len;
 }
 
@@ -2969,9 +2982,9 @@ SYSCALL_DEFINE3(sendmsg, int, fd, struct user_msghdr __user *, msg,
 		return retval;
 	}
 
-	msg_len = snprintf(msg_buf, msg_len, "46%c%ld%c%d%c%u%c%s", SCLDA_DELIMITER,
-			   retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, flags,
-			   SCLDA_DELIMITER, msghdr_buf);
+	msg_len = snprintf(msg_buf, msg_len, "46%c%ld%c%d%c%u%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, flags, SCLDA_DELIMITER, msghdr_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
 
 	kfree(msghdr_buf);
