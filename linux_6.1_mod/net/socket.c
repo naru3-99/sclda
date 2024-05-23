@@ -2971,6 +2971,7 @@ SYSCALL_DEFINE3(sendmsg, int, fd, struct user_msghdr __user *, msg,
 			   retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, flags,
 			   SCLDA_DELIMITER, msghdr_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
+	
 	kfree(msghdr_buf);
 	return retval;
 }

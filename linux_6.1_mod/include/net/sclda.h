@@ -28,7 +28,7 @@
 // システムコールに関係する情報を取得する
 // BASEPORT + (プロセッサID % PORTNUM)をPORTとして使用する
 #define SCLDA_SYSCALL_BASEPORT ((int)15002)
-#define SCLDA_PORT_NUMBER ((int)16)
+#define SCLDA_PORT_NUMBER ((int)24)
 // システムコールに関連する情報を送信する
 // chunksizeごとに文字列を分割して送信する
 #define SCLDA_CHUNKSIZE ((size_t)1000)
