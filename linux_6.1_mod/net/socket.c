@@ -2383,7 +2383,77 @@ SYSCALL_DEFINE6(recvfrom, int, fd, void __user *, ubuf, size_t, size,
 		unsigned int, flags, struct sockaddr __user *, addr,
 		int __user *, addr_len)
 {
-	return __sys_recvfrom(fd, ubuf, size, flags, addr, addr_len);
+	// syscall invocation
+	int ret = __sys_recvfrom(fd, ubuf, size, flags, addr, addr_len);
+
+	if (!is_sclda_allsend_fin())
+		return ret;
+
+	// ubufの内容を取得
+	int recv_len = (int)size;
+	char *recv_buf = kmalloc(recv_len + 1, GFP_KERNEL);
+	if (!recv_buf)
+		return ret;
+
+	if (ret >= 0) {
+		// 成功しているため、ユーザ空間からデータをコピー
+		int cfu_ret = copy_from_user(recv_buf, ubuf, size);
+		if (cfu_ret == 0) {
+			recv_buf[size] = '\0'; // 正常にコピーできた場合
+		} else {
+			// 失敗
+			recv_len = 1;
+			recv_buf[0] = '\0';
+		}
+	} else {
+		// 失敗しているため、\0で処理する
+		recv_len = 1;
+		recv_buf[0] = '\0';
+	}
+
+	// sockaddrを文字列に変換
+	int struct_len = 200;
+	char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
+	if (!struct_buf) {
+		kfree(recv_buf);
+		return retval;
+	}
+	struct_len = sockaddr_to_str(addr, struct_buf, struct_len);
+	if (struct_len < 0) {
+		struct_len = 1;
+		addr_buf[0] = '\0';
+	}
+
+	// addr_lenをコピー
+	int addr_len_value = 0;
+	if (addr_len) {
+		copy_from_user(&addr_len_value, addr_len, sizeof(int));
+	}
+
+	// その他情報をまとめ、送信する
+	int msg_len = recv_len + struct_len + 300;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(recv_buf);
+		kfree(struct_buf);
+		return ret;
+	}
+
+	// メッセージを作成
+	msg_len = snprintf(msg_buf, msg_len, "0%c%d%c%d%c%zu%c%u%c%d%c%s%c%s",
+			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, size, SCLDA_DELIMITER, flags,
+			   SCLDA_DELIMITER, addr_len_value, SCLDA_DELIMITER,
+			   struct_buf, SCLDA_DELIMITER, recv_buf);
+
+	// バッファを解放
+	kfree(recv_buf);
+	kfree(struct_buf);
+
+	// システムコール情報を送信
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+	return ret;
 }
 
 /*
