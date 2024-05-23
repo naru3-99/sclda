@@ -120,8 +120,7 @@ int sockaddr_to_str(struct sockaddr __user *uptr, char *buf, int len)
 			sa.sa_data);
 }
 
-int user_msghdr_to_str(const struct user_msghdr __user *umsg, int msg_namelen,
-		       char **buf)
+int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 {
 	// カーネル空間にumsgをコピーする
 	struct user_msghdr kmsg;
@@ -146,7 +145,8 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, int msg_namelen,
 	for (size_t i = 0; i < kmsg.msg_iovlen; ++i) {
 		iov_real_len += snprintf(iov_buf + iov_real_len,
 					 iovbuf_len - iov_real_len, "%s%c",
-					 (char *)iov[i].iov_base, SCLDA_DELIMITER);
+					 (char *)iov[i].iov_base,
+					 SCLDA_DELIMITER);
 	}
 
 	// host, portのデータを書き込む
@@ -157,7 +157,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, int msg_namelen,
 		return -ENOMEM;
 	}
 	// ipv4かv6か
-	if (msg_namelen == sizeof(struct sockaddr_in)) {
+	if (kmsg.msg_namelen == sizeof(struct sockaddr_in)) {
 		// IPv4
 		struct sockaddr_in addr4;
 		// Copy sockaddr_in from user space to kernel space
@@ -174,7 +174,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, int msg_namelen,
 		hostport_len = snprintf(hostport_msg, hostport_len,
 					"%d.%d.%d.%d%c%u", ip[0], ip[1], ip[2],
 					ip[3], SCLDA_DELIMITER, port);
-	} else if (msg_namelen == sizeof(struct sockaddr_in6)) {
+	} else if (kmsg.msg_namelen == sizeof(struct sockaddr_in6)) {
 		// IPv6
 		struct sockaddr_in6 addr6;
 		// Copy sockaddr_in6 from user space to kernel space
@@ -2554,7 +2554,7 @@ SYSCALL_DEFINE6(recvfrom, int, fd, void __user *, ubuf, size_t, size,
 	}
 
 	// メッセージを作成
-	msg_len = snprintf(msg_buf, msg_len, "0%c%d%c%d%c%zu%c%u%c%d%c%s%c%s",
+	msg_len = snprintf(msg_buf, msg_len, "45%c%d%c%d%c%zu%c%u%c%d%c%s%c%s",
 			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, fd,
 			   SCLDA_DELIMITER, size, SCLDA_DELIMITER, flags,
 			   SCLDA_DELIMITER, addr_len_value, SCLDA_DELIMITER,
@@ -2952,7 +2952,27 @@ out:
 SYSCALL_DEFINE3(sendmsg, int, fd, struct user_msghdr __user *, msg,
 		unsigned int, flags)
 {
-	return __sys_sendmsg(fd, msg, flags, true);
+	long retval = __sys_sendmsg(fd, msg, flags, true);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	char *msghdr_buf;
+	int msghdr_len = user_msghdr_to_str(msg, &msghdr_buf);
+
+	// 送信するパート
+	int msg_len = 100 + msghdr_len;
+	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(msghdr_buf);
+		return retval;
+	}
+
+	msg_len = snprintf(msg_buf, msg_len, "46%c%ld%c%d%c%u", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, flags,
+			   SCLDA_DELIMITER, msghdr_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	kfree(msghdr_buf);
+	return retval;
 }
 
 /*
