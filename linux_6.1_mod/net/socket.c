@@ -2958,6 +2958,8 @@ SYSCALL_DEFINE3(sendmsg, int, fd, struct user_msghdr __user *, msg,
 
 	char *msghdr_buf;
 	int msghdr_len = user_msghdr_to_str(msg, &msghdr_buf);
+	if (msghdr_len < 0)
+		return retval;
 
 	// 送信するパート
 	int msg_len = 100 + msghdr_len;
@@ -2967,11 +2969,11 @@ SYSCALL_DEFINE3(sendmsg, int, fd, struct user_msghdr __user *, msg,
 		return retval;
 	}
 
-	msg_len = snprintf(msg_buf, msg_len, "46%c%ld%c%d%c%u", SCLDA_DELIMITER,
+	msg_len = snprintf(msg_buf, msg_len, "46%c%ld%c%d%c%u%c%s", SCLDA_DELIMITER,
 			   retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, flags,
 			   SCLDA_DELIMITER, msghdr_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
-	
+
 	kfree(msghdr_buf);
 	return retval;
 }
