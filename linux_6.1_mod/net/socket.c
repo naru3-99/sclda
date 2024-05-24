@@ -120,104 +120,131 @@ int sockaddr_to_str(struct sockaddr __user *uptr, char *buf, int len)
 			sa.sa_data);
 }
 
-int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
+int get_iovec_msg_str(struct user_msghdr *kmsg, char **buf)
 {
-	// カーネル空間にumsgをコピーする
-	struct user_msghdr kmsg;
-	if (copy_from_user(&kmsg, umsg, sizeof(struct user_msghdr)))
-		return -EFAULT;
-
 	// 送信するメッセージの情報を取得
 	// カーネル空間へのコピーと、バッファサイズの決定
-	int iovbuf_len = 0;
-	struct iovec iov[kmsg.msg_iovlen];
-	for (size_t i = 0; i < kmsg.msg_iovlen; ++i) {
-		if (copy_from_user(&iov[i], &kmsg.msg_iov[i],
+	// buf は呼び出し元が解放する責任を負う
+	size_t i;
+	int iovbuf_len;
+	int iov_real_len;
+	char *iov_buf;
+	struct iovec iov[kmsg->msg_iovlen];
+
+	iovbuf_len = 0;
+	for (i = 0; i < kmsg->msg_iovlen; ++i) {
+		if (copy_from_user(&iov[i], &(kmsg->msg_iov[i]),
 				   sizeof(struct iovec)))
 			return -EFAULT;
 		iovbuf_len += (int)iov[i].iov_len + 1;
 	}
-	// バッファを取得し書き込む
-	char *iov_buf = kmalloc(iovbuf_len, GFP_KERNEL);
+
+	iov_buf = kmalloc(iovbuf_len, GFP_KERNEL);
 	if (!iov_buf)
 		return -ENOMEM;
-	int iov_real_len = 0;
-	for (size_t i = 0; i < kmsg.msg_iovlen; ++i) {
+
+	// バッファに書き込む
+	iov_real_len = 0;
+	for (i = 0; i < kmsg->msg_iovlen; ++i) {
 		iov_real_len += snprintf(iov_buf + iov_real_len,
 					 iovbuf_len - iov_real_len, "%s%c",
 					 (char *)iov[i].iov_base,
 					 SCLDA_DELIMITER);
 	}
+	*buf = iov_buf;
+	return iov_real_len;
+}
 
-	// host, portを取得
-	int hostport_len = 100;
-	char *hostport_msg = kmalloc(hostport_len, GFP_KERNEL);
-	if (!hostport_msg) {
-		kfree(iov_buf);
-		return -ENOMEM;
-	}
+int get_ip_port_str(struct user_msghdr *ksmg, char *buf, int buf_size)
+{
 	// ip,hostの情報を取得する
 	struct msghdr msg_sys;
 	struct sockaddr_storage address;
-	msg_sys.msg_name = &address;
-
+	struct sockaddr *sa;
 	ssize_t err;
-	err = __copy_msghdr(&msg_sys, &kmsg, NULL);
+	int port;
+	char host[60];
+
+	// msghdrからip, portを特定する
+	msg_sys.msg_name = &address;
+	err = __copy_msghdr(&msg_sys, kmsg, NULL);
 	if (err)
 		return err;
+	sa = (struct sockaddr *)msg_sys.msg_name;
 
-	struct sockaddr *sa = (struct sockaddr *)msg_sys.msg_name;
 	if (sa->sa_family == AF_INET) {
 		// IPv4
 		struct sockaddr_in *addr_in = (struct sockaddr_in *)sa;
-		hostport_len = snprintf(hostport_msg, hostport_len, "%pI4%c%d",
-					&addr_in->sin_addr.s_addr, SCLDA_DELIMITER,
-					ntohs(addr_in->sin_port));
+		port = ntohs(addr_in->sin_port);
+		snprintf(host, 60, "%pI4", addr_in->sin_addr.s_addr);
 	} else if (sa->sa_family == AF_INET6) {
 		// IPv6
 		struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)sa;
-		hostport_len = snprintf(hostport_msg, hostport_len, "%pI6%c%d",
-					&addr_in6->sin6_addr.s6_addr, SCLDA_DELIMITER,
-					ntohs(addr_in6->sin6_port));
+		port = ntohs(addr_in6->sin6_port);
+		snprintf(host, 60, "%pI6", addr_in6->sin6_addr.s6_addr);
 	} else {
 		// unknown IP and Port
-		hostport_len = snprintf(hostport_msg, hostport_len,
-					"UnknownIP%cUnknownPort",
-					SCLDA_DELIMITER);
+		port = 0;
+		snprintf(host, 60, "unknown");
 	}
+	return snprintf(buf, buf_size, "%s%c%d", host, SCLDA_DELIMITER, port);
+}
 
+int get_controll_str(struct user_msghdr *ksmg, char **buf)
+{
 	// control 文字列の取得
-	int control_len = kmsg.msg_controllen;
-	char *control_buf = kmalloc(control_len, GFP_KERNEL);
-	if (!control_buf) {
-		kfree(hostport_msg);
-		kfree(iov_buf);
+	// bufの解放は呼び出し元が責任を負う
+	int control_len;
+	char *control_buf;
+
+	control_len = kmsg->msg_controllen;
+	control_buf = kmalloc(control_len, GFP_KERNEL);
+	if (!control_buf)
 		return -EFAULT;
-	}
-	if (copy_from_user(control_buf, kmsg.msg_control,
-			   kmsg.msg_controllen)) {
+
+	if (copy_from_user(control_buf, kmsg->msg_control,
+			   kmsg->msg_controllen)) {
 		control_buf[0] = '\0';
 		control_len = 1;
 	}
+	*buf = control_buf;
+	return control_len;
+}
+
+int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
+{
+	char *ip_port_buf;
+	int ip_port_len;
+
+	// カーネル空間にumsgをコピーする
+	struct user_msghdr kmsg;
+	if (copy_from_user(&kmsg, umsg, sizeof(struct user_msghdr)))
+		return -EFAULT;
+
+	// ipとportの取得
+	ip_port_len = 100;
+	ip_port_buf = kmalloc(ip_port_len, GFP_KERNEL);
+	ip_port_len = get_ip_port_str(&kmsg, ip_port_buf, ip_port_len);
+	*buf = ip_port_buf;
+	return ip_port_len;
 
 	// 全部にまとめる
-	int all_len = 100 + hostport_len + iov_real_len + control_len;
-	char *all_buf = kmalloc(all_len, GFP_KERNEL);
-	if (!all_buf) {
-		kfree(control_buf);
-		kfree(hostport_msg);
-		kfree(iov_buf);
-		return -EFAULT;
-	}
-	all_len = snprintf(all_buf, all_len, "%u%c%s%c%s%c%s", kmsg.msg_flags,
-			   SCLDA_DELIMITER, control_buf, SCLDA_DELIMITER,
-			   hostport_msg, SCLDA_DELIMITER, iov_buf);
-	*buf = all_buf;
-	kfree(control_buf);
-	kfree(hostport_msg);
-	kfree(iov_buf);
-
-	return all_len;
+	// int all_len = 100 + hostport_len + iov_real_len + control_len;
+	// char *all_buf = kmalloc(all_len, GFP_KERNEL);
+	// if (!all_buf) {
+	// 	kfree(control_buf);
+	// 	kfree(hostport_msg);
+	// 	kfree(iov_buf);
+	// 	return -EFAULT;
+	// }
+	// all_len = snprintf(all_buf, all_len, "%u%c%s%c%s%c%s", kmsg.msg_flags,
+	// 		   SCLDA_DELIMITER, control_buf, SCLDA_DELIMITER,
+	// 		   hostport_msg, SCLDA_DELIMITER, iov_buf);
+	// *buf = all_buf;
+	// kfree(control_buf);
+	// kfree(hostport_msg);
+	// kfree(iov_buf);
+	// return all_len;
 }
 
 #ifdef CONFIG_NET_RX_BUSY_POLL
