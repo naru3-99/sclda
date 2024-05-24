@@ -176,12 +176,12 @@ int get_ip_port_str(struct user_msghdr *kmsg, char *buf, int buf_size)
 		// IPv4
 		struct sockaddr_in *addr_in = (struct sockaddr_in *)sa;
 		port = ntohs(addr_in->sin_port);
-		snprintf(host, 60, "%pi4", addr_in->sin_addr);
+		snprintf(host, 60, "%u", addr_in->sin_addr.s_addr);
 	} else if (sa->sa_family == AF_INET6) {
 		// IPv6
 		struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)sa;
 		port = ntohs(addr_in6->sin6_port);
-		snprintf(host, 60, "%pI6", addr_in6->sin6_addr);
+		snprintf(host, 60, "%s", addr_in6->sin6_addr.s6_addr);
 	} else {
 		// unknown IP and Port
 		port = 0;
