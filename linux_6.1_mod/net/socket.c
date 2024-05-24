@@ -235,7 +235,7 @@ int get_controll_str(struct user_msghdr *kmsg, char **buf)
 
 int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 {
-	char *ip_port_buf, *iov_buf, control_buf;
+	char *ip_port_buf, *iov_buf, *control_buf;
 	int ip_port_len, iov_len, control_len;
 
 	// カーネル空間にumsgをコピーする
@@ -271,7 +271,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 	if (!all_buf) {
 		kfree(ip_port_buf);
 		kfree(iov_buf);
-		kfree(control_len);
+		kfree(control_buf);
 		return -EFAULT;
 	}
 	all_len = snprintf(all_buf, all_len, "%u%c%s%c%s%c%s", kmsg.msg_flags,
