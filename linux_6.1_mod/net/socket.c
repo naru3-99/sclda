@@ -128,8 +128,8 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 		return -EFAULT;
 
 	// 送信するメッセージの情報を取得
-	int iovbuf_len = 0;
 	// カーネル空間へのコピーと、バッファサイズの決定
+	int iovbuf_len = 0;
 	struct iovec iov[kmsg.msg_iovlen];
 	for (size_t i = 0; i < kmsg.msg_iovlen; ++i) {
 		if (copy_from_user(&iov[i], &kmsg.msg_iov[i],
@@ -137,11 +137,10 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 			return -EFAULT;
 		iovbuf_len += (int)iov[i].iov_len + 1;
 	}
-	// バッファに書き込む
+	// バッファを取得し書き込む
 	char *iov_buf = kmalloc(iovbuf_len, GFP_KERNEL);
 	if (!iov_buf)
 		return -ENOMEM;
-
 	int iov_real_len = 0;
 	for (size_t i = 0; i < kmsg.msg_iovlen; ++i) {
 		iov_real_len += snprintf(iov_buf + iov_real_len,
@@ -157,7 +156,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 		kfree(iov_buf);
 		return -ENOMEM;
 	}
-
+	// ip,hostの情報を取得する
 	struct msghdr msg_sys;
 	struct sockaddr_storage address;
 	msg_sys.msg_name = &address;
@@ -172,13 +171,13 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 		// IPv4
 		struct sockaddr_in *addr_in = (struct sockaddr_in *)sa;
 		hostport_len = snprintf(hostport_msg, hostport_len, "%pI4%c%d",
-					&addr_in->sin_addr, SCLDA_DELIMITER,
+					&addr_in->sin_addr.s_addr, SCLDA_DELIMITER,
 					ntohs(addr_in->sin_port));
 	} else if (sa->sa_family == AF_INET6) {
 		// IPv6
 		struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)sa;
 		hostport_len = snprintf(hostport_msg, hostport_len, "%pI6%c%d",
-					&addr_in6->sin6_addr, SCLDA_DELIMITER,
+					&addr_in6->sin6_addr.s6_addr, SCLDA_DELIMITER,
 					ntohs(addr_in6->sin6_port));
 	} else {
 		// unknown IP and Port
