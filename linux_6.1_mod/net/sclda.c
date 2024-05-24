@@ -129,8 +129,13 @@ int sclda_get_current_pid(void)
 
 unsigned long sclda_get_current_spsize(void)
 {
-	// currentから、スタックの大きさを取得する(バイト単位)
-	return current->mm->stack_vm * PAGE_SIZE;
+	// 現在のプロセスのユーザースタックのサイズを取得する(バイト単位)
+	struct pt_regs *regs = task_pt_regs(current);
+	unsigned long user_sp = regs->sp;
+	unsigned long stack_base = current->mm->start_stack;
+
+	// スタックサイズを計算
+	return stack_base - user_sp;
 }
 
 unsigned long sclda_get_current_heapsize(void)
@@ -139,10 +144,17 @@ unsigned long sclda_get_current_heapsize(void)
 	return current->mm->brk - current->mm->start_brk;
 }
 
+unsigned long sclda_get_current_rip(void)
+{
+	// システムコールの呼び出し元を取得する
+	struct pt_regs *regs = task_pt_regs(current);
+	return regs->rip;
+}
+
 unsigned long sclda_get_current_totalsize(void)
 {
 	// currentから、全体のメモリ使用量を取得する(バイト単位)
-	return current->mm->total_vm * PAGE_SIZE;
+	return current->mm->total_vm;
 }
 
 int sclda_syscallinfo_init(struct sclda_syscallinfo_struct **ptr, char *msg,
@@ -163,7 +175,7 @@ int sclda_syscallinfo_init(struct sclda_syscallinfo_struct **ptr, char *msg,
 	// stime, memory usage
 	s->memory_len = snprintf(s->memory_msg, SCLDA_STIME_MEMORY_SIZE,
 				 "%lu%c%lu%c%lu%c", sclda_get_current_spsize(),
-				 SCLDA_DELIMITER, sclda_get_current_heapsize(),
+				 SCLDA_DELIMITER, sclda_get_current_rip(),
 				 SCLDA_DELIMITER, sclda_get_current_totalsize(),
 				 SCLDA_DELIMITER);
 
