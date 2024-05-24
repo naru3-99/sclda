@@ -160,20 +160,17 @@ int get_iovec_msg_str(struct user_msghdr *kmsg, char **buf)
 
 int get_ip_port_str(struct user_msghdr *kmsg, char *buf, int buf_size)
 {
-	// ip,hostの情報を取得する
-	struct msghdr msg_sys;
+	// msghdrからip, portを特定する
 	struct sockaddr_storage address;
 	struct sockaddr *sa;
 	ssize_t err;
 	int port;
 	char host[60];
 
-	// msghdrからip, portを特定する
-	msg_sys.msg_name = &address;
-	err = __copy_msghdr(&msg_sys, kmsg, NULL);
-	if (err)
-		return err;
-	sa = (struct sockaddr *)msg_sys.msg_name;
+	// プロトコルを特定する
+	if (copy_from_user(&address, kmsg->msg_name, kmsg->msg_namelen))
+		return -EFAULT;
+	sa = (struct sockaddr *)&address;
 
 	if (sa->sa_family == AF_INET) {
 		// IPv4
