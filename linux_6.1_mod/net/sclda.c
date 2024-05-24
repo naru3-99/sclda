@@ -148,7 +148,7 @@ unsigned long sclda_get_current_rip(void)
 {
 	// システムコールの呼び出し元を取得する
 	struct pt_regs *regs = task_pt_regs(current);
-	return regs->rip;
+	return regs->ip;
 }
 
 unsigned long sclda_get_current_totalsize(void)
