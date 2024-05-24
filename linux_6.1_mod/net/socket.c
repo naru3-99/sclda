@@ -162,10 +162,8 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 	struct sockaddr_storage address;
 	msg_sys.msg_name = &address;
 
-	struct user_msghdr msg;
 	ssize_t err;
-
-	err = __copy_msghdr(&msg_sys, &msg, NULL);
+	err = __copy_msghdr(&msg_sys, &kmsg, NULL);
 	if (err)
 		return err;
 
