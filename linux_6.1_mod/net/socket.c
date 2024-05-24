@@ -280,7 +280,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 	*buf = all_buf;
 	kfree(ip_port_buf);
 	kfree(iov_buf);
-	kfree(control_len);
+	kfree(control_buf);
 	return all_len;
 }
 
