@@ -190,7 +190,7 @@ int get_ip_port_str(struct user_msghdr *ksmg, char *buf, int buf_size)
 	return snprintf(buf, buf_size, "%s%c%d", host, SCLDA_DELIMITER, port);
 }
 
-int get_controll_str(struct user_msghdr *ksmg, char **buf)
+int get_controll_str(struct user_msghdr *kmsg, char **buf)
 {
 	// control 文字列の取得
 	// bufの解放は呼び出し元が責任を負う
@@ -227,24 +227,6 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 	ip_port_len = get_ip_port_str(&kmsg, ip_port_buf, ip_port_len);
 	*buf = ip_port_buf;
 	return ip_port_len;
-
-	// 全部にまとめる
-	// int all_len = 100 + hostport_len + iov_real_len + control_len;
-	// char *all_buf = kmalloc(all_len, GFP_KERNEL);
-	// if (!all_buf) {
-	// 	kfree(control_buf);
-	// 	kfree(hostport_msg);
-	// 	kfree(iov_buf);
-	// 	return -EFAULT;
-	// }
-	// all_len = snprintf(all_buf, all_len, "%u%c%s%c%s%c%s", kmsg.msg_flags,
-	// 		   SCLDA_DELIMITER, control_buf, SCLDA_DELIMITER,
-	// 		   hostport_msg, SCLDA_DELIMITER, iov_buf);
-	// *buf = all_buf;
-	// kfree(control_buf);
-	// kfree(hostport_msg);
-	// kfree(iov_buf);
-	// return all_len;
 }
 
 #ifdef CONFIG_NET_RX_BUSY_POLL
