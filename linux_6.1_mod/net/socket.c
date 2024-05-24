@@ -129,8 +129,11 @@ int get_iovec_msg_str(struct user_msghdr *kmsg, char **buf)
 	int iovbuf_len;
 	int iov_real_len;
 	char *iov_buf;
-	struct iovec iov[kmsg->msg_iovlen];
+	struct iovec *iov;
 
+	iov = kmalloc_array(kmsg->msg_iovlen, sizeof(struct iovec), GFP_KERNEL);
+	if (!iov)
+		return -ENOMEM;
 	iovbuf_len = 0;
 	for (i = 0; i < kmsg->msg_iovlen; ++i) {
 		if (copy_from_user(&iov[i], &(kmsg->msg_iov[i]),
@@ -155,7 +158,7 @@ int get_iovec_msg_str(struct user_msghdr *kmsg, char **buf)
 	return iov_real_len;
 }
 
-int get_ip_port_str(struct user_msghdr *ksmg, char *buf, int buf_size)
+int get_ip_port_str(struct user_msghdr *kmsg, char *buf, int buf_size)
 {
 	// ip,hostの情報を取得する
 	struct msghdr msg_sys;
@@ -176,12 +179,12 @@ int get_ip_port_str(struct user_msghdr *ksmg, char *buf, int buf_size)
 		// IPv4
 		struct sockaddr_in *addr_in = (struct sockaddr_in *)sa;
 		port = ntohs(addr_in->sin_port);
-		snprintf(host, 60, "%pI4", addr_in->sin_addr.s_addr);
+		snprintf(host, 60, "%pi4", addr_in->sin_addr);
 	} else if (sa->sa_family == AF_INET6) {
 		// IPv6
 		struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)sa;
 		port = ntohs(addr_in6->sin6_port);
-		snprintf(host, 60, "%pI6", addr_in6->sin6_addr.s6_addr);
+		snprintf(host, 60, "%pI6", addr_in6->sin6_addr);
 	} else {
 		// unknown IP and Port
 		port = 0;
