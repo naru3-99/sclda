@@ -181,7 +181,25 @@ int get_ip_port_str(struct user_msghdr *kmsg, char *buf, int buf_size)
 		// IPv6
 		struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)sa;
 		port = ntohs(addr_in6->sin6_port);
-		snprintf(host, 60, "%s", addr_in6->sin6_addr.s6_addr);
+		snprintf(
+			host, 60,
+			"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+			addr_in6->sin6_addr.s6_addr[0],
+			addr_in6->sin6_addr.s6_addr[1],
+			addr_in6->sin6_addr.s6_addr[2],
+			addr_in6->sin6_addr.s6_addr[3],
+			addr_in6->sin6_addr.s6_addr[4],
+			addr_in6->sin6_addr.s6_addr[5],
+			addr_in6->sin6_addr.s6_addr[6],
+			addr_in6->sin6_addr.s6_addr[7],
+			addr_in6->sin6_addr.s6_addr[8],
+			addr_in6->sin6_addr.s6_addr[9],
+			addr_in6->sin6_addr.s6_addr[10],
+			addr_in6->sin6_addr.s6_addr[11],
+			addr_in6->sin6_addr.s6_addr[12],
+			addr_in6->sin6_addr.s6_addr[13],
+			addr_in6->sin6_addr.s6_addr[14],
+			addr_in6->sin6_addr.s6_addr[15]);
 	} else {
 		// unknown IP and Port
 		port = 0;
