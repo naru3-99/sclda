@@ -137,15 +137,18 @@ int get_iovec_msg_str(struct user_msghdr *kmsg, char **buf)
 	iovbuf_len = 0;
 	for (i = 0; i < kmsg->msg_iovlen; ++i) {
 		if (copy_from_user(&iov[i], &(kmsg->msg_iov[i]),
-				   sizeof(struct iovec)))
+				   sizeof(struct iovec))) {
+			kfree(iov);
 			return -EFAULT;
+		}
 		iovbuf_len += (int)iov[i].iov_len + 1;
 	}
 
 	iov_buf = kmalloc(iovbuf_len, GFP_KERNEL);
-	if (!iov_buf)
+	if (!iov_buf) {
+		kfree(iov);
 		return -ENOMEM;
-
+	}
 	// バッファに書き込む
 	iov_real_len = 0;
 	for (i = 0; i < kmsg->msg_iovlen; ++i) {
@@ -154,6 +157,7 @@ int get_iovec_msg_str(struct user_msghdr *kmsg, char **buf)
 					 (char *)iov[i].iov_base,
 					 SCLDA_DELIMITER);
 	}
+	kfree(iov);
 	*buf = iov_buf;
 	return iov_real_len;
 }
@@ -231,8 +235,8 @@ int get_controll_str(struct user_msghdr *kmsg, char **buf)
 
 int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 {
-	char *ip_port_buf;
-	int ip_port_len;
+	char *ip_port_buf, *iov_buf, control_buf;
+	int ip_port_len, iov_len, control_len;
 
 	// カーネル空間にumsgをコピーする
 	struct user_msghdr kmsg;
@@ -243,8 +247,41 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg, char **buf)
 	ip_port_len = 100;
 	ip_port_buf = kmalloc(ip_port_len, GFP_KERNEL);
 	ip_port_len = get_ip_port_str(&kmsg, ip_port_buf, ip_port_len);
-	*buf = ip_port_buf;
-	return ip_port_len;
+	if (ip_port_len <= 0)
+		return -EFAULT;
+
+	// iov_bufを取得
+	iov_len = get_iovec_msg_str(&kmsg, &iov_buf);
+	if (iov_len <= 0) {
+		kfree(ip_port_buf);
+		return -EFAULT;
+	}
+
+	// controll文字列の取得
+	control_len = get_controll_str(&kmsg, &control_buf);
+	if (control_len <= 0) {
+		kfree(ip_port_buf);
+		kfree(iov_buf);
+		return -EFAULT;
+	}
+
+	// 全部にまとめる
+	int all_len = 100 + ip_port_len + iov_len + control_len;
+	char *all_buf = kmalloc(all_len, GFP_KERNEL);
+	if (!all_buf) {
+		kfree(ip_port_buf);
+		kfree(iov_buf);
+		kfree(control_len);
+		return -EFAULT;
+	}
+	all_len = snprintf(all_buf, all_len, "%u%c%s%c%s%c%s", kmsg.msg_flags,
+			   SCLDA_DELIMITER, control_buf, SCLDA_DELIMITER,
+			   ip_port_buf, SCLDA_DELIMITER, iov_buf);
+	*buf = all_buf;
+	kfree(ip_port_buf);
+	kfree(iov_buf);
+	kfree(control_len);
+	return all_len;
 }
 
 #ifdef CONFIG_NET_RX_BUSY_POLL
