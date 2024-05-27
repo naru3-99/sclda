@@ -178,9 +178,12 @@ int get_ip_port_str(struct user_msghdr *kmsg, char *buf, int buf_size)
 
 	if (sa->sa_family == AF_INET) {
 		// IPv4
+		uint32_t ip;
 		struct sockaddr_in *addr_in = (struct sockaddr_in *)sa;
 		port = ntohs(addr_in->sin_port);
-		snprintf(host, 60, "%u", addr_in->sin_addr.s_addr);
+		ip = ntohl(addr->s_addr);
+		snprintf(host, 60, "%u:%u:%u:%u", (ip >> 24) & 0xFF,
+			 (ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF);
 	} else if (sa->sa_family == AF_INET6) {
 		// IPv6
 		struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)sa;
@@ -207,7 +210,7 @@ int get_ip_port_str(struct user_msghdr *kmsg, char *buf, int buf_size)
 	} else {
 		// unknown IP and Port
 		port = 0;
-		snprintf(host, 60, "unknown, family:%d",(int)sa->sa_family);
+		snprintf(host, 60, "unknown:%d", (int)sa->sa_family);
 	}
 	return snprintf(buf, buf_size, "%s%c%d", host, SCLDA_DELIMITER, port);
 }
