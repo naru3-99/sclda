@@ -207,7 +207,7 @@ int get_ip_port_str(struct user_msghdr *kmsg, char *buf, int buf_size)
 	} else {
 		// unknown IP and Port
 		port = 0;
-		snprintf(host, 60, "unknown");
+		snprintf(host, 60, "unknown, family:%d",(int)sa->sa_family);
 	}
 	return snprintf(buf, buf_size, "%s%c%d", host, SCLDA_DELIMITER, port);
 }
@@ -4103,4 +4103,4 @@ u32 kernel_sock_ip_overhead(struct sock *sk)
 		return overhead;
 	}
 }
-EXPORT_SYMBOL(kernel_sock_ip_overhead);
+EXPORT_SYMBOL(kernel_sock_ip_overhead);1
