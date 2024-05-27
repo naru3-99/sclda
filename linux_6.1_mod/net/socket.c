@@ -4103,4 +4103,4 @@ u32 kernel_sock_ip_overhead(struct sock *sk)
 		return overhead;
 	}
 }
-EXPORT_SYMBOL(kernel_sock_ip_overhead);1
+EXPORT_SYMBOL(kernel_sock_ip_overhead);
