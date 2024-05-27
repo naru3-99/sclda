@@ -45,6 +45,8 @@ accept,43,retval,fd,addrlen,sa_family,sa_data
 sendto,44,retval,fd,len,flags,addr_len,sa_family,sa_data,buff
 recvfrom,45,retval,fd,size,flags,addr_len_value,addr,recv_msg
 sendmsg,46,retval,fd,flags,msghdr.msg_flags,control_msg,host_ip,port,msgs
+recvmsg,47,retval,fd,flags,msghdr.msg_flags,control_msg,host_ip,port,msgs
+shutdown,48,retval,fd,how
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 accept4,288,retval,fd,addrlen,flags,sa_family,sa_data
 dup3,292,retval,old_fd,new_fd,flags,,,,,,,,,,,,,,
