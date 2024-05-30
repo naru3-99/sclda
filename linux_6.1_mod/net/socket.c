@@ -2078,7 +2078,25 @@ int __sys_listen(int fd, int backlog)
 
 SYSCALL_DEFINE2(listen, int, fd, int, backlog)
 {
-	return __sys_listen(fd, backlog);
+	int retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = __sys_listen(fd, backlog);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "50%c%d%c%d%c%d", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER,
+			   backlog);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 struct file *do_accept(struct file *file, unsigned file_flags,
