@@ -2441,6 +2441,8 @@ SYSCALL_DEFINE3(getsockname, int, fd, struct sockaddr __user *, usockaddr,
 	int addrlen;
 	if (copy_from_user(&addrlen, usockaddr_len, sizeof(int)))
 		return retval;
+	if (addrlen < 0 || addrlen > sizeof(struct sockaddr_storage))
+        	return retval;
 	struct sockaddr_storage ss;
 	if (copy_from_user(&ss, usockaddr, addrlen))
 		return retval;
