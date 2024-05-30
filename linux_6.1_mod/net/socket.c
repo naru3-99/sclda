@@ -108,6 +108,7 @@
 #include <net/busy_poll.h>
 #include <linux/errqueue.h>
 #include <linux/ptp_clock_kernel.h>
+#include <linux/un.h>
 
 int sockaddr_to_str(struct sockaddr __user *uptr, char *buf, int len)
 {
@@ -162,6 +163,7 @@ int get_iovec_msg_str(struct user_msghdr *kmsg, char **buf)
 	return iov_real_len;
 }
 
+#define SCLDA_IPPORT_STR_LEN 120
 int get_ip_port_str(struct user_msghdr *kmsg, char *buf, int buf_size)
 {
 	// msghdrからip, portを特定する
@@ -169,7 +171,7 @@ int get_ip_port_str(struct user_msghdr *kmsg, char *buf, int buf_size)
 	struct sockaddr *sa;
 	ssize_t err;
 	int port;
-	char host[60];
+	char host[SCLDA_IPPORT_STR_LEN];
 
 	// プロトコルを特定する
 	if (copy_from_user(&address, kmsg->msg_name, kmsg->msg_namelen))
@@ -182,14 +184,15 @@ int get_ip_port_str(struct user_msghdr *kmsg, char *buf, int buf_size)
 		struct sockaddr_in *addr_in = (struct sockaddr_in *)sa;
 		port = ntohs(addr_in->sin_port);
 		ip = ntohl(addr_in->sin_addr.s_addr);
-		snprintf(host, 60, "%u:%u:%u:%u", (ip >> 24) & 0xFF,
-			 (ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF);
+		snprintf(host, SCLDA_IPPORT_STR_LEN, "%u:%u:%u:%u",
+			 (ip >> 24) & 0xFF, (ip >> 16) & 0xFF, (ip >> 8) & 0xFF,
+			 ip & 0xFF);
 	} else if (sa->sa_family == AF_INET6) {
 		// IPv6
 		struct sockaddr_in6 *addr_in6 = (struct sockaddr_in6 *)sa;
 		port = ntohs(addr_in6->sin6_port);
 		snprintf(
-			host, 60,
+			host, SCLDA_IPPORT_STR_LEN,
 			"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
 			addr_in6->sin6_addr.s6_addr[0],
 			addr_in6->sin6_addr.s6_addr[1],
@@ -207,10 +210,21 @@ int get_ip_port_str(struct user_msghdr *kmsg, char *buf, int buf_size)
 			addr_in6->sin6_addr.s6_addr[13],
 			addr_in6->sin6_addr.s6_addr[14],
 			addr_in6->sin6_addr.s6_addr[15]);
+
+	} else if (sa->sa_family == PF_UNSPEC) {
+		// sa->sa_familyが0の時
+		snprintf(host, SCLDA_IPPORT_STR_LEN, "unspecified");
+		port = 0;
+	} else if (sa->sa_family == PF_UNIX) {
+		// sa->sa_familyが1の時
+		struct sockaddr_un *addr_un = (struct sockaddr_un *)sa;
+		snprintf(host, 108, "unix_ds: %s", addr_un->sun_path);
+		port = 0;
 	} else {
 		// unknown IP and Port
 		port = 0;
-		snprintf(host, 60, "unknown:%d", (int)sa->sa_family);
+		snprintf(host, SCLDA_IPPORT_STR_LEN, "unknown:%d",
+			 (int)sa->sa_family);
 	}
 	return snprintf(buf, buf_size, "%s%c%d", host, SCLDA_DELIMITER, port);
 }
