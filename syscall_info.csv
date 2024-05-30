@@ -49,6 +49,7 @@ recvmsg,47,retval,fd,flags,msghdr.msg_flags,control_msg,host_ip,port,msgs
 shutdown,48,retval,fd,how
 bind,49,retval,fd,addrlen,sa_family,sockaddr_info
 listen,50,retval,fd,backlog
+getsockname,51,retval,fd,sockaddr_len,sa_family,sockaddr_info
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 accept4,288,retval,fd,addrlen,flags,sa_family,sockaddr_info
 dup3,292,retval,old_fd,new_fd,flags,,,,,,,,,,,,,,
