@@ -165,10 +165,10 @@ int sockaddr_to_str(struct sockaddr *sa, char *buf, int len)
 
 	} else {
 		// unknown socket address
-		snprintf(host, SCLDA_IPPORT_STR_LEN, "unknown:%d",
+		snprintf(info_buf, SCLDA_INFOBUF_LEN, "unknown:%d",
 			 (int)sa->sa_family);
 	}
-	return snprintf(buf, len, "%u%c%s", (unsigned int)sa.sa_family,
+	return snprintf(buf, len, "%u%c%s", (unsigned int)sa->sa_family,
 			SCLDA_DELIMITER, info_buf);
 }
 
@@ -2026,7 +2026,7 @@ SYSCALL_DEFINE3(bind, int, fd, struct sockaddr __user *, umyaddr, int, addrlen)
 	if (!sa_buf)
 		return retval;
 
-	sa_len = sockaddr_to_str(umyaddr, sa_buf, sa_len);
+	sa_len = sockaddr_to_str(&sa, sa_buf, sa_len);
 	if (sa_len < 0) {
 		kfree(sa_buf);
 		return retval;
@@ -2221,25 +2221,23 @@ SYSCALL_DEFINE4(accept4, int, fd, struct sockaddr __user *, upeer_sockaddr,
 	if (!is_sclda_allsend_fin())
 		return retval;
 
+	// upeer_sockaddrをcfuする
+	int addrlen;
+	if (copy_from_user(&addrlen, upeer_addrlen, sizeof(int)))
+		return retval;
+	struct sockaddr sa;
+	if (copy_from_user(&sa, upeer_sockaddr, addrlen))
+		return retval;
+
 	// sockaddrを文字列に変換
 	int struct_len = SCLDA_INFOBUF_LEN + 100;
 	char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
 	if (!struct_buf)
 		return retval;
-	struct_len = sockaddr_to_str(upeer_sockaddr, struct_buf, struct_len);
+	struct_len = sockaddr_to_str(&sa, struct_buf, struct_len);
 	if (struct_len < 0) {
 		struct_len = 1;
 		struct_buf = '\0';
-	}
-	// upeer_addrlenを取得
-	// 失敗したら-1とする
-	int addlen;
-	if (upeer_addrlen) {
-		if (copy_from_user(&addlen, upeer_addrlen, sizeof(int))) {
-			addlen = -1;
-		}
-	} else {
-		addlen = -1;
 	}
 
 	// 送信するパート
@@ -2252,7 +2250,7 @@ SYSCALL_DEFINE4(accept4, int, fd, struct sockaddr __user *, upeer_sockaddr,
 
 	msg_len = snprintf(msg_buf, msg_len, "43%c%d%c%d%c%d%c%d%c%s",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
-			   SCLDA_DELIMITER, addlen, SCLDA_DELIMITER, flags,
+			   SCLDA_DELIMITER, addrlen, SCLDA_DELIMITER, flags,
 			   SCLDA_DELIMITER, struct_buf);
 	kfree(struct_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
@@ -2267,25 +2265,23 @@ SYSCALL_DEFINE3(accept, int, fd, struct sockaddr __user *, upeer_sockaddr,
 	if (!is_sclda_allsend_fin())
 		return retval;
 
+	// upeer_sockaddrをcfuする
+	int addrlen;
+	if (copy_from_user(&addrlen, upeer_addrlen, sizeof(int)))
+		return retval;
+	struct sockaddr sa;
+	if (copy_from_user(&sa, upeer_sockaddr, addrlen))
+		return retval;
+
 	// sockaddrを文字列に変換
 	int struct_len = SCLDA_INFOBUF_LEN + 100;
 	char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
 	if (!struct_buf)
 		return retval;
-	struct_len = sockaddr_to_str(upeer_sockaddr, struct_buf, struct_len);
+	struct_len = sockaddr_to_str(&sa, struct_buf, struct_len);
 	if (struct_len < 0) {
 		struct_len = 1;
 		struct_buf = '\0';
-	}
-	// upeer_addrlenを取得
-	// 失敗したら-1とする
-	int addlen;
-	if (upeer_addrlen) {
-		if (copy_from_user(&addlen, upeer_addrlen, sizeof(int))) {
-			addlen = -1;
-		}
-	} else {
-		addlen = -1;
 	}
 
 	// 送信するパート
@@ -2298,7 +2294,7 @@ SYSCALL_DEFINE3(accept, int, fd, struct sockaddr __user *, upeer_sockaddr,
 
 	msg_len = snprintf(msg_buf, msg_len, "43%c%d%c%d%c%d%c%s",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
-			   SCLDA_DELIMITER, addlen, SCLDA_DELIMITER,
+			   SCLDA_DELIMITER, addrlen, SCLDA_DELIMITER,
 			   struct_buf);
 	kfree(struct_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
@@ -2365,12 +2361,17 @@ SYSCALL_DEFINE3(connect, int, fd, struct sockaddr __user *, uservaddr, int,
 	if (!is_sclda_allsend_fin())
 		return retval;
 
+	// uservaddrをcfuする
+	struct sockaddr sa;
+	if (copy_from_user(&sa, uservaddr, addrlen))
+		return retval;
+
 	// sockaddrを文字列に変換
 	int struct_len = SCLDA_INFOBUF_LEN + 100;
 	char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
 	if (!struct_buf)
 		return retval;
-	struct_len = sockaddr_to_str(uservaddr, struct_buf, struct_len);
+	struct_len = sockaddr_to_str(&sa, struct_buf, struct_len);
 	if (struct_len < 0) {
 		struct_len = 1;
 		struct_buf = '\0';
@@ -2520,12 +2521,16 @@ SYSCALL_DEFINE6(sendto, int, fd, void __user *, buff, size_t, len, unsigned int,
 	if (!is_sclda_allsend_fin())
 		return retval;
 
+	// upeer_sockaddrをcfuする
+	struct sockaddr sa;
+	if (copy_from_user(&sa, addr, addr_len))
+		return retval;
 	// sockaddrを文字列に変換
 	int struct_len = SCLDA_INFOBUF_LEN + 100;
 	char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
 	if (!struct_buf)
 		return retval;
-	struct_len = sockaddr_to_str(addr, struct_buf, struct_len);
+	struct_len = sockaddr_to_str(&sa, struct_buf, struct_len);
 	if (struct_len < 0) {
 		struct_len = 1;
 		struct_buf = '\0';
@@ -2653,6 +2658,14 @@ SYSCALL_DEFINE6(recvfrom, int, fd, void __user *, ubuf, size_t, size,
 		recv_buf[0] = '\0';
 	}
 
+	// sockaddrをcfuする
+	int addrlen;
+	if (copy_from_user(&addrlen, addr_len, sizeof(int)))
+		return retval;
+	struct sockaddr sa;
+	if (copy_from_user(&sa, addr, addrlen))
+		return retval;
+
 	// sockaddrを文字列に変換
 	int struct_len = SCLDA_INFOBUF_LEN + 100;
 	char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
@@ -2660,15 +2673,11 @@ SYSCALL_DEFINE6(recvfrom, int, fd, void __user *, ubuf, size_t, size,
 		kfree(recv_buf);
 		return ret;
 	}
-	struct_len = sockaddr_to_str(addr, struct_buf, struct_len);
+	struct_len = sockaddr_to_str(&sa, struct_buf, struct_len);
 	if (struct_len < 0) {
 		struct_len = 1;
 		struct_buf[0] = '\0';
 	}
-
-	// addr_lenをコピー
-	int addr_len_value = 0;
-	copy_from_user(&addr_len_value, addr_len, sizeof(int));
 
 	// その他情報をまとめ、送信する
 	int msg_len = recv_len + struct_len + 300;
@@ -2683,7 +2692,7 @@ SYSCALL_DEFINE6(recvfrom, int, fd, void __user *, ubuf, size_t, size,
 	msg_len = snprintf(msg_buf, msg_len, "45%c%d%c%d%c%zu%c%u%c%d%c%s%c%s",
 			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, fd,
 			   SCLDA_DELIMITER, size, SCLDA_DELIMITER, flags,
-			   SCLDA_DELIMITER, addr_len_value, SCLDA_DELIMITER,
+			   SCLDA_DELIMITER, addrlen, SCLDA_DELIMITER,
 			   struct_buf, SCLDA_DELIMITER, recv_buf);
 
 	// バッファを解放
