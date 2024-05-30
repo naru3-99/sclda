@@ -128,30 +128,30 @@ int sockaddr_to_str(struct sockaddr *sa, char *buf, int len)
 		addr_in = (struct sockaddr_in *)sa;
 		ip = ntohl(addr_in->sin_addr.s_addr);
 		snprintf(info_buf, SCLDA_INFOBUF_LEN,
-			 "ip= %u:%u:%u:%u port= %d", (ip >> 24) & 0xFF,
+			 "ip= %u:%u:%u:%u port= %u", (ip >> 24) & 0xFF,
 			 (ip >> 16) & 0xFF, (ip >> 8) & 0xFF, ip & 0xFF,
-			 ntohl(addr_in->sin_addr.s_addr));
+			 (unsigned int)ntohs(addr_in->sin_addr.s_addr));
 
 	} else if (sa->sa_family == AF_INET6) {
 		// IPv6 socket address
 		struct sockaddr_in6 *addr_in6;
 		int offset;
 		int i;
-		char ip_buf[40];
+		char ip_buf[50];
 
 		// ipアドレスを取得する
 		addr_in6 = (struct sockaddr_in6 *)sa;
-		offset = snprintf(ip_buf, 40, "%02x",
-				  addr_in6->sin6_addr.s6_addr[i]);
+		offset = snprintf(ip_buf, 50, "%02x",
+				  addr_in6->sin6_addr.s6_addr[0]);
 		for (i = 1; i < 16; i++) {
-			offset += snprintf(ip_buf + offset, 40 - offset,
+			offset += snprintf(ip_buf + offset, 50 - offset,
 					   ":%02x",
 					   addr_in6->sin6_addr.s6_addr[i]);
 		}
 
 		// ipアドレスとport番号を書き込む
-		snprintf(info_buf, SCLDA_INFOBUF_LEN, "host= %s port= %d",
-			 ip_buf, ntohs(addr_in6->sin6_port));
+		snprintf(info_buf, SCLDA_INFOBUF_LEN, "ip= %s port= %u", ip_buf,
+			 (unsigned int)ntohs(addr_in6->sin6_port));
 
 	} else if (sa->sa_family == PF_UNSPEC) {
 		// sa->sa_familyが0の時
