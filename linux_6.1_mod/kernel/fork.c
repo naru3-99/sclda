@@ -2885,10 +2885,14 @@ SYSCALL_DEFINE5(clone, unsigned long, clone_flags, unsigned long, newsp,
 
 	// child_tidptrとparent_tidptrをコピーする
 	ctid = 0;
-	if (child_tidptr && copy_from_user(&ctid, child_tidptr, sizeof(int)))
+	if (!access_ok(child_tidptr, sizeof(int)))
+		return retval;
+	if (copy_from_user(&ctid, child_tidptr, sizeof(int)))
 		return retval;
 	ptid = 0;
-	if (parent_tidptr && copy_from_user(&ptid, parent_tidptr, sizeof(int)))
+	if (!access_ok(parent_tidptr, sizeof(int)))
+		return retval;
+	if (copy_from_user(&ptid, parent_tidptr, sizeof(int)))
 		return retval;
 
 	// 送信するパート
