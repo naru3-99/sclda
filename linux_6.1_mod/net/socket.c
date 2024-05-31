@@ -2442,7 +2442,7 @@ SYSCALL_DEFINE3(getsockname, int, fd, struct sockaddr __user *, usockaddr,
 	if (copy_from_user(&addrlen, usockaddr_len, sizeof(int)))
 		return retval;
 	if (addrlen < 0 || addrlen > sizeof(struct sockaddr_storage))
-        	return retval;
+		return retval;
 	struct sockaddr_storage ss;
 	if (copy_from_user(&ss, usockaddr, addrlen))
 		return retval;
@@ -2457,6 +2457,7 @@ SYSCALL_DEFINE3(getsockname, int, fd, struct sockaddr __user *, usockaddr,
 		struct_len = 1;
 		struct_buf = '\0';
 	}
+	printk(KERN_ERR "SCLDA_GETSOCKNAME %s", struct_buf);
 
 	// 送信するパート
 	msg_len = 200 + struct_len;
