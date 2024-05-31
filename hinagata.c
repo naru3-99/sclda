@@ -25,12 +25,16 @@ int hinagata()
 
 int filename()
 {
+    int filename_len;
+    char *filename_buf;
+
     // ファイル名を取得する
-    int filename_len = strnlen_user(filename, 1000);
-    char *filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
+    filename_len = strnlen_user(filename, PATH_MAX);
+    filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
     if (!filename_buf)
         return retval;
-    filename_len -= copy_from_user(filename_buf, filename, filename_len);
+    if (copy_from_user(filename_buf, filename, filename_len))
+        return retval;
     filename_buf[filename_len] = '\0';
 }
 
