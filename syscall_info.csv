@@ -55,6 +55,7 @@ socketpair,53,retval,family,type,protocol,ksockvec0,ksockvec1
 setsockopt,54,retval,fd,level,optname,optlen,optval
 getsockopt,55,retval,fd,level,optname,optlen,optval
 clone,56,retval,clone_flags,newsp,ptid,tls,ctid
+fork,57,retval
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 accept4,288,retval,fd,addrlen,flags,sa_family,sockaddr_info
 dup3,292,retval,old_fd,new_fd,flags,,,,,,,,,,,,,,
