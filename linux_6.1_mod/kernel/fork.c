@@ -2754,7 +2754,6 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 
 	// sclda
 	// basic : pid,ppid,executable name
-
 	char sclda_buf[SCLDA_PIDPPID_BUFSIZE];
 	int sclda_real_len = snprintf(sclda_buf, SCLDA_PIDPPID_BUFSIZE,
 				      "%d%c%d%c%s", (int)nr, SCLDA_DELIMITER,
@@ -2762,9 +2761,6 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 				      p->comm);
 	// まだ初期化されていない場合
 	if (!is_sclda_init_fin()) {
-		printk(KERN_INFO
-		       "SCLDA_INFO kernel_clone sclda is not inited, %d.",
-		       (int)nr);
 		sclda_add_pidinfo(sclda_buf, sclda_real_len);
 		return nr;
 	}
@@ -2778,14 +2774,10 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	int count = sclda_send_mutex("sclda\0", 6, sclda_get_pidppid_struct());
 	if (count < 0) {
 		// まだ送信できない場合
-		printk(KERN_INFO
-		       "SCLDA_INFO kernel_clone sclda was inited, it cant send packet, pid = %d, count = %d.",
-		       (int)nr, count);
 		sclda_add_pidinfo(sclda_buf, sclda_real_len);
 		return nr;
 	}
 	// 送信可能になったため、sendallする
-	printk(KERN_INFO "SCLDA_INFO kernel_clone allsend, %d.", (int)nr);
 	sclda_sendall_pidinfo();
 	sclda_send_mutex(sclda_buf, sclda_real_len, sclda_get_pidppid_struct());
 	return nr;
@@ -2871,6 +2863,12 @@ SYSCALL_DEFINE5(clone, unsigned long, clone_flags, unsigned long, newsp,
 		unsigned long, tls)
 #endif
 {
+	pid_t retval;
+	int ctid;
+	int ptid;
+	int msg_len;
+	char *msg_buf;
+
 	struct kernel_clone_args args = {
 		.flags = (lower_32_bits(clone_flags) & ~CSIGNAL),
 		.pidfd = parent_tidptr,
@@ -2881,7 +2879,30 @@ SYSCALL_DEFINE5(clone, unsigned long, clone_flags, unsigned long, newsp,
 		.tls = tls,
 	};
 
-	return kernel_clone(&args);
+	retval = kernel_clone(&args);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// child_tidptrとparent_tidptrをコピーする
+	ctid = 0;
+	if (child_tidptr && copy_from_user(&ctid, child_tidptr, sizeof(int)))
+		return retval;
+	ptid = 0;
+	if (parent_tidptr && copy_from_user(&ptid, parent_tidptr, sizeof(int)))
+		return retval;
+
+	// 送信するパート
+	msg_len = 300;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "56%c%d%c%lu%c%lu%c%d%c%lu%c%d",
+			   SCLDA_DELIMITER, (int)retval, SCLDA_DELIMITER,
+			   clone_flags, SCLDA_DELIMITER, newsp, SCLDA_DELIMITER,
+			   ptid, SCLDA_DELIMITER, tls, SCLDA_DELIMITER, ctid);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 #endif
 
