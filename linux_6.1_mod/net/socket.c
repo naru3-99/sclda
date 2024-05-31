@@ -2457,7 +2457,6 @@ SYSCALL_DEFINE3(getsockname, int, fd, struct sockaddr __user *, usockaddr,
 		struct_len = 1;
 		struct_buf = '\0';
 	}
-	printk(KERN_ERR "SCLDA_GETSOCKNAME %s", struct_buf);
 
 	// 送信するパート
 	msg_len = 200 + struct_len;
@@ -2465,7 +2464,7 @@ SYSCALL_DEFINE3(getsockname, int, fd, struct sockaddr __user *, usockaddr,
 	if (!msg_buf)
 		return retval;
 
-	msg_len = snprintf(msg_buf, msg_len, "51%c%d%c%d%c%s", SCLDA_DELIMITER,
+	msg_len = snprintf(msg_buf, msg_len, "51%c%d%c%d%c%d%c%s", SCLDA_DELIMITER,
 			   retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER,
 			   addrlen, SCLDA_DELIMITER, struct_buf);
 
