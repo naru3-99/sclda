@@ -1968,7 +1968,36 @@ out:
 SYSCALL_DEFINE4(socketpair, int, family, int, type, int, protocol, int __user *,
 		usockvec)
 {
-	return __sys_socketpair(family, type, protocol, usockvec);
+	int retval;
+	int ksockvec[2];
+	int msg_len;
+	char *msg_buf;
+
+	retval = __sys_socketpair(family, type, protocol, usockvec);
+
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// ポインタの検証
+	if (!access_ok(usockvec, sizeof(int) * 2))
+		return retval;
+	// データのコピー
+	if (copy_from_user(ksockvec, usockvec, sizeof(int) * 2))
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "53%c%d%c%d%c%d%c%d%c%d%c%d",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, family,
+			   SCLDA_DELIMITER, type, SCLDA_DELIMITER, protocol,
+			   SCLDA_DELIMITER, ksockvec[0], SCLDA_DELIMITER,
+			   ksockvec[1]);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 /*
@@ -2464,9 +2493,10 @@ SYSCALL_DEFINE3(getsockname, int, fd, struct sockaddr __user *, usockaddr,
 	if (!msg_buf)
 		return retval;
 
-	msg_len = snprintf(msg_buf, msg_len, "51%c%d%c%d%c%d%c%s", SCLDA_DELIMITER,
-			   retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER,
-			   addrlen, SCLDA_DELIMITER, struct_buf);
+	msg_len = snprintf(msg_buf, msg_len, "51%c%d%c%d%c%d%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, addrlen, SCLDA_DELIMITER,
+			   struct_buf);
 
 	kfree(struct_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
