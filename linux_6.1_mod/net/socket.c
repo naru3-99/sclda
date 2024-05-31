@@ -2571,7 +2571,7 @@ SYSCALL_DEFINE3(getpeername, int, fd, struct sockaddr __user *, usockaddr,
 	if (!msg_buf)
 		return retval;
 
-	msg_len = snprintf(msg_buf, msg_len, "52%c%d%c%d%c%s", SCLDA_DELIMITER,
+	msg_len = snprintf(msg_buf, msg_len, "52%c%d%c%d%c%d%c%s", SCLDA_DELIMITER,
 			   retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER,
 			   addrlen, SCLDA_DELIMITER, struct_buf);
 
