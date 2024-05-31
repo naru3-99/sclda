@@ -2841,7 +2841,8 @@ SYSCALL_DEFINE0(fork)
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		return retval;
-	msg_len = snprintf(msg_buf, msg_len, "57%c%d", SCLDA_DELIMITER, retval);
+	msg_len = snprintf(msg_buf, msg_len, "57%c%d", SCLDA_DELIMITER,
+			   (int)retval);
 	sclda_send_syscall_info(msg_buf, msg_len);
 	return retval;
 }
@@ -2850,12 +2851,26 @@ SYSCALL_DEFINE0(fork)
 #ifdef __ARCH_WANT_SYS_VFORK
 SYSCALL_DEFINE0(vfork)
 {
+	pid_t retval;
+	int msg_len;
+	char *msg_buf;
+
 	struct kernel_clone_args args = {
 		.flags = CLONE_VFORK | CLONE_VM,
 		.exit_signal = SIGCHLD,
 	};
+	retval = kernel_clone(&args);
+	if (!is_sclda_allsend_fin())
+		return retval;
 
-	return kernel_clone(&args);
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+	msg_len = snprintf(msg_buf, msg_len, "58%c%d", SCLDA_DELIMITER, retval);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 #endif
 
