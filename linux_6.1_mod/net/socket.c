@@ -2969,7 +2969,38 @@ out_put:
 SYSCALL_DEFINE5(getsockopt, int, fd, int, level, int, optname, char __user *,
 		optval, int __user *, optlen)
 {
-	return __sys_getsockopt(fd, level, optname, optval, optlen);
+	int retval;
+	int msg_len;
+	char *msg_buf;
+	char *opt_buf;
+
+	retval = __sys_getsockopt(fd, level, optname, optval, optlen);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// optvalの値をコピーする
+	if (optlen < 0)
+		return retval;
+	opt_buf = kmalloc(optlen, GFP_KERNEL);
+	if (!opt_buf)
+		return retval;
+	if (copy_from_user(opt_buf, optval, optlen))
+		return retval;
+
+	// 送信するパート
+	msg_len = 200 + optlen;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "55%c%d%c%d%c%d%c%d%c%d%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, level, SCLDA_DELIMITER, optname,
+			   SCLDA_DELIMITER, optlen, SCLDA_DELIMITER, opt_buf);
+
+	kfree(opt_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 /*
