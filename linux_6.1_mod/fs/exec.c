@@ -2253,7 +2253,8 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 	}
 	msg_real_len +=
 		snprintf(msg_buf + msg_real_len, msg_len - msg_real_len, "]");
-	sclda_send_syscall_info(msg_buf, msg_len);
+	sclda_send_syscall_info(msg_buf, msg_real_len);
+
 	for (i = 0; i < envp_count; i++)
 		kfree(kenvp[i]);
 	kfree(kenvp);
