@@ -1015,19 +1015,20 @@ SYSCALL_DEFINE1(exit, int, error_code)
 	int msg_len;
 	char *msg_buf;
 	if (!is_sclda_allsend_fin())
-		return void;
+		goto out;
 
 	// 送信するパート
 	msg_len = 200;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
-		return void;
+		goto out;
 
 	// 便宜上、返り値は0とする
 	msg_len = snprintf(msg_buf, msg_len, "60%c0%c%d", SCLDA_DELIMITER,
-			   error_code);
+			   SCLDA_DELIMITER error_code);
 	sclda_send_syscall_info(msg_buf, msg_len);
-	return void;
+out:
+	// do nothing
 }
 
 /*
