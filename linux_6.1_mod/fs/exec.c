@@ -2121,148 +2121,165 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 
 	// ファイル名を取得する
 	filename_len = strnlen_user(filename, PATH_MAX);
+	if (filename_len == 0)
+		return retval;
 	filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
 	if (!filename_buf)
 		return retval;
 	if (copy_from_user(filename_buf, filename, filename_len))
 		return retval;
-	filename_buf[filename_len] = '\0';
 
-	// 引数を取得する
-	while (argv[argv_count] != NULL) {
-		argv_count++;
-	}
-	// Allocate memory for argv in kernel space
-	kargv = kmalloc_array(argv_count + 1, sizeof(char *), GFP_KERNEL);
-	if (!kargv) {
-		kfree(filename_buf);
-		return retval;
-	}
-	// Copy each argv element to kernel space
-	for (i = 0; i < argv_count; i++) {
-		// 文字列の長さを取得する
-		argv_len = strnlen_user(argv[i], PATH_MAX);
-		if (argv_len == 0) {
-			for (int j = 0; j < i; j++)
-				kfree(kargv[j]);
-			kfree(kargv);
-			kfree(filename_buf);
-			return retval;
-		}
-		// バッファを確保
-		kargv[i] = kmalloc(argv_len + 1, GFP_KERNEL);
-		if (!kargv[i]) {
-			for (int j = 0; j < i; j++)
-				kfree(kargv[j]);
-			kfree(kargv);
-			kfree(filename_buf);
-			return retval;
-		}
-		// バッファにコピーする
-		if (copy_from_user(kargv[i], argv[i], argv_len)) {
-			for (int j = 0; j <= i; j++)
-				kfree(kargv[j]);
-			kfree(kargv);
-			kfree(filename_buf);
-			return retval;
-		}
-		argv_len_sum += argv_len + 1;
-	}
-	kargv[argv_count] = NULL;
-
-	// envpをコピーする
-	while (envp[envp_count] != NULL) {
-		envp_count++;
-	}
-	// Allocate memory for envp in kernel space
-	kenvp = kmalloc_array(envp_count + 1, sizeof(char *), GFP_KERNEL);
-	if (!kenvp) {
-		for (i = 0; i < argv_count; i++)
-			kfree(kargv[i]);
-		kfree(kargv);
-		kfree(filename_buf);
-		return retval;
-	}
-	// Copy each envp element to kernel space
-	for (i = 0; i < envp_count; i++) {
-		// 文字列の長さを取得する
-		envp_len = strnlen_user(envp[i], PATH_MAX);
-		if (envp_len == 0) {
-			for (int j = 0; j < i; j++)
-				kfree(kenvp[j]);
-			kfree(kenvp);
-			for (i = 0; i < argv_count; i++)
-				kfree(kargv[i]);
-			kfree(kargv);
-			kfree(filename_buf);
-			return retval;
-		}
-		// バッファを確保
-		kenvp[i] = kmalloc(envp_len + 1, GFP_KERNEL);
-		if (!kenvp[i]) {
-			for (int j = 0; j < i; j++)
-				kfree(kenvp[j]);
-			kfree(kenvp);
-			for (i = 0; i < argv_count; i++)
-				kfree(kargv[i]);
-			kfree(kargv);
-			kfree(filename_buf);
-			return retval;
-		}
-		// バッファにコピーする
-		if (copy_from_user(kenvp[i], envp[i], envp_len)) {
-			for (int j = 0; j <= i; j++)
-				kfree(kenvp[j]);
-			kfree(kenvp);
-			for (i = 0; i < argv_count; i++)
-				kfree(kargv[i]);
-			kfree(kargv);
-			kfree(filename_buf);
-			return retval;
-		}
-		envp_len_sum += envp_len + 1;
-	}
-	kenvp[envp_count] = NULL;
-
-	// 送信するパート
-	msg_len = filename_len + argv_len_sum + envp_len_sum + 100;
+	msg_len = filename_len + 100;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf) {
-		for (i = 0; i < envp_count; i++)
-			kfree(kenvp[i]);
-		kfree(kenvp);
-		for (i = 0; i < argv_count; i++)
-			kfree(kargv[i]);
-		kfree(kargv);
 		kfree(filename_buf);
 		return retval;
 	}
-	msg_real_len = snprintf(msg_buf, msg_len, "59%c%s%c[", SCLDA_DELIMITER,
-				filename_buf, SCLDA_DELIMITER);
-	for (i = 0; i < argv_count; i++) {
-		msg_real_len += snprintf(msg_buf + msg_real_len,
-					 msg_len - msg_real_len, "\"%s\",",
-					 kargv[i]);
-	}
-	msg_real_len += snprintf(msg_buf + msg_real_len, msg_len - msg_real_len,
-				 "]%c[", SCLDA_DELIMITER);
-	for (i = 0; i < envp_count; i++) {
-		msg_real_len += snprintf(msg_buf + msg_real_len,
-					 msg_len - msg_real_len, "\"%s\",",
-					 kenvp[i]);
-	}
-	msg_real_len +=
-		snprintf(msg_buf + msg_real_len, msg_len - msg_real_len, "]");
+	msg_real_len = snprintf(msg_buf, msg_len, "59%c%d%c%s", SCLDA_DELIMITER,
+				retval, SCLDA_DELIMITER, filename_buf);
 	sclda_send_syscall_info(msg_buf, msg_real_len);
-
-	for (i = 0; i < envp_count; i++)
-		kfree(kenvp[i]);
-	kfree(kenvp);
-	for (i = 0; i < argv_count; i++)
-		kfree(kargv[i]);
-	kfree(kargv);
 	kfree(filename_buf);
 	return retval;
+
+	// // 引数を取得する
+	// while (argv[argv_count] != NULL) {
+	// 	argv_count++;
+	// }
+
+	// // Allocate memory for argv in kernel space
+	// kargv = kmalloc_array(argv_count + 1, sizeof(char *), GFP_KERNEL);
+	// if (!kargv) {
+	// 	kfree(filename_buf);
+	// 	return retval;
+	// }
+
+	// // Copy each argv element to kernel space
+	// for (i = 0; i < argv_count; i++) {
+	// 	// 文字列の長さを取得する
+	// 	argv_len = strnlen_user(argv[i], PATH_MAX);
+	// 	if (argv_len == 0) {
+	// 		for (int j = 0; j < i; j++)
+	// 			kfree(kargv[j]);
+	// 		kfree(kargv);
+	// 		kfree(filename_buf);
+	// 		return retval;
+	// 	}
+	// 	// バッファを確保
+	// 	kargv[i] = kmalloc(argv_len + 1, GFP_KERNEL);
+	// 	if (!kargv[i]) {
+	// 		for (int j = 0; j < i; j++)
+	// 			kfree(kargv[j]);
+	// 		kfree(kargv);
+	// 		kfree(filename_buf);
+	// 		return retval;
+	// 	}
+	// 	// バッファにコピーする
+	// 	if (copy_from_user(kargv[i], argv[i], argv_len)) {
+	// 		for (int j = 0; j <= i; j++)
+	// 			kfree(kargv[j]);
+	// 		kfree(kargv);
+	// 		kfree(filename_buf);
+	// 		return retval;
+	// 	}
+	// 	argv_len_sum += argv_len + 1;
+	// }
+	// kargv[argv_count] = NULL;
+
+	// // envpをコピーする
+	// while (envp[envp_count] != NULL) {
+	// 	envp_count++;
+	// }
+
+	// // Allocate memory for envp in kernel space
+	// kenvp = kmalloc_array(envp_count + 1, sizeof(char *), GFP_KERNEL);
+	// if (!kenvp) {
+	// 	for (i = 0; i < argv_count; i++)
+	// 		kfree(kargv[i]);
+	// 	kfree(kargv);
+	// 	kfree(filename_buf);
+	// 	return retval;
+	// }
+
+	// // Copy each envp element to kernel space
+	// for (i = 0; i < envp_count; i++) {
+	// 	// 文字列の長さを取得する
+	// 	envp_len = strnlen_user(envp[i], PATH_MAX);
+	// 	if (envp_len == 0) {
+	// 		for (int j = 0; j < i; j++)
+	// 			kfree(kenvp[j]);
+	// 		kfree(kenvp);
+	// 		for (i = 0; i < argv_count; i++)
+	// 			kfree(kargv[i]);
+	// 		kfree(kargv);
+	// 		kfree(filename_buf);
+	// 		return retval;
+	// 	}
+	// 	// バッファを確保
+	// 	kenvp[i] = kmalloc(envp_len + 1, GFP_KERNEL);
+	// 	if (!kenvp[i]) {
+	// 		for (int j = 0; j < i; j++)
+	// 			kfree(kenvp[j]);
+	// 		kfree(kenvp);
+	// 		for (i = 0; i < argv_count; i++)
+	// 			kfree(kargv[i]);
+	// 		kfree(kargv);
+	// 		kfree(filename_buf);
+	// 		return retval;
+	// 	}
+	// 	// バッファにコピーする
+	// 	if (copy_from_user(kenvp[i], envp[i], envp_len)) {
+	// 		for (int j = 0; j <= i; j++)
+	// 			kfree(kenvp[j]);
+	// 		kfree(kenvp);
+	// 		for (i = 0; i < argv_count; i++)
+	// 			kfree(kargv[i]);
+	// 		kfree(kargv);
+	// 		kfree(filename_buf);
+	// 		return retval;
+	// 	}
+	// 	envp_len_sum += envp_len + 1;
+	// }
+	// kenvp[envp_count] = NULL;
+
+	// // 送信するパート
+	// msg_len = filename_len + argv_len_sum + envp_len_sum + 100;
+	// msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	// if (!msg_buf) {
+	// 	for (i = 0; i < envp_count; i++)
+	// 		kfree(kenvp[i]);
+	// 	kfree(kenvp);
+	// 	for (i = 0; i < argv_count; i++)
+	// 		kfree(kargv[i]);
+	// 	kfree(kargv);
+	// 	kfree(filename_buf);
+	// 	return retval;
+	// }
+	// msg_real_len = snprintf(msg_buf, msg_len, "59%c%s%c[", SCLDA_DELIMITER,
+	// 			filename_buf, SCLDA_DELIMITER);
+	// for (i = 0; i < argv_count; i++) {
+	// 	msg_real_len += snprintf(msg_buf + msg_real_len,
+	// 				 msg_len - msg_real_len, "\"%s\",",
+	// 				 kargv[i]);
+	// }
+	// msg_real_len += snprintf(msg_buf + msg_real_len, msg_len - msg_real_len,
+	// 			 "]%c[", SCLDA_DELIMITER);
+	// for (i = 0; i < envp_count; i++) {
+	// 	msg_real_len += snprintf(msg_buf + msg_real_len,
+	// 				 msg_len - msg_real_len, "\"%s\",",
+	// 				 kenvp[i]);
+	// }
+	// msg_real_len +=
+	// 	snprintf(msg_buf + msg_real_len, msg_len - msg_real_len, "]");
+	// sclda_send_syscall_info(msg_buf, msg_real_len);
+
+	// for (i = 0; i < envp_count; i++)
+	// 	kfree(kenvp[i]);
+	// kfree(kenvp);
+	// for (i = 0; i < argv_count; i++)
+	// 	kfree(kargv[i]);
+	// kfree(kargv);
+	// kfree(filename_buf);
+	// return retval;
 }
 
 SYSCALL_DEFINE5(execveat, int, fd, const char __user *, filename,
