@@ -1025,10 +1025,9 @@ SYSCALL_DEFINE1(exit, int, error_code)
 
 	// 便宜上、返り値は0とする
 	msg_len = snprintf(msg_buf, msg_len, "60%c0%c%d", SCLDA_DELIMITER,
-			   SCLDA_DELIMITER error_code);
+			   SCLDA_DELIMITER, error_code);
 	sclda_send_syscall_info(msg_buf, msg_len);
 out:
-	// do nothing
 }
 
 /*
