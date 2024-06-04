@@ -61,3 +61,4 @@ execve,59,retval,filename,[argv...],[envp...]
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 accept4,288,retval,fd,addrlen,flags,sa_family,sockaddr_info
 dup3,292,retval,old_fd,new_fd,flags,,,,,,,,,,,,,,
+execveat,322,retval,flags,filename,[argv...],[envp...]
