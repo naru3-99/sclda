@@ -75,6 +75,26 @@
 
 #include <net/sclda.h>
 
+int rusage_to_str(const struct rusage *usage, char *buf, size_t buf_size)
+{
+	return snprintf(buf, buf_size,
+			"%ld%c%ld%c%ld%c%ld%c%ld%c%ld%c%ld%c%ld%c%ld%c"
+			"%ld%c%ld%c%ld%c%ld%c%ld%c%ld%c%ld%c%ld%c%ld",
+			usage->ru_utime.tv_sec, SCLDA_DELIMITER,
+			usage->ru_utime.tv_usec, SCLDA_DELIMITER,
+			usage->ru_stime.tv_sec, SCLDA_DELIMITER,
+			usage->ru_stime.tv_usec, SCLDA_DELIMITER,
+			usage->ru_maxrss, SCLDA_DELIMITER, usage->ru_ixrss,
+			SCLDA_DELIMITER, usage->ru_idrss, SCLDA_DELIMITER,
+			usage->ru_isrss, SCLDA_DELIMITER, usage->ru_minflt,
+			SCLDA_DELIMITER, usage->ru_majflt, SCLDA_DELIMITER,
+			usage->ru_nswap, SCLDA_DELIMITER, usage->ru_inblock,
+			SCLDA_DELIMITER, usage->ru_oublock, SCLDA_DELIMITER,
+			usage->ru_msgsnd, SCLDA_DELIMITER, usage->ru_msgrcv,
+			SCLDA_DELIMITER, usage->ru_nsignals, SCLDA_DELIMITER,
+			usage->ru_nvcsw, SCLDA_DELIMITER, usage->ru_nivcsw);
+}
+
 /*
  * The default value should be high enough to not crash a system that randomly
  * crashes its kernel from time to time, but low enough to at least not permit
@@ -1821,11 +1841,50 @@ SYSCALL_DEFINE4(wait4, pid_t, upid, int __user *, stat_addr, int, options,
 {
 	struct rusage r;
 	long err = kernel_wait4(upid, stat_addr, options, ru ? &r : NULL);
-
 	if (err > 0) {
-		if (ru && copy_to_user(ru, &r, sizeof(struct rusage)))
-			return -EFAULT;
+		if (ru && copy_to_user(ru, &r, sizeof(struct rusage))) {
+			err = -EFAULT;
+		}
 	}
+
+	int msg_len, rusage_len;
+	char *msg_buf, rusage_buf;
+	if (!is_sclda_allsend_fin())
+		return err;
+
+	// stat_addrを取ってくる
+	int addr;
+	if (copy_from_user(&addr, stat_addr, sizeof(int)))
+		return err;
+
+	// rusageを文字列に変換する
+	struct rusage kru;
+	if (ru != NULL) {
+		if (copy_from_user(&kru, ru, sizeof(struct rusage)))
+			return err;
+		rusage_len = 300;
+		rusage_buf = kmalloc(rusage_len, GFP_KERNEL);
+		if (!rusage_buf)
+			return err;
+		rusage_len = rusage_to_str(&kru, rusage_buf, rusage_len);
+	} else {
+		rusage_len = 1;
+		rusage_buf[0] = '\0';
+	}
+
+	// 送信するパート
+	msg_len = 200 + rusage_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return err;
+
+	msg_len = snprintf(msg_buf, msg_len, "50%c%ld%c%d%c%d%c%d%c%s",
+			   SCLDA_DELIMITER, err, SCLDA_DELIMITER, (int)upid,
+			   SCLDA_DELIMITER, addr, SCLDA_DELIMITER, options,
+			   SCLDA_DELIMITER, rusage_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	if (ru != NULL)
+		kfree(rusage_buf);
 	return err;
 }
 
