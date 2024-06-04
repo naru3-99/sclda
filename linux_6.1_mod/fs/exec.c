@@ -2131,7 +2131,8 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 	filename_buf[filename_len] = '\0';
 
 	// 引数を取得する
-	argv_count = count(argv, MAX_ARG_STRINGS);
+	struct user_arg_ptr _argv = { .ptr.native = argv };
+	argv_count = count(_argv, MAX_ARG_STRINGS);
 
 	// Allocate memory for argv in kernel space
 	kargv = kmalloc_array(argv_count + 1, sizeof(char *), GFP_KERNEL);
@@ -2173,7 +2174,8 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 	kargv[argv_count] = NULL;
 
 	// envpをコピーする
-	envp_count = count(envp, MAX_ARG_STRINGS);
+	struct user_arg_ptr _envp = { .ptr.native = envp };
+	envp_count = count(_envp, MAX_ARG_STRINGS);
 
 	// Allocate memory for envp in kernel space
 	kenvp = kmalloc_array(envp_count + 1, sizeof(char *), GFP_KERNEL);
