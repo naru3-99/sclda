@@ -2571,9 +2571,10 @@ SYSCALL_DEFINE3(getpeername, int, fd, struct sockaddr __user *, usockaddr,
 	if (!msg_buf)
 		return retval;
 
-	msg_len = snprintf(msg_buf, msg_len, "52%c%d%c%d%c%d%c%s", SCLDA_DELIMITER,
-			   retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER,
-			   addrlen, SCLDA_DELIMITER, struct_buf);
+	msg_len = snprintf(msg_buf, msg_len, "52%c%d%c%d%c%d%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, addrlen, SCLDA_DELIMITER,
+			   struct_buf);
 
 	kfree(struct_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
@@ -2972,6 +2973,7 @@ SYSCALL_DEFINE5(getsockopt, int, fd, int, level, int, optname, char __user *,
 	int retval;
 	int msg_len;
 	char *msg_buf;
+	int koptlen;
 	char *opt_buf;
 
 	retval = __sys_getsockopt(fd, level, optname, optval, optlen);
@@ -2979,16 +2981,18 @@ SYSCALL_DEFINE5(getsockopt, int, fd, int, level, int, optname, char __user *,
 		return retval;
 
 	// optvalの値をコピーする
-	if (optlen < 0)
+	if (copy_from_user(&koptlen,optlen,sizeof(int)))
 		return retval;
-	opt_buf = kmalloc(optlen, GFP_KERNEL);
+	if (koptlen < 0)
+		return retval;
+	opt_buf = kmalloc(koptlen, GFP_KERNEL);
 	if (!opt_buf)
 		return retval;
-	if (copy_from_user(opt_buf, optval, optlen))
+	if (copy_from_user(opt_buf, optval, koptlen))
 		return retval;
 
 	// 送信するパート
-	msg_len = 200 + optlen;
+	msg_len = 200 + koptlen;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		return retval;
@@ -2996,7 +3000,7 @@ SYSCALL_DEFINE5(getsockopt, int, fd, int, level, int, optname, char __user *,
 	msg_len = snprintf(msg_buf, msg_len, "55%c%d%c%d%c%d%c%d%c%d%c%s",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
 			   SCLDA_DELIMITER, level, SCLDA_DELIMITER, optname,
-			   SCLDA_DELIMITER, optlen, SCLDA_DELIMITER, opt_buf);
+			   SCLDA_DELIMITER, koptlen, SCLDA_DELIMITER, opt_buf);
 
 	kfree(opt_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
