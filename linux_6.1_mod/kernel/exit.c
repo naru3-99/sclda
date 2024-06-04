@@ -1015,19 +1015,19 @@ SYSCALL_DEFINE1(exit, int, error_code)
 	int msg_len;
 	char *msg_buf;
 	if (!is_sclda_allsend_fin())
-		return;
+		return void;
 
 	// 送信するパート
 	msg_len = 200;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
-		return;
+		return void;
 
 	// 便宜上、返り値は0とする
 	msg_len = snprintf(msg_buf, msg_len, "60%c0%c%d", SCLDA_DELIMITER,
 			   error_code);
 	sclda_send_syscall_info(msg_buf, msg_len);
-	return;
+	return void;
 }
 
 /*
@@ -1848,7 +1848,7 @@ SYSCALL_DEFINE4(wait4, pid_t, upid, int __user *, stat_addr, int, options,
 	}
 
 	int msg_len, rusage_len;
-	char *msg_buf, rusage_buf;
+	char *msg_buf, *rusage_buf;
 	if (!is_sclda_allsend_fin())
 		return err;
 
