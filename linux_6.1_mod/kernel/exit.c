@@ -1863,7 +1863,7 @@ SYSCALL_DEFINE4(wait4, pid_t, upid, int __user *, stat_addr, int, options,
 	if (!rusage_buf)
 		return err;
 	if (err > 0) {
-		rusage_len = rusage_to_str(r, rusage_buf, rusage_len);
+		rusage_len = rusage_to_str(&r, rusage_buf, rusage_len);
 	} else {
 		rusage_len = 1;
 		rusage_buf[0] = '\0';
@@ -1872,8 +1872,10 @@ SYSCALL_DEFINE4(wait4, pid_t, upid, int __user *, stat_addr, int, options,
 	// 送信するパート
 	msg_len = 200 + rusage_len;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
+	if (!msg_buf) {
+		kfree(rusage_buf);
 		return err;
+	}
 
 	msg_len = snprintf(msg_buf, msg_len, "61%c%ld%c%d%c%d%c%d%c%s",
 			   SCLDA_DELIMITER, err, SCLDA_DELIMITER, (int)upid,
