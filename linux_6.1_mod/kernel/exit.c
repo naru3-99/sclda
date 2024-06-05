@@ -1858,15 +1858,12 @@ SYSCALL_DEFINE4(wait4, pid_t, upid, int __user *, stat_addr, int, options,
 		return err;
 
 	// rusageを文字列に変換する
-	struct rusage kru;
-	if (ru != NULL) {
-		if (copy_from_user(&kru, ru, sizeof(struct rusage)))
-			return err;
-		rusage_len = 300;
-		rusage_buf = kmalloc(rusage_len, GFP_KERNEL);
-		if (!rusage_buf)
-			return err;
-		rusage_len = rusage_to_str(&kru, rusage_buf, rusage_len);
+	rusage_len = 300;
+	rusage_buf = kmalloc(rusage_len, GFP_KERNEL);
+	if (!rusage_buf)
+		return err;
+	if (err > 0) {
+		rusage_len = rusage_to_str(r, rusage_buf, rusage_len);
 	} else {
 		rusage_len = 1;
 		rusage_buf[0] = '\0';
@@ -1878,13 +1875,12 @@ SYSCALL_DEFINE4(wait4, pid_t, upid, int __user *, stat_addr, int, options,
 	if (!msg_buf)
 		return err;
 
-	msg_len = snprintf(msg_buf, msg_len, "50%c%ld%c%d%c%d%c%d%c%s",
+	msg_len = snprintf(msg_buf, msg_len, "61%c%ld%c%d%c%d%c%d%c%s",
 			   SCLDA_DELIMITER, err, SCLDA_DELIMITER, (int)upid,
 			   SCLDA_DELIMITER, addr, SCLDA_DELIMITER, options,
 			   SCLDA_DELIMITER, rusage_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
-	if (ru != NULL)
-		kfree(rusage_buf);
+	kfree(rusage_buf);
 	return err;
 }
 
