@@ -142,6 +142,14 @@
 #define GET_TAGGED_ADDR_CTRL() (-EINVAL)
 #endif
 
+int old_utsname_to_str(struct old_utsname *uts, char *buffer, size_t max_size)
+{
+	return snprintf(buffer, max_size, "%s%c%s%c%s%c%s%c%s", uts->sysname,
+			SCLDA_DELIMITER, uts->nodename, SCLDA_DELIMITER,
+			uts->release, SCLDA_DELIMITER, uts->version,
+			SCLDA_DELIMITER, uts->machine);
+}
+
 /*
  * this is where the system-wide overflow UID and GID are defined, for
  * architectures that now have 32-bit UID/GID but didn't in the past
@@ -1335,22 +1343,59 @@ SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
  */
 SYSCALL_DEFINE1(uname, struct old_utsname __user *, name)
 {
+	int retval;
 	struct old_utsname tmp;
-
-	if (!name)
-		return -EFAULT;
+	if (!name) {
+		retval = -EFAULT;
+		goto out;
+	}
 
 	down_read(&uts_sem);
 	memcpy(&tmp, utsname(), sizeof(tmp));
 	up_read(&uts_sem);
-	if (copy_to_user(name, &tmp, sizeof(tmp)))
-		return -EFAULT;
 
-	if (override_release(name->release, sizeof(name->release)))
-		return -EFAULT;
-	if (override_architecture(name))
-		return -EFAULT;
-	return 0;
+	if (copy_to_user(name, &tmp, sizeof(tmp))) {
+		retval = -EFAULT;
+		goto out;
+	}
+	if (override_release(name->release, sizeof(name->release))) {
+		retval = -EFAULT;
+		goto out;
+	}
+	if (override_architecture(name)) {
+		retval = -EFAULT;
+		goto out;
+	}
+	retval = 0;
+	goto out;
+
+out:
+	int msg_len, uts_len;
+	char *msg_buf, *uts_buf;
+
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 引数の構造体を文字列に変換する
+	uts_len = 400;
+	uts_buf = kmalloc(uts_len, GFP_KERNEL);
+	if (!uts_buf)
+		return retval;
+	uts_len = old_utsname_to_str(&tmp, uts_buf, uts_len);
+
+	// 送信するパート
+	msg_len = 80 + uts_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(uts_buf);
+		return retval;
+	}
+
+	msg_len = snprintf(msg_buf, msg_len, "63%c%d%c%s", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, uts_buf);
+	kfree(uts_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 SYSCALL_DEFINE1(olduname, struct oldold_utsname __user *, name)
