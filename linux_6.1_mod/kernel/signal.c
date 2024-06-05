@@ -3822,11 +3822,28 @@ static inline void prepare_kill_siginfo(int sig, struct kernel_siginfo *info)
  */
 SYSCALL_DEFINE2(kill, pid_t, pid, int, sig)
 {
+	int retval;
+	int msg_len;
+	char *msg_buf;
+
 	struct kernel_siginfo info;
-
 	prepare_kill_siginfo(sig, &info);
+	retval = kill_something_info(sig, &info, pid);
 
-	return kill_something_info(sig, &info, pid);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "62%c%d%c%d%c%d", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, (int)pid, SCLDA_DELIMITER,
+			   sig);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 /*
