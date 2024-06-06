@@ -2182,74 +2182,87 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 		const char __user *const __user *, argv,
 		const char __user *const __user *, envp)
 {
-	// syscall_invocation
-	int retval;
-	retval = do_execve(getname(filename), argv, envp);
-	if (!is_sclda_allsend_fin())
-		return retval;
+	struct user_arg_ptr sargv = { .ptr.native = argv };
+	struct user_arg_ptr senvp = { .ptr.native = envp };
+	int fd = AT_FDCWD;
+	struct filename *sfilename = getname(filename);
+	int flags = 0;
 
-	// 引数・環境を取得する
-	// do_execveat_commonの実装を参照し
-	// 引数、環境の情報を取得する
+	struct linux_binprm *bprm;
+	int retval;
+
+	// sclda:引数・環境変数・ファイル名を取得
+	int msg_len;
+	char *msg_buf;
 	int argstr_len, envstr_len, filename_len;
 	char *arg_buf, *env_buf, *filename_buf;
-	int cnt;
+	int sclda_ok = 0;
 
-	// bprmの作成
-	struct user_arg_ptr _argv = { .ptr.native = argv };
-	struct user_arg_ptr _envp = { .ptr.native = envp };
-	struct linux_binprm *bprm = kzalloc(sizeof(*bprm), GFP_KERNEL);
-	if (!bprm)
-		return retval;
-	cnt = bprm_mm_init(bprm);
-	if (cnt)
-		return retval;
-
-	// 引数の数をカウント
-	cnt = count(_argv, MAX_ARG_STRINGS);
-	if (cnt < 0) {
-		free_bprm(bprm);
-		printk(KERN_ERR "SCLDA_EXECVE cnt_argv pid= %d,retval= %d",
-		       sclda_get_current_pid(), retval);
-		return retval;
-	}
-	bprm->argc = cnt;
-
-	// 環境変数の数をカウント
-	cnt = count(_envp, MAX_ARG_STRINGS);
-	if (cnt < 0) {
-		free_bprm(bprm);
-		printk(KERN_ERR "SCLDA_EXECVE cnt_envp pid= %d,retval= %d",
-		       sclda_get_current_pid(), retval);
-		return retval;
-	}
-	bprm->envc = cnt;
-
-	// 環境変数のコピー
-	cnt = copy_strings(bprm->envc, _envp, bprm);
-	if (cnt < 0) {
-		free_bprm(bprm);
-		printk(KERN_ERR "SCLDA_EXECVE cpy_envp pid= %d,retval= %d",
-		       sclda_get_current_pid(), retval);
-		return retval;
+	if (IS_ERR(sfilename)) {
+		retval = PTR_ERR(sfilename);
+		goto out_ret;
 	}
 
-	// 引数のコピー
-	cnt = copy_strings(bprm->argc, _argv, bprm);
-	if (cnt < 0) {
-		free_bprm(bprm);
-		printk(KERN_ERR "SCLDA_EXECVE cpy_argv pid= %d,retval= %d",
-		       sclda_get_current_pid(), retval);
-		return retval;
+	if ((current->flags & PF_NPROC_EXCEEDED) &&
+	    is_rlimit_overlimit(current_ucounts(), UCOUNT_RLIMIT_NPROC,
+				rlimit(RLIMIT_NPROC))) {
+		retval = -EAGAIN;
+		goto out_ret;
 	}
 
+	current->flags &= ~PF_NPROC_EXCEEDED;
+
+	bprm = alloc_bprm(fd, sfilename);
+	if (IS_ERR(bprm)) {
+		retval = PTR_ERR(bprm);
+		goto out_ret;
+	}
+
+	retval = count(sargv, MAX_ARG_STRINGS);
+	if (retval == 0)
+		pr_warn_once(
+			"process '%s' launched '%s' with NULL argv: empty string added\n",
+			current->comm, bprm->filename);
+	if (retval < 0)
+		goto out_free;
+	bprm->argc = retval;
+
+	retval = count(senvp, MAX_ARG_STRINGS);
+	if (retval < 0)
+		goto out_free;
+	bprm->envc = retval;
+
+	retval = bprm_stack_limits(bprm);
+	if (retval < 0)
+		goto out_free;
+
+	retval = copy_string_kernel(bprm->filename, bprm);
+	if (retval < 0)
+		goto out_free;
+	bprm->exec = bprm->p;
+
+	retval = copy_strings(bprm->envc, senvp, bprm);
+	if (retval < 0)
+		goto out_free;
+
+	retval = copy_strings(bprm->argc, sargv, bprm);
+	if (retval < 0)
+		goto out_free;
+
+	if (bprm->argc == 0) {
+		retval = copy_string_kernel("", bprm);
+		if (retval < 0)
+			goto out_free;
+		bprm->argc = 1;
+	}
+
+	// sclda: 実行開始する前に情報を覗き見る
 	// 環境変数を取得する
 	envstr_len = argv_to_str(bprm, bprm->p, bprm->envc, &env_buf);
 	if (envstr_len < 0) {
-		free_bprm(bprm);
 		printk(KERN_ERR "SCLDA_EXECVE get_env pid= %d,retval= %d",
 		       sclda_get_current_pid(), retval);
-		return retval;
+		goto giveup;
 	}
 
 	// 引数を取得する
@@ -2257,48 +2270,56 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 				 bprm->p + sizeof(char __user *) * bprm->envc,
 				 bprm->argc, &arg_buf);
 	if (argstr_len < 0) {
-		free_bprm(bprm);
-		kfree(env_buf);
 		printk(KERN_ERR "SCLDA_EXECVE get_argv pid= %d,retval= %d",
 		       sclda_get_current_pid(), retval);
-		return retval;
+		kfree(env_buf);
+		goto giveup;
 	}
 
-	// ファイル名を取得する
-	filename_len = strnlen_user(filename, PATH_MAX);
-	filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
+	// filenameを取得する
+	filename_len = strnlen(bprm->filename, PATH_MAX);
+	filename_buf = kmalloc(filename_len, GFP_KERNEL);
 	if (!filename_buf) {
-		free_bprm(bprm);
+		printk(KERN_ERR "SCLDA_EXECVE get_fname pid= %d,retval= %d",
+		       sclda_get_current_pid(), retval);
 		kfree(env_buf);
 		kfree(arg_buf);
-		return retval;
+		goto giveup;
 	}
-	if (copy_from_user(filename_buf, filename, filename_len)) {
-		free_bprm(bprm);
-		kfree(env_buf);
-		kfree(arg_buf);
-		return retval;
-	}
-	filename_buf[filename_len] = '\0';
+	strncpy(filename_buf, bprm->filename, filename_len);
+	sclda_ok = 1;
 
-	// 全てのデータを送信する
-	int msg_len;
-	char *msg_buf;
+giveup:
+	retval = bprm_execve(bprm, fd, sfilename, flags);
 
-	msg_len = 100 + argstr_len + envstr_len + filename_len;
-	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf) {
-		free_bprm(bprm);
-		kfree(env_buf);
-		kfree(arg_buf);
-		kfree(filename_buf);
+out_free:
+	free_bprm(bprm);
+
+out_ret:
+	putname(sfilename);
+	// sclda codes
+	if (!is_sclda_allsend_fin())
+		return retval;
+	// 失敗した場合 or sclda_ok = 0 の場合
+	if (retval < 0 || sclda_ok == 0) {
+		msg_len = 200;
+		msg_buf = kmalloc(msg_len, GFP_KERNEL);
+		if (!msg_buf)
+			return retval;
+		msg_len = snprintf(msg_buf, msg_len, "59%c%d", SCLDA_DELIMITER,
+				   retval);
+		sclda_send_syscall_info(msg_buf, msg_len);
 		return retval;
 	}
+	// 成功し、データが取得できた場合
+	msg_len = 100 + filename_len + argstr_len + envstr_len;
+	msg_buf = kmalloc(msg_buf, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
 	msg_len = snprintf(msg_buf, msg_len, "59%c%d%c%s%c[%s]%c[%s]",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
 			   filename_buf, SCLDA_DELIMITER, arg_buf,
 			   SCLDA_DELIMITER, env_buf);
-	free_bprm(bprm);
 	kfree(env_buf);
 	kfree(arg_buf);
 	kfree(filename_buf);
