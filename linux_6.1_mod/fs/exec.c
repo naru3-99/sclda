@@ -2120,7 +2120,7 @@ int argv_to_str(struct linux_binprm *bprm, unsigned long pos, int num,
 	max_arg_len = -1;
 	for (int i = 0; i < num; i++) {
 		// メモリアドレスをコピーする
-		if (copy_from_user(arg_ptr_ls[i], (char __user **)pos,
+		if (copy_from_user(&arg_ptr_ls[i], (char __user **)pos,
 				   sizeof(char __user *))) {
 			kfree(arg_ptr_ls);
 			kfree(arg_len_ls);
@@ -2128,7 +2128,7 @@ int argv_to_str(struct linux_binprm *bprm, unsigned long pos, int num,
 		}
 		// 長さを取得する
 		arg_len_ls[i] = strnlen_user(arg_ptr_ls[i], PATH_MAX);
-		if (arg_len_ls[i] < 0) {
+		if (arg_len_ls[i] <= 0) {
 			kfree(arg_ptr_ls);
 			kfree(arg_len_ls);
 			return -EFAULT;
@@ -2150,7 +2150,7 @@ int argv_to_str(struct linux_binprm *bprm, unsigned long pos, int num,
 	}
 	// copy_from_userするためのバッファ
 	arg_fetchbuf = kmalloc(max_arg_len + 10, GFP_KERNEL);
-	if (!arg_buf) {
+	if (!arg_fetchbuf) {
 		kfree(arg_ptr_ls);
 		kfree(arg_len_ls);
 		kfree(arg_buf);
