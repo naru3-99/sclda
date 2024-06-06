@@ -2214,7 +2214,7 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 	// 環境変数の数をカウント
 	cnt = count(_envp, MAX_ARG_STRINGS);
 	if (cnt < 0) {
-		v free_bprm(bprm);
+		free_bprm(bprm);
 		return retval;
 	}
 	bprm->envc = cnt;
