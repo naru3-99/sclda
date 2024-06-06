@@ -2198,14 +2198,12 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 	// bprmの作成
 	struct user_arg_ptr _argv = { .ptr.native = argv };
 	struct user_arg_ptr _envp = { .ptr.native = envp };
-	struct linux_binprm *bprm;
-
-	bprm = alloc_bprm(AT_FDCWD, getname(filename));
-	if (IS_ERR(bprm)) {
-		printk(KERN_ERR "SCLDA_EXECVE alloc_bprm pid= %d,retval= %d",
-		       sclda_get_current_pid(), retval);
+	struct linux_binprm *bprm = kzalloc(sizeof(*bprm), GFP_KERNEL);
+	if (!bprm)
 		return retval;
-	}
+	cnt = bprm_mm_init(bprm);
+	if (cnt)
+		return retval;
 
 	// 引数の数をカウント
 	cnt = count(_argv, MAX_ARG_STRINGS);
