@@ -2112,58 +2112,61 @@ int argv_to_str(struct linux_binprm *bprm, char **buf)
 		env_sum += len;
 		pos += len;
 	}
-	// バッファにコピーする
-	pos = bprm->p;
-	env_sum += 3 * bprm->envc;
-	env_buf = kmalloc(env_sum, GFP_KERNEL);
-	if (!env_buf)
-		return -ENOMEM;
-	env_len = 0;
-	for (i = 0; i < bprm->envc; i++) {
-		env_len += snprintf(env_buf + env_len, env_sum - env_len,
-				    "\"%s\",", (char *)pos);
-		pos += strlen((char *)pos) + 1;
-	}
-	arg_pos = pos;
+	printk(KERN_ERR "SCLDA_EXECVE argv_to_str pid= %d, env_sum= %d",
+	       sclda_get_current_pid(), env_sum);
+	return -1;
+	// // バッファにコピーする
+	// pos = bprm->p;
+	// env_sum += 3 * bprm->envc;
+	// env_buf = kmalloc(env_sum, GFP_KERNEL);
+	// if (!env_buf)
+	// 	return -ENOMEM;
+	// env_len = 0;
+	// for (i = 0; i < bprm->envc; i++) {
+	// 	env_len += snprintf(env_buf + env_len, env_sum - env_len,
+	// 			    "\"%s\",", (char *)pos);
+	// 	pos += strlen((char *)pos) + 1;
+	// }
+	// arg_pos = pos;
 
-	// 引数
-	// 全体の長さを取得する
-	arg_sum = 0;
-	for (i = 0; i < bprm->argc; i++) {
-		len = strlen((char *)pos) + 1;
-		arg_sum += len;
-		pos += len;
-	}
-	// バッファにコピーする
-	pos = arg_pos;
-	arg_sum += 3 * bprm->argc;
-	arg_buf = kmalloc(arg_sum, GFP_KERNEL);
-	if (!arg_buf) {
-		kfree(env_buf);
-		return -ENOMEM;
-	}
-	arg_len = 0;
-	for (i = 0; i < bprm->argc; i++) {
-		arg_len += snprintf(arg_buf + arg_len, arg_sum - arg_len,
-				    "\"%s\",", (char *)pos);
-	}
+	// // 引数
+	// // 全体の長さを取得する
+	// arg_sum = 0;
+	// for (i = 0; i < bprm->argc; i++) {
+	// 	len = strlen((char *)pos) + 1;
+	// 	arg_sum += len;
+	// 	pos += len;
+	// }
+	// // バッファにコピーする
+	// pos = arg_pos;
+	// arg_sum += 3 * bprm->argc;
+	// arg_buf = kmalloc(arg_sum, GFP_KERNEL);
+	// if (!arg_buf) {
+	// 	kfree(env_buf);
+	// 	return -ENOMEM;
+	// }
+	// arg_len = 0;
+	// for (i = 0; i < bprm->argc; i++) {
+	// 	arg_len += snprintf(arg_buf + arg_len, arg_sum - arg_len,
+	// 			    "\"%s\",", (char *)pos);
+	// }
 
-	// 最終的な文字列をアウトプットする
-	int msg_len;
-	char *msg_buf;
-	msg_len = arg_len + env_len + 10;
-	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf) {
-		kfree(env_buf);
-		kfree(arg_buf);
-		return -ENOMEM;
-	}
-	msg_len = snprintf(msg_buf, msg_len, "[%s]%c[%s]", arg_buf,
-			   SCLDA_DELIMITER, env_buf);
-	*buf = msg_buf;
-	kfree(env_buf);
-	kfree(arg_buf);
-	return msg_len;
+	// // 最終的な文字列をアウトプットする
+	// int msg_len;
+	// char *msg_buf;
+	// msg_len = arg_len + env_len + 10;
+	// msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	// if (!msg_buf) {
+	// 	kfree(env_buf);
+	// 	kfree(arg_buf);
+	// 	return -ENOMEM;
+	// }
+	// msg_len = snprintf(msg_buf, msg_len, "[%s]%c[%s]", arg_buf,
+	// 		   SCLDA_DELIMITER, env_buf);
+	// *buf = msg_buf;
+	// kfree(env_buf);
+	// kfree(arg_buf);
+	// return msg_len;
 }
 
 SYSCALL_DEFINE3(execve, const char __user *, filename,
@@ -2247,24 +2250,19 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 	// sclda: 実行開始する前に情報を覗き見る
 	if (!is_sclda_allsend_fin())
 		goto giveup;
-	// 環境変数・引数を取得する
-	arg_len = argv_to_str(bprm, &arg_buf);
-	if (arg_len < 0) {
-		printk(KERN_ERR "SCLDA_EXECVE get_argv pid= %d,retval= %d",
-		       sclda_get_current_pid(), retval);
-		goto giveup;
-	}
-
 	// filenameを取得する
 	filename_len = strnlen(bprm->filename, PATH_MAX);
 	filename_buf = kmalloc(filename_len, GFP_KERNEL);
-	if (!filename_buf) {
-		printk(KERN_ERR "SCLDA_EXECVE get_fname pid= %d,retval= %d",
-		       sclda_get_current_pid(), retval);
-		kfree(arg_buf);
+	if (!filename_buf)
+		goto giveup;
+
+	strncpy(filename_buf, bprm->filename, filename_len);
+	// 環境変数・引数を取得する
+	arg_len = argv_to_str(bprm, &arg_buf);
+	if (arg_len < 0) {
+		kfree(filename_buf);
 		goto giveup;
 	}
-	strncpy(filename_buf, bprm->filename, filename_len);
 	sclda_ok = 1;
 
 giveup:
