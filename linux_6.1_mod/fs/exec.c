@@ -2199,7 +2199,7 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 	struct user_arg_ptr _argv = { .ptr.native = argv };
 	struct user_arg_ptr _envp = { .ptr.native = envp };
 	struct linux_binprm *bprm;
-	bprm = alloc_bprm(AT_FDCWD, filename);
+	bprm = alloc_bprm(AT_FDCWD, getname(filename));
 	if (IS_ERR(bprm))
 		return retval;
 
