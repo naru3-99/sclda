@@ -2248,8 +2248,8 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 	if (!is_sclda_allsend_fin())
 		goto giveup;
 	// 環境変数・引数を取得する
-	argstr_len = argv_to_str(bprm, &arg_buf);
-	if (argstr_len < 0) {
+	arg_len = argv_to_str(bprm, &arg_buf);
+	if (arg_len < 0) {
 		printk(KERN_ERR "SCLDA_EXECVE get_argv pid= %d,retval= %d",
 		       sclda_get_current_pid(), retval);
 		goto giveup;
@@ -2290,7 +2290,7 @@ out_ret:
 		return retval;
 	}
 	// 成功し、データが取得できた場合
-	msg_len = 100 + filename_len + argstr_len + envstr_len;
+	msg_len = 100 + filename_len + arg_len;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		return retval;
