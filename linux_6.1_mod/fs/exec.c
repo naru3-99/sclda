@@ -2111,16 +2111,18 @@ int argv_to_str(struct linux_binprm *bprm, char **buf)
 		return -ENOMEM;
 	}
 
-	for (i = 0; i < MAX_ARG_PAGES; i++) {
-		page = bprm->page[i];
+	while (pos < bprm->argmin) {
+		page = get_arg_page(bprm, pos, 1);
 		if (!page)
-			break;
+			return -ENOMEM;
 		kaddr = kmap(page);
-		if (!kaddr)
-			break;
+		if (!kaddr) {
+			put_arg_page(page);
+			return -ENOMEM;
+		}
 
-		offset = 0;
-		while (offset < PAGE_SIZE && (pos + offset) < bprm->argmin) {
+		offset = pos % PAGE_SIZE;
+		while (offset < PAGE_SIZE && pos < bprm->argmin) {
 			len = strlen(kaddr + offset) + 1;
 			if (arg_count < bprm->argc) {
 				// 引数の文字列
@@ -2131,6 +2133,8 @@ int argv_to_str(struct linux_binprm *bprm, char **buf)
 						kfree(arg_ls[j]);
 					kfree(arg_ls);
 					kfree(env_ls);
+					kunmap(page);
+					put_arg_page(page);
 					return -ENOMEM;
 				}
 				memcpy(arg_ls[arg_count], kaddr + offset, len);
@@ -2146,6 +2150,8 @@ int argv_to_str(struct linux_binprm *bprm, char **buf)
 						kfree(arg_ls[j]);
 					kfree(arg_ls);
 					kfree(env_ls);
+					kunmap(page);
+					put_arg_page(page);
 					return -ENOMEM;
 				}
 				memcpy(env_ls[env_count], kaddr + offset, len);
@@ -2155,10 +2161,12 @@ int argv_to_str(struct linux_binprm *bprm, char **buf)
 			}
 			// 次の文字列に進む
 			offset += len;
+			pos += len;
 		}
 		// ページをアンマッピング
 		kunmap(page);
-		pos += PAGE_SIZE;
+		put_arg_page(page);
+		pos += PAGE_SIZE - offset;
 	}
 	// arg, envをまとめて出力する
 	// まずはargをまとめる
