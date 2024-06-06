@@ -2102,7 +2102,7 @@ int argv_to_str(struct linux_binprm *bprm, char **buf)
 	unsigned long pos = bprm->p;
 	unsigned long arg_pos;
 	char *arg;
-	int len;
+	int len, i;
 
 	// 環境変数
 	// 全体の長さを取得する
