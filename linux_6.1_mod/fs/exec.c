@@ -2094,76 +2094,127 @@ void set_dumpable(struct mm_struct *mm, int value)
 
 int argv_to_str(struct linux_binprm *bprm, char **buf)
 {
-	// 各文字列のバッファ・長さ
-	char *env_buf, *arg_buf;
-	int env_len, arg_len;
-	int env_sum, arg_sum;
-
 	unsigned long pos = bprm->p;
-	unsigned long arg_pos;
-	char *arg;
-	int len, i;
+	unsigned long offset;
+	struct page *page;
+	char *kaddr;
+	int len, i, j, arg_count = 0, env_count = 0;
 
-	// 引数
-	// 全体の長さを取得する
-	arg_sum = 0;
-	for (i = 0; i < bprm->argc; i++) {
-		len = strlen((char *)pos) + 1;
-		arg_sum += len;
-		pos += len;
-	}
-	// バッファにコピーする
-	pos = bprm->p;
-	arg_sum += 3 * bprm->argc;
-	arg_buf = kmalloc(arg_sum, GFP_KERNEL);
-	if (!arg_buf)
+	char **arg_ls, **env_ls;
+	int arg_len = 0, env_len = 0, arg_sum = 0, env_sum = 0;
+	arg_ls = kmalloc_array(bprm->argc, sizeof(char *), GFP_KERNEL);
+	if (!arg_ls)
 		return -ENOMEM;
-
-	arg_len = 0;
-	for (i = 0; i < bprm->argc; i++) {
-		arg_len += snprintf(arg_buf + arg_len, arg_sum - arg_len,
-				    "\"%s\",", (char *)pos);
-	}
-	arg_pos = pos;
-	// 環境変数
-	// 全体の長さを取得する
-	env_sum = 0;
-	for (i = 0; i < bprm->envc; i++) {
-		len = strlen((char *)pos) + 1;
-		env_sum += len;
-		pos += len;
-	}
-
-	// バッファにコピーする
-	pos = arg_pos;
-	env_sum += 3 * bprm->envc;
-	env_buf = kmalloc(env_sum, GFP_KERNEL);
-	if (!env_buf) {
-		kfree(arg_buf);
+	env_ls = kmalloc_array(bprm->envc, sizeof(char *), GFP_KERNEL);
+	if (!env_ls) {
+		kfree(arg_ls);
 		return -ENOMEM;
 	}
-	env_len = 0;
-	for (i = 0; i < bprm->envc; i++) {
-		env_len += snprintf(env_buf + env_len, env_sum - env_len,
-				    "\"%s\",", (char *)pos);
-		pos += strlen((char *)pos) + 1;
-	}
 
-	// 最終的な文字列をアウトプットする
+	for (i = 0; i < MAX_ARG_PAGES; i++) {
+		page = bprm->page[i];
+		if (!page)
+			break;
+		kaddr = kmap(page);
+		if (!kaddr)
+			break;
+
+		offset = 0;
+		while (offset < PAGE_SIZE && (pos + offset) < bprm->argmin) {
+			len = strlen(kaddr + offset) + 1;
+			if (arg_count < bprm->argc) {
+				// 引数の文字列
+				arg_sum += len + 3;
+				arg_ls[arg_count] = kmalloc(len, GFP_KERNEL);
+				if (!arg_ls[arg_count]) {
+					for (j = 0; j < arg_count; j++)
+						kfree(arg_ls[j]);
+					kfree(arg_ls);
+					kfree(env_ls);
+					return -ENOMEM;
+				}
+				memcpy(arg_ls[arg_count], kaddr + offset, len);
+				arg_count++;
+			} else if (env_count < bprm->envc) {
+				// 環境変数の文字列
+				env_sum += len + 3;
+				env_ls[env_count] = kmalloc(len, GFP_KERNEL);
+				if (!env_ls[env_count]) {
+					for (j = 0; j < env_count; j++)
+						kfree(env_ls[j]);
+					for (j = 0; j < bprm->argc; j++)
+						kfree(arg_ls[j]);
+					kfree(arg_ls);
+					kfree(env_ls);
+					return -ENOMEM;
+				}
+				memcpy(env_ls[env_count], kaddr + offset, len);
+				env_count++;
+			} else {
+				break;
+			}
+			// 次の文字列に進む
+			offset += len;
+		}
+		// ページをアンマッピング
+		kunmap(page);
+		pos += PAGE_SIZE;
+	}
+	// arg, envをまとめて出力する
+	// まずはargをまとめる
+	int allarg_len = 0;
+	char *allarg_buf = kmalloc(arg_sum, GFP_KERNEL);
+	if (!allarg_buf) {
+		for (j = 0; j < bprm->envc; j++)
+			kfree(env_ls[j]);
+		for (j = 0; j < bprm->argc; j++)
+			kfree(arg_ls[j]);
+		kfree(arg_ls);
+		kfree(env_ls);
+		return -ENOMEM;
+	}
+	for (i = 0; i < bprm->argc; i++) {
+		allarg_len += snprintf(allarg_buf + allarg_len,
+				       arg_sum - allarg_len, "\"%s\",",
+				       arg_ls[i]);
+	}
+	for (j = 0; j < bprm->argc; j++)
+		kfree(arg_ls[j]);
+	kfree(arg_ls);
+	// envをまとめる
+	int allenv_len = 0;
+	char *allenv_buf = kmalloc(env_sum, GFP_KERNEL);
+	if (!allenv_buf) {
+		for (j = 0; j < bprm->envc; j++)
+			kfree(env_ls[j]);
+		kfree(env_ls);
+		return -ENOMEM;
+	}
+	for (i = 0; i < bprm->envc; i++) {
+		allenv_len += snprintf(allenv_buf + allenv_len,
+				       env_sum - allenv_len, "\"%s\",",
+				       env_ls[i]);
+	}
+	for (j = 0; j < bprm->envc; j++)
+		kfree(env_ls[j]);
+	kfree(env_ls);
+
+	// 最後に全部にまとめる
 	int msg_len;
 	char *msg_buf;
-	msg_len = arg_len + env_len + 10;
+
+	msg_len = 10 + allenv_len + allarg_len;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf) {
-		kfree(env_buf);
-		kfree(arg_buf);
+		kfree(allenv_buf);
+		kfree(allarg_buf);
 		return -ENOMEM;
 	}
-	msg_len = snprintf(msg_buf, msg_len, "[%s]%c[%s]", arg_buf,
-			   SCLDA_DELIMITER, env_buf);
+	msg_len = snprintf(msg_buf, msg_len, "[%s]%c[%s]", allarg_buf,
+			   SCLDA_DELIMITER, allenv_buf);
 	*buf = msg_buf;
-	kfree(env_buf);
-	kfree(arg_buf);
+	kfree(allenv_buf);
+	kfree(allarg_buf);
 	return msg_len;
 }
 
