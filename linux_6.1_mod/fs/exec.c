@@ -2188,24 +2188,19 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 	if (!is_sclda_allsend_fin())
 		return retval;
 
-	// ファイル名・引数・環境を取得する
+	// 引数・環境を取得する
 	// do_execveat_commonの実装を参照し
 	// 引数、環境の情報を取得する
-	int argstr_len, envstr_len;
-	char *arg_buf, *env_buf;
+	int argstr_len, envstr_len, filename_len;
+	char *arg_buf, *env_buf, *filename_buf;
 	int cnt;
 
 	// bprmの作成
 	struct user_arg_ptr _argv = { .ptr.native = argv };
 	struct user_arg_ptr _envp = { .ptr.native = envp };
 	struct linux_binprm *bprm;
-	struct filename *sfn = getname(filename);
-	if (IS_ERR(sfn)) {
-		printk(KERN_ERR "SCLDA_EXECVE sfn pid= %d,retval= %d",
-		       sclda_get_current_pid(), retval);
-		return retval;
-	}
-	bprm = alloc_bprm(AT_FDCWD, sfn);
+
+	bprm = alloc_bprm(AT_FDCWD, getname(filename));
 	if (IS_ERR(bprm)) {
 		printk(KERN_ERR "SCLDA_EXECVE alloc_bprm pid= %d,retval= %d",
 		       sclda_get_current_pid(), retval);
@@ -2231,16 +2226,6 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 		return retval;
 	}
 	bprm->envc = cnt;
-
-	// filenameのコピー
-	cnt = copy_string_kernel(bprm->filename, bprm);
-	if (cnt < 0) {
-		free_bprm(bprm);
-		printk(KERN_ERR "SCLDA_EXECVE cpy_filename pid= %d,retval= %d",
-		       sclda_get_current_pid(), retval);
-		return retval;
-	}
-	bprm->exec = bprm->p;
 
 	// 環境変数のコピー
 	cnt = copy_strings(bprm->envc, _envp, bprm);
@@ -2268,6 +2253,7 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 		       sclda_get_current_pid(), retval);
 		return retval;
 	}
+
 	// 引数を取得する
 	argstr_len = argv_to_str(bprm,
 				 bprm->p + sizeof(char __user *) * bprm->envc,
@@ -2280,25 +2266,44 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 		return retval;
 	}
 
-	// 全てのデータを送信する
-	int msg_len;
-	char *msg_buf;
-
-	msg_len = 100 + argstr_len + envstr_len + strlen(bprm->filename);
-	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf) {
+	// ファイル名を取得する
+	filename_len = strnlen_user(filename, PATH_MAX);
+	filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
+	if (!filename_buf) {
 		free_bprm(bprm);
 		kfree(env_buf);
 		kfree(arg_buf);
 		return retval;
 	}
+	if (copy_from_user(filename_buf, filename, filename_len)) {
+		free_bprm(bprm);
+		kfree(env_buf);
+		kfree(arg_buf);
+		return retval;
+	}
+	filename_buf[filename_len] = '\0';
+
+	// 全てのデータを送信する
+	int msg_len;
+	char *msg_buf;
+
+	msg_len = 100 + argstr_len + envstr_len + filename_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		free_bprm(bprm);
+		kfree(env_buf);
+		kfree(arg_buf);
+		kfree(filename_buf);
+		return retval;
+	}
 	msg_len = snprintf(msg_buf, msg_len, "59%c%d%c%s%c[%s]%c[%s]",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
-			   bprm->filename, SCLDA_DELIMITER, arg_buf,
+			   filename_buf, SCLDA_DELIMITER, arg_buf,
 			   SCLDA_DELIMITER, env_buf);
 	free_bprm(bprm);
 	kfree(env_buf);
 	kfree(arg_buf);
+	kfree(filename_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
 	return retval;
 }
