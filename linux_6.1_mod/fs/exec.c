@@ -2171,6 +2171,7 @@ int argv_to_str(struct linux_binprm *bprm, char **buf)
 	// arg, envをまとめて出力する
 	// まずはargをまとめる
 	int allarg_len = 0;
+	arg_sum += 20;
 	char *allarg_buf = kmalloc(arg_sum, GFP_KERNEL);
 	if (!allarg_buf) {
 		for (j = 0; j < bprm->envc; j++)
@@ -2191,6 +2192,7 @@ int argv_to_str(struct linux_binprm *bprm, char **buf)
 	kfree(arg_ls);
 	// envをまとめる
 	int allenv_len = 0;
+	env_sum += 20;
 	char *allenv_buf = kmalloc(env_sum, GFP_KERNEL);
 	if (!allenv_buf) {
 		for (j = 0; j < bprm->envc; j++)
