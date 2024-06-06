@@ -2313,7 +2313,7 @@ out_ret:
 	}
 	// 成功し、データが取得できた場合
 	msg_len = 100 + filename_len + argstr_len + envstr_len;
-	msg_buf = kmalloc(msg_buf, GFP_KERNEL);
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		return retval;
 	msg_len = snprintf(msg_buf, msg_len, "59%c%d%c%s%c[%s]%c[%s]",
