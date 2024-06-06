@@ -2187,6 +2187,8 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 	retval = do_execve(getname(filename), argv, envp);
 	if (!is_sclda_allsend_fin())
 		return retval;
+	printk(KERN_ERR "SCLDA_EXECVE pid= %d,retval= %d",
+	       sclda_get_current_pid(), retval);
 
 	// ファイル名・引数・環境を取得する
 	// do_execveat_commonの実装を参照し
