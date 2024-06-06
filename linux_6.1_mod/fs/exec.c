@@ -2101,7 +2101,7 @@ int argv_to_str(struct linux_binprm *bprm, char **buf)
 	int len, i, j, arg_count = 0, env_count = 0;
 
 	char **arg_ls, **env_ls;
-	int arg_len = 0, env_len = 0, arg_sum = 0, env_sum = 0;
+	int arg_sum = 0, env_sum = 0;
 	arg_ls = kmalloc_array(bprm->argc, sizeof(char *), GFP_KERNEL);
 	if (!arg_ls)
 		return -ENOMEM;
@@ -2168,77 +2168,64 @@ int argv_to_str(struct linux_binprm *bprm, char **buf)
 		put_arg_page(page);
 		pos += PAGE_SIZE - offset;
 	}
-	for (j = 0; j < bprm->envc; j++)
-		printk(KERN_ERR "SCLDA_EXECVE pid= %d, %s",
-		       sclda_get_current_pid(), env_ls[j]);
-	for (j = 0; j < bprm->argc; j++)
-		printk(KERN_ERR "SCLDA_EXECVE pid= %d, %s",
-		       sclda_get_current_pid(), arg_ls[j]);
-	for (j = 0; j < bprm->envc; j++)
-		kfree(env_ls[j]);
+	// arg, envをまとめて出力する
+	// まずはargをまとめる
+	int allarg_len = 0;
+	char *allarg_buf = kmalloc(arg_sum, GFP_KERNEL);
+	if (!allarg_buf) {
+		for (j = 0; j < bprm->envc; j++)
+			kfree(env_ls[j]);
+		for (j = 0; j < bprm->argc; j++)
+			kfree(arg_ls[j]);
+		kfree(arg_ls);
+		kfree(env_ls);
+		return -ENOMEM;
+	}
+	for (i = 0; i < bprm->argc; i++) {
+		allarg_len += snprintf(allarg_buf + allarg_len,
+				       arg_sum - allarg_len, "\"%s\",",
+				       arg_ls[i]);
+	}
 	for (j = 0; j < bprm->argc; j++)
 		kfree(arg_ls[j]);
 	kfree(arg_ls);
+	// envをまとめる
+	int allenv_len = 0;
+	char *allenv_buf = kmalloc(env_sum, GFP_KERNEL);
+	if (!allenv_buf) {
+		for (j = 0; j < bprm->envc; j++)
+			kfree(env_ls[j]);
+		kfree(env_ls);
+		return -ENOMEM;
+	}
+	for (i = 0; i < bprm->envc; i++) {
+		allenv_len += snprintf(allenv_buf + allenv_len,
+				       env_sum - allenv_len, "\"%s\",",
+				       env_ls[i]);
+	}
+	for (j = 0; j < bprm->envc; j++)
+		kfree(env_ls[j]);
 	kfree(env_ls);
-	kunmap(page);
-	put_arg_page(page);
-	return -1;
-	// // arg, envをまとめて出力する
-	// // まずはargをまとめる
-	// int allarg_len = 0;
-	// char *allarg_buf = kmalloc(arg_sum, GFP_KERNEL);
-	// if (!allarg_buf) {
-	// 	for (j = 0; j < bprm->envc; j++)
-	// 		kfree(env_ls[j]);
-	// 	for (j = 0; j < bprm->argc; j++)
-	// 		kfree(arg_ls[j]);
-	// 	kfree(arg_ls);
-	// 	kfree(env_ls);
-	// 	return -ENOMEM;
-	// }
-	// for (i = 0; i < bprm->argc; i++) {
-	// 	allarg_len += snprintf(allarg_buf + allarg_len,
-	// 			       arg_sum - allarg_len, "\"%s\",",
-	// 			       arg_ls[i]);
-	// }
-	// for (j = 0; j < bprm->argc; j++)
-	// 	kfree(arg_ls[j]);
-	// kfree(arg_ls);
-	// // envをまとめる
-	// int allenv_len = 0;
-	// char *allenv_buf = kmalloc(env_sum, GFP_KERNEL);
-	// if (!allenv_buf) {
-	// 	for (j = 0; j < bprm->envc; j++)
-	// 		kfree(env_ls[j]);
-	// 	kfree(env_ls);
-	// 	return -ENOMEM;
-	// }
-	// for (i = 0; i < bprm->envc; i++) {
-	// 	allenv_len += snprintf(allenv_buf + allenv_len,
-	// 			       env_sum - allenv_len, "\"%s\",",
-	// 			       env_ls[i]);
-	// }
-	// for (j = 0; j < bprm->envc; j++)
-	// 	kfree(env_ls[j]);
-	// kfree(env_ls);
 
-	// // 最後に全部にまとめる
-	// int msg_len;
-	// char *msg_buf;
+	// 最後に全部にまとめる
+	int msg_len;
+	char *msg_buf;
 
-	// msg_len = 10 + allenv_len + allarg_len;
-	// msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	// if (!msg_buf) {
-	// 	kfree(allenv_buf);
-	// 	kfree(allarg_buf);
-	// 	return -ENOMEM;
-	// }
-	// msg_len = snprintf(msg_buf, msg_len, "[%s]%c[%s]", allarg_buf,
-	// 		   SCLDA_DELIMITER, allenv_buf);
-	// *buf = msg_buf;
-	// kfree(allenv_buf);
-	// kfree(allarg_buf);
-	// return msg_len;
+	msg_len = 10 + allenv_len + allarg_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(allenv_buf);
+		kfree(allarg_buf);
+		return -ENOMEM;
+	}
+	printk(KERN_ERR "SCLDA_EXECVE pid= %d, [%s],[%s]",
+	       sclda_get_current_pid(), allarg_buf, allenv_buf);
+	msg_len = snprintf(msg_buf, msg_len, "[%s]%c[%s]", allarg_buf,
+			   SCLDA_DELIMITER, allenv_buf);
+	*buf = msg_buf;
+	kfree(allenv_buf);
+	kfree(allarg_buf);
+	return msg_len;
 }
 
 SYSCALL_DEFINE3(execve, const char __user *, filename,
