@@ -2187,8 +2187,6 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 	retval = do_execve(getname(filename), argv, envp);
 	if (!is_sclda_allsend_fin())
 		return retval;
-	printk(KERN_ERR "SCLDA_EXECVE pid= %d,retval= %d",
-	       sclda_get_current_pid(), retval);
 
 	// ファイル名・引数・環境を取得する
 	// do_execveat_commonの実装を参照し
@@ -2202,16 +2200,24 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 	struct user_arg_ptr _envp = { .ptr.native = envp };
 	struct linux_binprm *bprm;
 	struct filename *sfn = getname(filename);
-	if (IS_ERR(sfn))
+	if (IS_ERR(sfn)) {
+		printk(KERN_ERR "SCLDA_EXECVE sfn pid= %d,retval= %d",
+		       sclda_get_current_pid(), retval);
 		return retval;
+	}
 	bprm = alloc_bprm(AT_FDCWD, sfn);
-	if (IS_ERR(bprm))
+	if (IS_ERR(bprm)) {
+		printk(KERN_ERR "SCLDA_EXECVE alloc_bprm pid= %d,retval= %d",
+		       sclda_get_current_pid(), retval);
 		return retval;
+	}
 
 	// 引数の数をカウント
 	cnt = count(_argv, MAX_ARG_STRINGS);
 	if (cnt < 0) {
 		free_bprm(bprm);
+		printk(KERN_ERR "SCLDA_EXECVE cnt_argv pid= %d,retval= %d",
+		       sclda_get_current_pid(), retval);
 		return retval;
 	}
 	bprm->argc = cnt;
@@ -2220,14 +2226,28 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 	cnt = count(_envp, MAX_ARG_STRINGS);
 	if (cnt < 0) {
 		free_bprm(bprm);
+		printk(KERN_ERR "SCLDA_EXECVE cnt_envp pid= %d,retval= %d",
+		       sclda_get_current_pid(), retval);
 		return retval;
 	}
 	bprm->envc = cnt;
+
+	// filenameのコピー
+	cnt = copy_string_kernel(bprm->filename, bprm);
+	if (cnt < 0) {
+		free_bprm(bprm);
+		printk(KERN_ERR "SCLDA_EXECVE cpy_filename pid= %d,retval= %d",
+		       sclda_get_current_pid(), retval);
+		return retval;
+	}
+	bprm->exec = bprm->p;
 
 	// 環境変数のコピー
 	cnt = copy_strings(bprm->envc, _envp, bprm);
 	if (cnt < 0) {
 		free_bprm(bprm);
+		printk(KERN_ERR "SCLDA_EXECVE cpy_envp pid= %d,retval= %d",
+		       sclda_get_current_pid(), retval);
 		return retval;
 	}
 
@@ -2235,6 +2255,8 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 	cnt = copy_strings(bprm->argc, _argv, bprm);
 	if (cnt < 0) {
 		free_bprm(bprm);
+		printk(KERN_ERR "SCLDA_EXECVE cpy_argv pid= %d,retval= %d",
+		       sclda_get_current_pid(), retval);
 		return retval;
 	}
 
@@ -2242,6 +2264,8 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 	envstr_len = argv_to_str(bprm, bprm->p, bprm->envc, &env_buf);
 	if (envstr_len < 0) {
 		free_bprm(bprm);
+		printk(KERN_ERR "SCLDA_EXECVE get_env pid= %d,retval= %d",
+		       sclda_get_current_pid(), retval);
 		return retval;
 	}
 	// 引数を取得する
@@ -2251,6 +2275,8 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 	if (argstr_len < 0) {
 		free_bprm(bprm);
 		kfree(env_buf);
+		printk(KERN_ERR "SCLDA_EXECVE get_argv pid= %d,retval= %d",
+		       sclda_get_current_pid(), retval);
 		return retval;
 	}
 
