@@ -63,6 +63,7 @@ wait4,61,retval,upid,addr,options,usage->ru_utime.tv_sec,usage->ru_utime.tv_usec
 kill,62,retval,pid,sig
 uname,63,retval,uts->sysname,uts->nodename,uts->release,uts->version,uts->machine
 semget,64,retval,key,nsems,semflg
+semop,65,retval,semid,nsops,sembuf.sem_num,sembuf.sem_op,sembuf.sem_flg
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 accept4,288,retval,fd,addrlen,flags,sa_family,sockaddr_info
 dup3,292,retval,old_fd,new_fd,flags,,,,,,,,,,,,,,

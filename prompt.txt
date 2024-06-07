@@ -1,15 +1,14 @@
 linux kernelソースコード上で、下記の構造体を文字列に変換するヘルパー関数を作成してください。
 ただし、下記の要件を守ってください。
 - 名前は"構造体名_to_str"とすること
-- 引数は構造体へのポインタ、文字列を書き込むバッファ、バッファに書き込んで良い最大バイト数
+- 引数はユーザ空間にある構造体へのポインタ、文字列を書き込むバッファ、バッファに書き込んで良い最大バイト数
+- ユーザ空間から、カーネル空間にcopy_from_user関数を用いてコピーする
 - 構造体のメンバの値をsnprintf関数を用いてバッファに書き込むこと
 - 各メンバを、メンバ名は入れず、SCLDA_DELIMITERで区切って出力してください。ただし、SCLDA_DELIMITERはchar型とします。
 - 返り値は、バッファに書き込んだバイト数
 
-struct old_utsname {
-	char sysname[65];
-	char nodename[65];
-	char release[65];
-	char version[65];
-	char machine[65];
+struct sembuf {
+	unsigned short  sem_num;	/* semaphore index in array */
+	short		sem_op;		/* semaphore operation */
+	short		sem_flg;	/* operation flags */
 };

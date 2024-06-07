@@ -93,6 +93,23 @@
 #include <linux/uaccess.h>
 #include "util.h"
 
+int sembuf_to_str(const struct sembuf __user *user_sembuf_ptr, char *buffer,
+		  size_t max_len)
+{
+	struct sembuf kernel_sembuf;
+	if (copy_from_user(&kernel_sembuf, user_sembuf_ptr,
+			   sizeof(struct sembuf))) {
+		return -EFAULT;
+	}
+	int written = snprintf(buffer, max_len, "%u%c%d%c%d",
+			       kernel_sembuf.sem_num, SCLDA_DELIMITER,
+			       kernel_sembuf.sem_op, SCLDA_DELIMITER,
+			       kernel_sembuf.sem_flg);
+	if (written < 0 || (size_t)written >= max_len)
+		return -EFAULT;
+	return written;
+}
+
 /* One semaphore structure for each semaphore in the system. */
 struct sem {
 	int semval; /* current value */
@@ -2315,7 +2332,37 @@ SYSCALL_DEFINE4(semtimedop_time32, int, semid, struct sembuf __user *, tsems,
 SYSCALL_DEFINE3(semop, int, semid, struct sembuf __user *, tsops, unsigned,
 		nsops)
 {
-	return do_semtimedop(semid, tsops, nsops, NULL);
+	long retval;
+	int msg_len, struct_len;
+	char *msg_buf, *struct_buf;
+
+	retval = do_semtimedop(semid, tsops, nsops, NULL);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	struct_len = 150;
+	struct_buf = kmalloc(struct_len, GFP_KERNEL);
+	if (!struct_buf)
+		return retval;
+	struct_len = sembuf_to_str(tsops, struct_buf, struct_len);
+	if (struct_len < 0) {
+		struct_len = 1;
+		struct_buf = '\0';
+	}
+
+	// 送信するパート
+	msg_len = 150 + struct_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(struct_buf);
+		return retval;
+	}
+	msg_len = snprintf(msg_buf, msg_len, "65%c%ld%c%d%c%u%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, semid,
+			   SCLDA_DELIMITER, nsops, SCLDA_DELIMITER, struct_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	kfree(struct_buf);
+	return retval;
 }
 
 /* If CLONE_SYSVSEM is set, establish sharing of SEM_UNDO state between
