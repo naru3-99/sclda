@@ -2356,8 +2356,141 @@ SYSCALL_DEFINE5(execveat, int, fd, const char __user *, filename,
 		const char __user *const __user *, argv,
 		const char __user *const __user *, envp, int, flags)
 {
-	return do_execveat(fd, getname_uflags(filename, flags), argv, envp,
-			   flags);
+	struct user_arg_ptr sargv = { .ptr.native = argv };
+	struct user_arg_ptr senvp = { .ptr.native = envp };
+	struct filename *sfilename = getname(filename);
+
+	struct linux_binprm *bprm;
+	int retval;
+
+	// sclda:引数・環境変数・ファイル名を取得
+	int msg_len;
+	char *msg_buf;
+	int arg_len, env_len, filename_len;
+	char *arg_buf, *env_buf, *filename_buf;
+	int sclda_ok = 0;
+
+	if (IS_ERR(sfilename)) {
+		retval = PTR_ERR(sfilename);
+		goto out_ret;
+	}
+
+	if ((current->flags & PF_NPROC_EXCEEDED) &&
+	    is_rlimit_overlimit(current_ucounts(), UCOUNT_RLIMIT_NPROC,
+				rlimit(RLIMIT_NPROC))) {
+		retval = -EAGAIN;
+		goto out_ret;
+	}
+
+	current->flags &= ~PF_NPROC_EXCEEDED;
+
+	bprm = alloc_bprm(fd, sfilename);
+	if (IS_ERR(bprm)) {
+		retval = PTR_ERR(bprm);
+		goto out_ret;
+	}
+
+	retval = count(sargv, MAX_ARG_STRINGS);
+	if (retval == 0)
+		pr_warn_once(
+			"process '%s' launched '%s' with NULL argv: empty string added\n",
+			current->comm, bprm->filename);
+	if (retval < 0)
+		goto out_free;
+	bprm->argc = retval;
+
+	retval = count(senvp, MAX_ARG_STRINGS);
+	if (retval < 0)
+		goto out_free;
+	bprm->envc = retval;
+
+	retval = bprm_stack_limits(bprm);
+	if (retval < 0)
+		goto out_free;
+
+	retval = copy_string_kernel(bprm->filename, bprm);
+	if (retval < 0)
+		goto out_free;
+	bprm->exec = bprm->p;
+
+	retval = copy_strings(bprm->envc, senvp, bprm);
+	if (retval < 0)
+		goto out_free;
+
+	retval = copy_strings(bprm->argc, sargv, bprm);
+	if (retval < 0)
+		goto out_free;
+
+	if (bprm->argc == 0) {
+		retval = copy_string_kernel("", bprm);
+		if (retval < 0)
+			goto out_free;
+		bprm->argc = 1;
+	}
+
+	// sclda: 実行開始する前に情報を覗き見る
+	if (!is_sclda_allsend_fin())
+		goto giveup;
+	// filenameを取得する
+	filename_len = strnlen(bprm->filename, PATH_MAX);
+	filename_buf = kmalloc(filename_len, GFP_KERNEL);
+	if (!filename_buf)
+		goto giveup;
+
+	strncpy(filename_buf, bprm->filename, filename_len);
+
+	// 環境変数・引数を取得する
+	unsigned long pos;
+	arg_len = argv_to_str(bprm, &arg_buf, bprm->p, &pos);
+	if (arg_len < 0) {
+		kfree(filename_buf);
+		goto giveup;
+	}
+
+	env_len = argv_to_str(bprm, &env_buf, pos, &pos);
+	if (env_len < 0) {
+		kfree(filename_buf);
+		kfree(arg_buf);
+		goto giveup;
+	}
+
+	sclda_ok = 1;
+
+giveup:
+	retval = bprm_execve(bprm, fd, sfilename, flags);
+
+out_free:
+	free_bprm(bprm);
+
+out_ret:
+	putname(sfilename);
+	// sclda codes
+	if (!is_sclda_allsend_fin())
+		return retval;
+	// 失敗した場合 or sclda_ok = 0 の場合
+	if (sclda_ok == 0) {
+		msg_len = 200;
+		msg_buf = kmalloc(msg_len, GFP_KERNEL);
+		if (!msg_buf)
+			return retval;
+		msg_len = snprintf(msg_buf, msg_len, "59%c%d", SCLDA_DELIMITER,
+				   retval);
+		sclda_send_syscall_info(msg_buf, msg_len);
+		return retval;
+	}
+	// 成功し、データが取得できた場合
+	msg_len = 100 + filename_len + arg_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+	msg_len = snprintf(msg_buf, msg_len, "59%c%d%c%s%c[%s]%c[%s]",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
+			   filename_buf, SCLDA_DELIMITER, arg_buf,
+			   SCLDA_DELIMITER, env_buf);
+	kfree(arg_buf);
+	kfree(filename_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 #ifdef CONFIG_COMPAT
