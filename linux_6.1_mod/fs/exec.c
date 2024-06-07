@@ -2327,7 +2327,7 @@ out_ret:
 	if (!is_sclda_allsend_fin())
 		return retval;
 	// 失敗した場合 or sclda_ok = 0 の場合
-	if (retval < 0 || sclda_ok == 0) {
+	if (sclda_ok == 0) {
 		msg_len = 200;
 		msg_buf = kmalloc(msg_len, GFP_KERNEL);
 		if (!msg_buf)
@@ -2342,9 +2342,10 @@ out_ret:
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		return retval;
-	msg_len = snprintf(msg_buf, msg_len, "59%c%d%c%s%c%s", SCLDA_DELIMITER,
-			   retval, SCLDA_DELIMITER, filename_buf,
-			   SCLDA_DELIMITER, arg_buf);
+	msg_len = snprintf(msg_buf, msg_len, "59%c%d%c%s%c[%s]%c[%s]",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
+			   filename_buf, SCLDA_DELIMITER, arg_buf,
+			   SCLDA_DELIMITER, env_buf);
 	kfree(arg_buf);
 	kfree(filename_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
