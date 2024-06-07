@@ -1323,21 +1323,16 @@ int shmid_ds_to_str(struct shmid_ds __user *user_buf, char *msg_buf,
 	return snprintf(msg_buf, msg_len,
 			"%d%c%u%c%u%c%u%c%u%c%u%c%u%c"
 			"%d%c%ld%c%ld%c%ld%c%d%c%d%c%hu%c%hu",
-			buf.shm_perm.key, 	SCLDA_DELIMITER,
-			buf.shm_perm.uid,	SCLDA_DELIMITER,
-			buf.shm_perm.gid, 	SCLDA_DELIMITER,
-			buf.shm_perm.cuid, 	SCLDA_DELIMITER,
-			buf.shm_perm.cgid,	SCLDA_DELIMITER,
-			buf.shm_perm.mode, 	SCLDA_DELIMITER,
-			buf.shm_perm.seq, 	SCLDA_DELIMITER,
-			buf.shm_segsz,		SCLDA_DELIMITER,
-			buf.shm_atime, 		SCLDA_DELIMITER,
-			buf.shm_dtime, 		SCLDA_DELIMITER,
-			buf.shm_ctime,		SCLDA_DELIMITER,
-			buf.shm_cpid, 		SCLDA_DELIMITER,
-			buf.shm_lpid, 		SCLDA_DELIMITER,
-			buf.shm_nattch,		SCLDA_DELIMITER,
-			buf.shm_unused);
+			buf.shm_perm.key, SCLDA_DELIMITER, buf.shm_perm.uid,
+			SCLDA_DELIMITER, buf.shm_perm.gid, SCLDA_DELIMITER,
+			buf.shm_perm.cuid, SCLDA_DELIMITER, buf.shm_perm.cgid,
+			SCLDA_DELIMITER, buf.shm_perm.mode, SCLDA_DELIMITER,
+			buf.shm_perm.seq, SCLDA_DELIMITER, buf.shm_segsz,
+			SCLDA_DELIMITER, buf.shm_atime, SCLDA_DELIMITER,
+			buf.shm_dtime, SCLDA_DELIMITER, buf.shm_ctime,
+			SCLDA_DELIMITER, buf.shm_cpid, SCLDA_DELIMITER,
+			buf.shm_lpid, SCLDA_DELIMITER, buf.shm_nattch,
+			SCLDA_DELIMITER, buf.shm_unused);
 }
 
 SYSCALL_DEFINE3(shmctl, int, shmid, int, cmd, struct shmid_ds __user *, buf)
@@ -1931,7 +1926,33 @@ long ksys_shmdt(char __user *shmaddr)
 
 SYSCALL_DEFINE1(shmdt, char __user *, shmaddr)
 {
-	return ksys_shmdt(shmaddr);
+	long retval;
+	int msg_len, shmaddr_len;
+	char *msg_buf, *shmaddr_buf;
+
+	retval = ksys_shmdt(shmaddr);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// shmaddrを文字列として取得
+	shmaddr_len = strnlen_user(shmaddr, PATH_MAX);
+	shmaddr_buf = kmalloc(shmaddr_len + 1, GFP_KERNEL);
+	if (!shmaddr_buf)
+		return retval;
+	if (copy_from_user(shmaddr_buf, filename, shmaddr_len))
+		return retval;
+	shmaddr_buf[shmaddr_len] = '\0';
+
+	// 送信するパート
+	msg_len = 100 + shmaddr_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "67%c%ld%c%s", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, shmaddr_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 #ifdef CONFIG_PROC_FS
