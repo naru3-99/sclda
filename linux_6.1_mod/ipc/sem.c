@@ -1739,7 +1739,27 @@ static long ksys_semctl(int semid, int semnum, int cmd, unsigned long arg,
 
 SYSCALL_DEFINE4(semctl, int, semid, int, semnum, int, cmd, unsigned long, arg)
 {
-	return ksys_semctl(semid, semnum, cmd, arg, IPC_64);
+	long retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = ksys_semctl(semid, semnum, cmd, arg, IPC_64);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 300;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	// sclda_todo: argをどうにかする。
+	msg_len = snprintf(msg_buf, msg_len, "66%c%ld%c%d%c%d%c%d%c%lu",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, semid,
+			   SCLDA_DELIMITER, semnum, SCLDA_DELIMITER, cmd,
+			   SCLDA_DELIMITER, arg);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 #ifdef CONFIG_ARCH_WANT_IPC_PARSE_VERSION
