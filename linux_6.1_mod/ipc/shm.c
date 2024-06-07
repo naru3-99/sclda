@@ -1939,7 +1939,7 @@ SYSCALL_DEFINE1(shmdt, char __user *, shmaddr)
 	shmaddr_buf = kmalloc(shmaddr_len + 1, GFP_KERNEL);
 	if (!shmaddr_buf)
 		return retval;
-	if (copy_from_user(shmaddr_buf, filename, shmaddr_len))
+	if (copy_from_user(shmaddr_buf, shmaddr, shmaddr_len))
 		return retval;
 	shmaddr_buf[shmaddr_len] = '\0';
 
