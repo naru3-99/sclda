@@ -2117,24 +2117,17 @@ int argv_to_str(struct linux_binprm *bprm, char **buf)
 	// ページごとにループし、情報を取得
 	while (pos < bprm->argmin) {
 		page = get_arg_page(bprm, pos, 1);
-		if (!page) {
+		if (!page)
 			goto free_arrays;
-		}
 		kaddr = kmap(page);
 		if (!kaddr) {
 			put_arg_page(page);
 			goto free_arrays;
 		}
 		offset = pos % PAGE_SIZE;
-
+		
 		while (offset < PAGE_SIZE && pos < bprm->argmin) {
-			len = strlen(kaddr + offset) + 1;
-			if (len <= 1) {
-				// 空の引数や環境変数をスキップ
-				offset += len;
-				pos += len;
-				continue;
-			}
+			len = strnlen(kaddr + offset, PAGE_SIZE - offset) + 1;
 			if (arg_count < bprm->argc) {
 				// 引数の文字列
 				arg_sum += len + 3;
@@ -2182,8 +2175,7 @@ int argv_to_str(struct linux_binprm *bprm, char **buf)
 		goto free_envs;
 	for (i = 0; i < bprm->argc; i++)
 		allarg_len += snprintf(allarg_buf + allarg_len,
-				       arg_sum - allarg_len, "\"%s\",",
-				       arg_ls[i]);
+				       arg_sum - allarg_len, "%s,", arg_ls[i]);
 
 	// envをまとめる
 	int allenv_len = 0;
@@ -2195,8 +2187,7 @@ int argv_to_str(struct linux_binprm *bprm, char **buf)
 	}
 	for (i = 0; i < bprm->envc; i++) {
 		allenv_len += snprintf(allenv_buf + allenv_len,
-				       env_sum - allenv_len, "\"%s\",",
-				       env_ls[i]);
+				       env_sum - allenv_len, "%s,", env_ls[i]);
 	}
 
 	// 最後に全部にまとめる
