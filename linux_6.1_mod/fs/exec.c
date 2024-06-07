@@ -2129,6 +2129,12 @@ int argv_to_str(struct linux_binprm *bprm, char **buf)
 
 		while (offset < PAGE_SIZE && pos < bprm->argmin) {
 			len = strlen(kaddr + offset) + 1;
+			if (len <= 1) {
+				// 空の引数や環境変数をスキップ
+				offset += len;
+				pos += len;
+				continue;
+			}
 			if (arg_count < bprm->argc) {
 				// 引数の文字列
 				arg_sum += len + 3;
