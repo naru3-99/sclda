@@ -459,21 +459,21 @@ sclda:
 	if (!cwd_buf)
 		return retval;
 	if (copy_from_user(cwd_buf, buf, cwd_len))
-		return retval;
+		goto free_cwd_buf;
 	cwd_buf[cwd_len] = '\0';
 
 	// すべての情報を送信する
 	msg_len = 200 + cwd_len;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf) {
-		kfree(cwd_buf);
-		return retval;
-	}
+	if (!msg_buf)
+		goto free_cwd_buf;
 
 	msg_len = snprintf(msg_buf, msg_len, "79%c%d%c%lu%c%s", SCLDA_DELIMITER,
 			   retval, SCLDA_DELIMITER, size, SCLDA_DELIMITER,
 			   cwd_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_cwd_buf:
 	kfree(cwd_buf);
 	return retval;
 }
