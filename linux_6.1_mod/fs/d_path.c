@@ -6,6 +6,7 @@
 #include <linux/fs.h>
 #include <linux/slab.h>
 #include <linux/prefetch.h>
+#include <net/sclda.h>
 #include "mount.h"
 
 struct prepend_buffer {
@@ -13,7 +14,7 @@ struct prepend_buffer {
 	int len;
 };
 #define DECLARE_BUFFER(__name, __buf, __len) \
-	struct prepend_buffer __name = {.buf = __buf + __len, .len = __len}
+	struct prepend_buffer __name = { .buf = __buf + __len, .len = __len }
 
 static char *extract_string(struct prepend_buffer *p)
 {
@@ -119,9 +120,9 @@ static int __prepend_path(const struct dentry *dentry, const struct mount *mnt,
 			mnt_ns = READ_ONCE(mnt->mnt_ns);
 			/* open-coded is_mounted() to use local mnt_ns */
 			if (!IS_ERR_OR_NULL(mnt_ns) && !is_anon_ns(mnt_ns))
-				return 1;	// absolute root
+				return 1; // absolute root
 			else
-				return 2;	// detached or not attached yet
+				return 2; // detached or not attached yet
 		}
 
 		if (unlikely(dentry == parent))
@@ -152,8 +153,7 @@ static int __prepend_path(const struct dentry *dentry, const struct mount *mnt,
  * parent pointer references will keep the dentry chain alive as long as no
  * rename operation is performed.
  */
-static int prepend_path(const struct path *path,
-			const struct path *root,
+static int prepend_path(const struct path *path, const struct path *root,
 			struct prepend_buffer *p)
 {
 	unsigned seq, m_seq = 0;
@@ -211,9 +211,8 @@ restart:
  *
  * If the path is not reachable from the supplied root, return %NULL.
  */
-char *__d_path(const struct path *path,
-	       const struct path *root,
-	       char *buf, int buflen)
+char *__d_path(const struct path *path, const struct path *root, char *buf,
+	       int buflen)
 {
 	DECLARE_BUFFER(b, buf, buflen);
 
@@ -223,8 +222,7 @@ char *__d_path(const struct path *path,
 	return extract_string(&b);
 }
 
-char *d_absolute_path(const struct path *path,
-	       char *buf, int buflen)
+char *d_absolute_path(const struct path *path, char *buf, int buflen)
 {
 	struct path root = {};
 	DECLARE_BUFFER(b, buf, buflen);
@@ -410,12 +408,15 @@ static void get_fs_root_and_pwd_rcu(struct fs_struct *fs, struct path *root,
  */
 SYSCALL_DEFINE2(getcwd, char __user *, buf, unsigned long, size)
 {
+	int retval;
 	int error;
 	struct path pwd, root;
 	char *page = __getname();
 
-	if (!page)
-		return -ENOMEM;
+	if (!page) {
+		retval = -ENOMEM;
+		goto sclda;
+	}
 
 	rcu_read_lock();
 	get_fs_root_and_pwd_rcu(current->fs, &root, &pwd);
@@ -443,5 +444,36 @@ SYSCALL_DEFINE2(getcwd, char __user *, buf, unsigned long, size)
 			error = len;
 	}
 	__putname(page);
-	return error;
+	retval = error;
+
+sclda:
+	int msg_len, cwd_len;
+	char *msg_buf, *cwd_buf;
+
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// bufの中身を取得する
+	cwd_len = strnlen_user(buf, PATH_MAX);
+	cwd_buf = kmalloc(cwd_len + 1, GFP_KERNEL);
+	if (!cwd_buf)
+		return retval;
+	if (copy_from_user(cwd_buf, buf, cwd_len))
+		return retval;
+	cwd_buf[cwd_len] = '\0';
+
+	// すべての情報を送信する
+	msg_len = 200 + cwd_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(cwd_buf);
+		return retval;
+	}
+
+	msg_len = snprintf(msg_buf, msg_len, "79%c%d%c%lu%c%s", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, size, SCLDA_DELIMITER,
+			   cwd_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	kfree(cwd_buf);
+	return retval;
 }
