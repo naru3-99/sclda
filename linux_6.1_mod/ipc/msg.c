@@ -1059,7 +1059,9 @@ SYSCALL_DEFINE4(msgsnd, int, msqid, struct msgbuf __user *, msgp, size_t, msgsz,
 	msgbuf_buf = kmalloc(msgbuf_len, GFP_KERNEL);
 	if (!msgbuf_buf)
 		return retval;
-	msgbuf_to_str(msgp, msgsz, msgbuf_buf, msgbuf_len);
+	msgbuf_len = msgbuf_to_str(msgp, msgsz, msgbuf_buf, msgbuf_len);
+	if (msgbuf_len < 0)
+		goto free_msgbuf_buf;
 
 	// 送信するパート
 	msg_len = 100 + msgbuf_len;
@@ -1075,10 +1077,6 @@ SYSCALL_DEFINE4(msgsnd, int, msqid, struct msgbuf __user *, msgp, size_t, msgsz,
 
 free_msgbuf_buf:
 	kfree(msgbuf_buf);
-
-free_msg_buf:
-	kfree(msg_buf);
-out:
 	return retval;
 }
 
@@ -1393,7 +1391,9 @@ SYSCALL_DEFINE5(msgrcv, int, msqid, struct msgbuf __user *, msgp, size_t, msgsz,
 	msgbuf_buf = kmalloc(msgbuf_len, GFP_KERNEL);
 	if (!msgbuf_buf)
 		return retval;
-	msgbuf_to_str(msgp, msgsz, msgbuf_buf, msgbuf_len);
+	msgbuf_len = msgbuf_to_str(msgp, msgsz, msgbuf_buf, msgbuf_len);
+	if (msgbuf_len < 0)
+		goto free_msgbuf_buf;
 
 	// 送信するパート
 	msg_len = 100 + msgbuf_len;
@@ -1413,11 +1413,6 @@ SYSCALL_DEFINE5(msgrcv, int, msqid, struct msgbuf __user *, msgp, size_t, msgsz,
 
 free_msgbuf_buf:
 	kfree(msgbuf_buf);
-
-free_msg_buf:
-	kfree(msg_buf);
-
-out:
 	return retval;
 }
 

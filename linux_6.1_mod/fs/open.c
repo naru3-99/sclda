@@ -165,15 +165,14 @@ SYSCALL_DEFINE2(truncate, const char __user *, path, long, length)
 	// 送信するパート
 	msg_len = 200 + filename_len;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf) {
-		kfree(filename_buf);
-		return retval;
-	}
+	if (!msg_buf)
+		goto free_filename;
 
 	msg_len = snprintf(msg_buf, msg_len, "76%c%ld%c%ld%c%s",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, length,
 			   SCLDA_DELIMITER, filename_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
+free_filename:
 	kfree(filename_buf);
 	return retval;
 }
