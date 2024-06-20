@@ -83,6 +83,7 @@ fchdir,81,retval,fd
 rename,82,retval,oldname,newname
 mkdir,83,retval,mode,path
 rmdir,83,retval,path
+creat,84,retval,mode,path
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 mkdirat,258,retval,dfd,mode,path
 accept4,288,retval,fd,addrlen,flags,sa_family,sockaddr_info
