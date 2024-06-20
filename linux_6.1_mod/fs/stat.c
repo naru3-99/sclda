@@ -497,7 +497,7 @@ SYSCALL_DEFINE2(fstat, unsigned int, fd, struct __old_kernel_stat __user *,
 		stat_msg_buf = (char *)kmalloc(stat_msg_len, GFP_KERNEL);
 		if (!stat_msg_buf)
 			return retval;
-		stat_msg_buf ='\0';
+		stat_msg_buf = '\0';
 	} else {
 		// kstatが成功している場合
 		retval = cp_old_stat(&stat, statbuf);
@@ -674,7 +674,50 @@ SYSCALL_DEFINE4(readlinkat, int, dfd, const char __user *, pathname,
 SYSCALL_DEFINE3(readlink, const char __user *, path, char __user *, buf, int,
 		bufsiz)
 {
-	return do_readlinkat(AT_FDCWD, path, buf, bufsiz);
+	int retval;
+	int msg_len, path_len, buf_len;
+	char *msg_buf, *path_buf, *buf_buf;
+
+	retval = do_readlinkat(AT_FDCWD, path, buf, bufsiz);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// pathを取得する
+	path_len = strnlen_user(path, PATH_MAX);
+	path_buf = kmalloc(path_len + 1, GFP_KERNEL);
+	if (!path_buf)
+		return retval;
+	if (copy_from_user(path_buf, path, path_len))
+		goto free_path;
+	path_buf[path_len] = '\0';
+
+	// bufを取得する
+	buf_len = strnlen_user(buf, bufsiz);
+	buf_buf = kmalloc(buf_len + 1, GFP_KERNEL);
+	if (!buf_buf)
+		goto free_path;
+	if (copy_from_user(buf_buf, buf, buf_len))
+		goto free_buf;
+	buf_buf[buf_len] = '\0';
+
+	// 送信するパート
+	msg_len = 100 + path_len + buf_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_buf;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "89%c%d%c%d"
+			   "%c%s%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, bufsiz,
+			   SCLDA_DELIMITER path_buf, SCLDA_DELIMITER, buf_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_buf:
+	kfree(buf_buf);
+free_path:
+	kfree(path_buf);
+	return retval;
 }
 
 /* ---------- LFS-64 ----------- */
