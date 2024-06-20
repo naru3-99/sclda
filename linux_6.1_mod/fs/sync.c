@@ -241,7 +241,24 @@ SYSCALL_DEFINE1(fsync, unsigned int, fd)
 
 SYSCALL_DEFINE1(fdatasync, unsigned int, fd)
 {
-	return do_fsync(fd, 1);
+	int retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = do_fsync(fd, 1);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 100;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "75%c%d%c%u", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, fd);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 int sync_file_range(struct file *file, loff_t offset, loff_t nbytes,
