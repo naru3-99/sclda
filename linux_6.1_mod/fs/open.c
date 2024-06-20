@@ -739,13 +739,29 @@ int vfs_fchmod(struct file *file, umode_t mode)
 
 SYSCALL_DEFINE2(fchmod, unsigned int, fd, umode_t, mode)
 {
+	int msg_len;
+	char *msg_buf;
+
 	struct fd f = fdget(fd);
 	int err = -EBADF;
-
 	if (f.file) {
 		err = vfs_fchmod(f.file, mode);
 		fdput(f);
 	}
+
+	if (!is_sclda_allsend_fin())
+		return err;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return err;
+
+	msg_len = snprintf(msg_buf, msg_len, "91%c%d%c%u%c%hu", SCLDA_DELIMITER,
+			   err, SCLDA_DELIMITER, fd, SCLDA_DELIMITER,
+			   (unsigned short)mode);
+	sclda_send_syscall_info(msg_buf, msg_len);
 	return err;
 }
 
