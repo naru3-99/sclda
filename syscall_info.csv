@@ -69,6 +69,7 @@ shmdt,67,retval,shmaddr
 msgget,68,retval,key,msgflg
 msgsnd,69,retval,msqid,msgsz,msgflg,mtype,mtext
 msgrcv,70,retval,msqid,msgsz,msgtyp,msgflg,mtype,mtext
+msgctl,71,retval,msqid,cmd
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 accept4,288,retval,fd,addrlen,flags,sa_family,sockaddr_info
 dup3,292,retval,old_fd,new_fd,flags,,,,,,,,,,,,,,
