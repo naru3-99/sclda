@@ -4083,7 +4083,38 @@ out_putname:
 
 SYSCALL_DEFINE3(mkdirat, int, dfd, const char __user *, pathname, umode_t, mode)
 {
-	return do_mkdirat(dfd, getname(pathname), mode);
+	int retval;
+	int msg_len, path_len;
+	char *msg_buf, *path_buf;
+
+	retval = do_mkdirat(dfd, getname(pathname), mode);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// ファイル名を取得する
+	path_len = strnlen_user(pathname, PATH_MAX);
+	path_buf = kmalloc(path_len + 1, GFP_KERNEL);
+	if (!path_buf)
+		return retval;
+	if (copy_from_user(path_buf, pathname, path_len))
+		goto free_path;
+	path_buf[path_len] = '\0';
+
+	// 送信するパート
+	msg_len = 100 + path_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_path;
+
+	msg_len = snprintf(msg_buf, msg_len, "258%c%d%c%d%c%hu%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, dfd,
+			   SCLDA_DELIMITER, (unsigned short)mode,
+			   SCLDA_DELIMITER, path_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_path:
+	kfree(path_buf);
+	return retval;
 }
 
 SYSCALL_DEFINE2(mkdir, const char __user *, pathname, umode_t, mode)
