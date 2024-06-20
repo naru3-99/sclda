@@ -90,7 +90,7 @@ SYSCALL_DEFINE2(link, const char __user *, oldname, const char __user *,
 	new_buf[new_len] = '\0';
 
 	// 送信するパート
-	msg_len = 100 + old_len;
+	msg_len = 100 + old_len + new_len;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		goto free_new;
