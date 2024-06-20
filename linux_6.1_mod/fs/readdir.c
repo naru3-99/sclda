@@ -32,27 +32,26 @@ int linux_dirent_to_str(const struct linux_dirent __user *user_dirent,
 	int retval;
 	char *all_buf, *dname;
 	int all_len, dname_len;
-	struct linux_dirent kdirent;
 	unsigned long dino, doff;
 
 	// user_direntのd_nameの長さ = d_reclen
-	if (copy_from_user(&dname_len, user_dirent->d_reclen,
+	if (copy_from_user(&dname_len, &user_dirent->d_reclen,
 			   sizeof(unsigned short)))
 		return -EFAULT;
 	// d_nameを取得する
 	dname = kmalloc(dname_len, GFP_KERNEL);
 	if (!dname)
 		return -ENOMEM;
-	if (copy_from_user(dname, user_dirent->d_name, dname_len)) {
+	if (copy_from_user(dname, &user_dirent->d_name, dname_len)) {
 		retval = -EFAULT;
 		goto free_dname;
 	}
 	// その他フィールドを取得
-	if (copy_from_user(&dino, user_dirent->d_ino, sizeof(unsigned long))) {
+	if (copy_from_user(&dino, &user_dirent->d_ino, sizeof(unsigned long))) {
 		retval = -EFAULT;
 		goto free_dname;
 	}
-	if (copy_from_user(&doff, user_dirent->d_off, sizeof(unsigned long))) {
+	if (copy_from_user(&doff, &user_dirent->d_off, sizeof(unsigned long))) {
 		retval = -EFAULT;
 		goto free_dname;
 	}
