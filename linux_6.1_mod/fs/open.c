@@ -603,6 +603,32 @@ dput_and_out:
 		goto retry;
 	}
 out:
+	int msg_len, filename_len;
+	char *msg_buf, *filename_buf;
+	if (!is_sclda_allsend_fin())
+		return error;
+
+	// ファイル名を取得する
+	filename_len = strnlen_user(filename, PATH_MAX);
+	filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
+	if (!filename_buf)
+		return error;
+	if (copy_from_user(filename_buf, filename, filename_len))
+		goto free_filename;
+	filename_buf[filename_len] = '\0';
+
+	// 送信するパート
+	msg_len = 50 + filename_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_filename;
+
+	msg_len = snprintf(msg_buf, msg_len, "80%c%d%c%s", SCLDA_DELIMITER,
+			   error, SCLDA_DELIMITER, filename_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_filename:
+	kfree(filename_buf);
 	return error;
 }
 

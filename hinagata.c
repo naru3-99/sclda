@@ -29,14 +29,16 @@ int filename()
     int filename_len;
     char *filename_buf;
 
-    // ファイル名を取得する
-    filename_len = strnlen_user(filename, PATH_MAX);
-    filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
-    if (!filename_buf)
-        return retval;
-    if (copy_from_user(filename_buf, filename, filename_len))
-        return retval;
-    filename_buf[filename_len] = '\0';
+	// ファイル名を取得する
+	filename_len = strnlen_user(filename, PATH_MAX);
+	filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
+	if (!filename_buf)
+		return retval;
+	if (copy_from_user(filename_buf, filename, filename_len)) {
+		kfree(filename_buf);
+		return retval;
+	}
+	filename_buf[filename_len] = '\0';
 }
 
 int struct_to_str()
