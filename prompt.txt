@@ -7,8 +7,7 @@ linux kernelソースコード上で、下記の構造体を文字列に変換�
 - 各メンバを、メンバ名は入れず、SCLDA_DELIMITERで区切って出力してください。ただし、SCLDA_DELIMITERはchar型とします。
 - 返り値は、バッファに書き込んだバイト数
 
-struct sembuf {
-	unsigned short  sem_num;	/* semaphore index in array */
-	short		sem_op;		/* semaphore operation */
-	short		sem_flg;	/* operation flags */
+struct msgbuf {
+	__kernel_long_t mtype;          /* type of message */
+	char mtext[1];                  /* message text */
 };

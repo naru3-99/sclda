@@ -47,6 +47,46 @@
 #include <linux/uaccess.h>
 #include "util.h"
 
+int msgbuf_to_str(struct msgbuf __user *msgp, size_t msgsz, char *buf,
+		  int buf_len)
+{
+	int ret = 0;
+	size_t kmsg_size;
+	struct msgbuf *kmsgp;
+	char *mt_buf;
+
+	// msgpをカーネル空間にコピー
+	kmsg_size = sizeof(struct msgbuf) + msgsz - 1;
+	kmsgp = kmalloc(kmsg_size, GFP_KERNEL);
+	if (!kmsgp)
+		return -ENOMEM;
+	if (copy_from_user(kmsgp, msgp, kmsg_size)) {
+		ret = -EFAULT;
+		goto free_kmsgp;
+	}
+	// mtextをカーネル空間にコピーする
+	mt_buf = kmalloc(msgsz, GFP_KERNEL);
+	if (!mt_buf) {
+		ret = -ENOMEM;
+		goto free_kmsgp;
+	}
+	if (copy_from_user(mt_buf, kmsgp->mtext, msgsz)) {
+		ret = -EFAULT;
+		goto free_mt_buf;
+	}
+
+	// bufに情報を書き込む
+	ret = snprintf(buf, buf_len, "%ld%c%s", kmsgp->mtype, SCLDA_DELIMITER,
+		       mt_buf);
+
+free_mt_buf:
+	kfree(mt_buf);
+
+free_kmsgp:
+	kfree(kmsgp);
+	return ret;
+}
+
 /* one msq_queue structure for each present queue on the system */
 struct msg_queue {
 	struct kern_ipc_perm q_perm;
@@ -988,7 +1028,40 @@ long ksys_msgsnd(int msqid, struct msgbuf __user *msgp, size_t msgsz,
 SYSCALL_DEFINE4(msgsnd, int, msqid, struct msgbuf __user *, msgp, size_t, msgsz,
 		int, msgflg)
 {
-	return ksys_msgsnd(msqid, msgp, msgsz, msgflg);
+	long retval;
+	int msg_len, msgbuf_len;
+	char *msg_buf, *msgbuf_buf;
+
+	retval = ksys_msgsnd(msqid, msgp, msgsz, msgflg);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// msgbuf構造体から情報を取得
+	msgbuf_len = (int)msgsz + 50;
+	msgbuf_buf = kmalloc(msgbuf_len, GFP_KERNEL);
+	if (!msgbuf_buf)
+		return retval;
+	msgbuf_to_str(msgp, msgsz, msgbuf_buf, msgbuf_len);
+
+	// 送信するパート
+	msg_len = 100 + msgbuf_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_msgbuf_buf;
+
+	msg_len = snprintf(msg_buf, msg_len, "69%c%ld%c%d%c%zu%c%d%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, msqid,
+			   SCLDA_DELIMITER, msgsz, SCLDA_DELIMITER, msgflg,
+			   SCLDA_DELIMITER, msgbuf_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_msgbuf_buf:
+	kfree(msgbuf_buf);
+
+free_msg_buf:
+	kfree(msg_buf);
+out:
+	return retval;
 }
 
 #ifdef CONFIG_COMPAT
