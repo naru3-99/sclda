@@ -90,6 +90,7 @@ symlink,88,retval,oldname,newname
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 mkdirat,258,retval,dfd,mode,path
 unlinkat,263,retval,dfd,flag,path
+renameat,264,retval,olddfd,newdfd,oldname,newname
 linkat,265,retval,olddfd,newdfd,flags,oldname,newname
 symlinkat,266,retval,newdfd,oldname,newname
 accept4,288,retval,fd,addrlen,flags,sa_family,sockaddr_info

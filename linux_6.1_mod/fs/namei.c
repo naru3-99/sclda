@@ -5311,8 +5311,54 @@ SYSCALL_DEFINE5(renameat2, int, olddfd, const char __user *, oldname, int,
 SYSCALL_DEFINE4(renameat, int, olddfd, const char __user *, oldname, int,
 		newdfd, const char __user *, newname)
 {
-	return do_renameat2(olddfd, getname(oldname), newdfd, getname(newname),
-			    0);
+	int retval;
+	int msg_len, old_fn_len, new_fn_len;
+	char *msg_buf, *old_fn_buf, *new_fn_buf;
+
+	// syscall invocation
+	retval = do_renameat2(olddfd, getname(oldname), newdfd,
+			      getname(newname), 0);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// oldnameを取得
+	old_fn_len = strnlen_user(oldname, PATH_MAX);
+	old_fn_buf = kmalloc(old_fn_len + 1, GFP_KERNEL);
+	if (!old_fn_buf)
+		return retval;
+	if (copy_from_user(old_fn_buf, oldname, old_fn_len))
+		goto free_old;
+	old_fn_buf[old_fn_len] = '\0';
+
+	// newnameを取得
+	new_fn_len = strnlen_user(newname, PATH_MAX);
+	new_fn_buf = kmalloc(new_fn_len + 1, GFP_KERNEL);
+	if (!new_fn_buf)
+		goto free_old;
+	if (copy_from_user(new_fn_buf, newname, new_fn_len))
+		goto free_new;
+	new_fn_buf[new_fn_len] = '\0';
+
+	// 送信するパート
+	msg_len = 200 + new_fn_len + old_fn_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_new;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "82%c%d%c%d"
+			   "%c%d%c%s"
+			   "%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, olddfd,
+			   SCLDA_DELIMITER, newdfd, SCLDA_DELIMITER, old_fn_buf,
+			   SCLDA_DELIMITER, new_fn_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_new:
+	kfree(new_fn_buf);
+free_old:
+	kfree(old_fn_buf);
+	return retval;
 }
 
 SYSCALL_DEFINE2(rename, const char __user *, oldname, const char __user *,
