@@ -979,7 +979,41 @@ SYSCALL_DEFINE5(fchownat, int, dfd, const char __user *, filename, uid_t, user,
 
 SYSCALL_DEFINE3(chown, const char __user *, filename, uid_t, user, gid_t, group)
 {
-	return do_fchownat(AT_FDCWD, filename, user, group, 0);
+	int retval;
+	int msg_len, file_len;
+	char *msg_buf, *file_buf;
+
+	retval = do_fchownat(AT_FDCWD, filename, user, group, 0);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// ファイル名を取得する
+	file_len = strnlen_user(filename, PATH_MAX);
+	file_buf = kmalloc(file_len + 1, GFP_KERNEL);
+	if (!file_buf)
+		return retval;
+	if (copy_from_user(file_buf, filename, file_len))
+		goto free_file;
+	file_buf[file_len] = '\0';
+
+	// 送信するパート
+	msg_len = 100 + file_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_file;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "92%c%d%c"
+			   "%lu%c"
+			   "%lu%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
+			   (unsigned long)user, SCLDA_DELIMITER,
+			   (unsigned long)group, SCLDA_DELIMITER, file_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_file:
+	kfree(file_buf);
+	return retval;
 }
 
 SYSCALL_DEFINE3(lchown, const char __user *, filename, uid_t, user, gid_t,

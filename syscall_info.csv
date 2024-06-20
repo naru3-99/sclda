@@ -90,6 +90,7 @@ symlink,88,retval,oldname,newname
 readlink,89,retval,bufsiz,path,buf
 chmod,90,retval,mode,filename
 fchmod,91,retval,fd,mode
+chown,92,retval,user,group,filename
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 mkdirat,258,retval,dfd,mode,path
 unlinkat,263,retval,dfd,flag,path
