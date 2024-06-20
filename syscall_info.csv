@@ -79,6 +79,7 @@ ftruncate,77,retval,fd,length
 getdents,78,retval,fd,count,dirent.d_ino,dirent.d_off,dirent.d_reclen,dirent.d_name
 getcwd,79,retval,size,cwd
 chdir,80,retval,filename
+fchdir,81,retval,fd
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 accept4,288,retval,fd,addrlen,flags,sa_family,sockaddr_info
 dup3,292,retval,old_fd,new_fd,flags,,,,,,,,,,,,,,

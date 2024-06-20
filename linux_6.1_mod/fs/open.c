@@ -651,6 +651,20 @@ SYSCALL_DEFINE1(fchdir, unsigned int, fd)
 out_putf:
 	fdput(f);
 out:
+	int msg_len;
+	char *msg_buf;
+	if (!is_sclda_allsend_fin())
+		return error;
+
+	// 送信するパート
+	msg_len = 100;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return error;
+
+	msg_len = snprintf(msg_buf, msg_len, "81%c%d%c%u", SCLDA_DELIMITER,
+			   error, SCLDA_DELIMITER, fd);
+	sclda_send_syscall_info(msg_buf, msg_len);
 	return error;
 }
 
