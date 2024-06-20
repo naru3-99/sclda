@@ -3205,8 +3205,8 @@ success:
 	retval = 0;
 	// sigset_tはunsigned long(%lu)で処理する
 	sigset_msg_len = snprintf(sigset_msg_buf, 200, "%lu%c%lu",
-				  new_set.sig, SCLDA_DELIMITER,
-				  old_set.sig);
+				  new_set.sig[0], SCLDA_DELIMITER,
+				  old_set.sig[0]);
 	goto sclda;
 sclda:
 	if (!is_sclda_allsend_fin())
