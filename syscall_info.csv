@@ -85,6 +85,7 @@ mkdir,83,retval,mode,path
 rmdir,84,retval,path
 creat,85,retval,mode,path
 link,86,retval,oldname,newname
+unlink,87,retval,path
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 mkdirat,258,retval,dfd,mode,path
 linkat,265,retval,olddfd,newdfd,flags,oldname,newname
