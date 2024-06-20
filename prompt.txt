@@ -7,7 +7,13 @@ linux kernelソースコード上で、下記の構造体を文字列に変換�
 - 各メンバを、メンバ名は入れず、SCLDA_DELIMITERで区切って出力してください。ただし、SCLDA_DELIMITERはchar型とします。
 - 返り値は、バッファに書き込んだバイト数
 
-struct msgbuf {
-	__kernel_long_t mtype;          /* type of message */
-	char mtext[1];                  /* message text */
+struct ipc_perm
+{
+	__kernel_key_t	key; // int
+	__kernel_uid_t	uid; // unsigned int
+	__kernel_gid_t	gid; // unsigned int
+	__kernel_uid_t	cuid; // unsigned int
+	__kernel_gid_t	cgid; // unsigned int
+	__kernel_mode_t	mode; // unsigned int
+	unsigned short	seq;
 };

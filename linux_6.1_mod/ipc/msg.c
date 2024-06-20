@@ -695,7 +695,25 @@ static long ksys_msgctl(int msqid, int cmd, struct msqid_ds __user *buf,
 
 SYSCALL_DEFINE3(msgctl, int, msqid, int, cmd, struct msqid_ds __user *, buf)
 {
-	return ksys_msgctl(msqid, cmd, buf, IPC_64);
+	long retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = ksys_msgctl(msqid, cmd, buf, IPC_64);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	// SCLDA_TODO msqid_dsを文字列に変換する
+	msg_len = snprintf(msg_buf, msg_len, "71%c%ld%c%d%c%d", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, msqid, SCLDA_DELIMITER,
+			   cmd);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 #ifdef CONFIG_ARCH_WANT_IPC_PARSE_VERSION
