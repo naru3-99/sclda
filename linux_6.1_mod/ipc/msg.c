@@ -1362,7 +1362,45 @@ long ksys_msgrcv(int msqid, struct msgbuf __user *msgp, size_t msgsz,
 SYSCALL_DEFINE5(msgrcv, int, msqid, struct msgbuf __user *, msgp, size_t, msgsz,
 		long, msgtyp, int, msgflg)
 {
-	return ksys_msgrcv(msqid, msgp, msgsz, msgtyp, msgflg);
+	long retval;
+	int msg_len, msgbuf_len;
+	char *msg_buf, *msgbuf_buf;
+
+	retval = ksys_msgrcv(msqid, msgp, msgsz, msgtyp, msgflg);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// msgbuf構造体から情報を取得
+	msgbuf_len = (int)msgsz + 50;
+	msgbuf_buf = kmalloc(msgbuf_len, GFP_KERNEL);
+	if (!msgbuf_buf)
+		return retval;
+	msgbuf_to_str(msgp, msgsz, msgbuf_buf, msgbuf_len);
+
+	// 送信するパート
+	msg_len = 100 + msgbuf_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_msgbuf_buf;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "70%c%ld%c%d"
+			   "%c%zu%c%ld"
+			   "%c%d%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, msqid,
+			   SCLDA_DELIMITER, msgsz, SCLDA_DELIMITER, msgtyp,
+			   SCLDA_DELIMITER, msgflg, SCLDA_DELIMITER,
+			   msgbuf_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_msgbuf_buf:
+	kfree(msgbuf_buf);
+
+free_msg_buf:
+	kfree(msg_buf);
+
+out:
+	return retval;
 }
 
 #ifdef CONFIG_COMPAT
