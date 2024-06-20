@@ -710,7 +710,7 @@ SYSCALL_DEFINE3(readlink, const char __user *, path, char __user *, buf, int,
 			   "89%c%d%c%d"
 			   "%c%s%c%s",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, bufsiz,
-			   SCLDA_DELIMITER path_buf, SCLDA_DELIMITER, buf_buf);
+			   SCLDA_DELIMITER,F path_buf, SCLDA_DELIMITER, buf_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
 
 free_buf:
