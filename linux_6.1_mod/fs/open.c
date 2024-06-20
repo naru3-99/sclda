@@ -1605,7 +1605,7 @@ SYSCALL_DEFINE2(creat, const char __user *, pathname, umode_t, mode)
 	if (!msg_buf)
 		goto free_path;
 
-	msg_len = snprintf(msg_buf, msg_len, "85%c%d%c%hu%c%s", SCLDA_DELIMITER,
+	msg_len = snprintf(msg_buf, msg_len, "85%c%ld%c%hu%c%s", SCLDA_DELIMITER,
 			   retval, SCLDA_DELIMITER, (unsigned short)mode,
 			   SCLDA_DELIMITER, path_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);

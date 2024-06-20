@@ -4619,7 +4619,7 @@ SYSCALL_DEFINE3(symlinkat, const char __user *, oldname, int, newdfd,
 		return retval;
 
 	// oldnameを取得する
-	old_len = strnlen_user(oldname, old_MAX);
+	old_len = strnlen_user(oldname, PATH_MAX);
 	old_buf = kmalloc(old_len + 1, GFP_KERNEL);
 	if (!old_buf)
 		return retval;
@@ -4628,7 +4628,7 @@ SYSCALL_DEFINE3(symlinkat, const char __user *, oldname, int, newdfd,
 	old_buf[old_len] = '\0';
 
 	// newnameを取得する
-	new_len = strnlen_user(newname, new_MAX);
+	new_len = strnlen_user(newname, PATH_MAX);
 	new_buf = kmalloc(new_len + 1, GFP_KERNEL);
 	if (!new_buf)
 		goto free_old;
@@ -4666,7 +4666,7 @@ SYSCALL_DEFINE2(symlink, const char __user *, oldname, const char __user *,
 		return retval;
 
 	// oldnameを取得する
-	old_len = strnlen_user(oldname, old_MAX);
+	old_len = strnlen_user(oldname, PATH_MAX);
 	old_buf = kmalloc(old_len + 1, GFP_KERNEL);
 	if (!old_buf)
 		return retval;
@@ -4675,7 +4675,7 @@ SYSCALL_DEFINE2(symlink, const char __user *, oldname, const char __user *,
 	old_buf[old_len] = '\0';
 
 	// newnameを取得する
-	new_len = strnlen_user(newname, new_MAX);
+	new_len = strnlen_user(newname, PATH_MAX);
 	new_buf = kmalloc(new_len + 1, GFP_KERNEL);
 	if (!new_buf)
 		goto free_old;
@@ -4884,7 +4884,7 @@ SYSCALL_DEFINE5(linkat, int, olddfd, const char __user *, oldname, int, newdfd,
 		return retval;
 
 	// oldnameを取得する
-	old_len = strnlen_user(oldname, old_MAX);
+	old_len = strnlen_user(oldname, PATH_MAX);
 	old_buf = kmalloc(old_len + 1, GFP_KERNEL);
 	if (!old_buf)
 		return retval;
@@ -4893,7 +4893,7 @@ SYSCALL_DEFINE5(linkat, int, olddfd, const char __user *, oldname, int, newdfd,
 	old_buf[old_len] = '\0';
 
 	// newnameを取得する
-	new_len = strnlen_user(newname, new_MAX);
+	new_len = strnlen_user(newname, PATH_MAX);
 	new_buf = kmalloc(new_len + 1, GFP_KERNEL);
 	if (!new_buf)
 		goto free_old;
@@ -4936,7 +4936,7 @@ SYSCALL_DEFINE2(link, const char __user *, oldname, const char __user *,
 		return retval;
 
 	// oldnameを取得する
-	old_len = strnlen_user(oldname, old_MAX);
+	old_len = strnlen_user(oldname, PATH_MAX);
 	old_buf = kmalloc(old_len + 1, GFP_KERNEL);
 	if (!old_buf)
 		return retval;
@@ -4945,7 +4945,7 @@ SYSCALL_DEFINE2(link, const char __user *, oldname, const char __user *,
 	old_buf[old_len] = '\0';
 
 	// newnameを取得する
-	new_len = strnlen_user(newname, new_MAX);
+	new_len = strnlen_user(newname, PATH_MAX);
 	new_buf = kmalloc(new_len + 1, GFP_KERNEL);
 	if (!new_buf)
 		goto free_old;
