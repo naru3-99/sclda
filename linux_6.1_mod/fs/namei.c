@@ -4455,12 +4455,49 @@ slashes:
 
 SYSCALL_DEFINE3(unlinkat, int, dfd, const char __user *, pathname, int, flag)
 {
-	if ((flag & ~AT_REMOVEDIR) != 0)
-		return -EINVAL;
+	int retval;
+	int msg_len, path_len;
+	char *msg_buf, *path_buf;
 
-	if (flag & AT_REMOVEDIR)
-		return do_rmdir(dfd, getname(pathname));
-	return do_unlinkat(dfd, getname(pathname));
+	if ((flag & ~AT_REMOVEDIR) != 0) {
+		retval = -EINVAL;
+		goto sclda;
+	}
+	if (flag & AT_REMOVEDIR) {
+		retval = do_rmdir(dfd, getname(pathname));
+		goto sclda;
+	}
+	retval = do_unlinkat(dfd, getname(pathname));
+
+sclda:
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// ファイル名を取得する
+	path_len = strnlen_user(pathname, PATH_MAX);
+	path_buf = kmalloc(path_len + 1, GFP_KERNEL);
+	if (!path_buf)
+		return retval;
+	if (copy_from_user(path_buf, pathname, path_len))
+		goto free_path;
+	path_buf[path_len] = '\0';
+
+	// 送信するパート
+	msg_len = 100 + path_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_path;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "263%c%d%c%d"
+			   "%c%d%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, dfd,
+			   SCLDA_DELIMITER, flag, SCLDA_DELIMITER, path_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_path:
+	kfree(path_buf);
+	return retval;
 }
 
 SYSCALL_DEFINE1(unlink, const char __user *, pathname)

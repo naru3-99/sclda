@@ -88,6 +88,7 @@ link,86,retval,oldname,newname
 unlink,87,retval,path
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 mkdirat,258,retval,dfd,mode,path
+unlinkat,263,retval,dfd,flag,path
 linkat,265,retval,olddfd,newdfd,flags,oldname,newname
 accept4,288,retval,fd,addrlen,flags,sa_family,sockaddr_info
 dup3,292,retval,old_fd,new_fd,flags,,,,,,,,,,,,,,
