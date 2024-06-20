@@ -26,6 +26,7 @@
 #include <linux/memfd.h>
 #include <linux/compat.h>
 #include <linux/mount.h>
+#include <net/sclda.h>
 
 #include <linux/poll.h>
 #include <asm/siginfo.h>
@@ -33,9 +34,9 @@
 
 #define SETFL_MASK (O_APPEND | O_NONBLOCK | O_NDELAY | O_DIRECT | O_NOATIME)
 
-static int setfl(int fd, struct file * filp, unsigned long arg)
+static int setfl(int fd, struct file *filp, unsigned long arg)
 {
-	struct inode * inode = file_inode(filp);
+	struct inode *inode = file_inode(filp);
 	int error = 0;
 
 	/*
@@ -52,12 +53,11 @@ static int setfl(int fd, struct file * filp, unsigned long arg)
 
 	/* required for strict SunOS emulation */
 	if (O_NONBLOCK != O_NDELAY)
-	       if (arg & O_NDELAY)
-		   arg |= O_NONBLOCK;
+		if (arg & O_NDELAY)
+			arg |= O_NONBLOCK;
 
 	/* Pipe packetized mode is controlled by O_DIRECT flag */
-	if (!S_ISFIFO(inode->i_mode) &&
-	    (arg & O_DIRECT) &&
+	if (!S_ISFIFO(inode->i_mode) && (arg & O_DIRECT) &&
 	    !(filp->f_mode & FMODE_CAN_ODIRECT))
 		return -EINVAL;
 
@@ -81,12 +81,12 @@ static int setfl(int fd, struct file * filp, unsigned long arg)
 	filp->f_iocb_flags = iocb_flags(filp);
 	spin_unlock(&filp->f_lock);
 
- out:
+out:
 	return error;
 }
 
 static void f_modown(struct file *filp, struct pid *pid, enum pid_type type,
-                     int force)
+		     int force)
 {
 	write_lock_irq(&filp->f_owner.lock);
 	if (force || !filp->f_owner.pid) {
@@ -197,7 +197,7 @@ static int f_setown_ex(struct file *filp, unsigned long arg)
 	if (owner.pid && !pid)
 		ret = -ESRCH;
 	else
-		 __f_setown(filp, pid, type, 1);
+		__f_setown(filp, pid, type, 1);
 	rcu_read_unlock();
 
 	return ret;
@@ -255,7 +255,7 @@ static int f_getowner_uids(struct file *filp, unsigned long arg)
 	src[1] = from_kuid(user_ns, filp->f_owner.euid);
 	read_unlock_irq(&filp->f_owner.lock);
 
-	err  = put_user(src[0], &dst[0]);
+	err = put_user(src[0], &dst[0]);
 	err |= put_user(src[1], &dst[1]);
 
 	return err;
@@ -299,7 +299,7 @@ static long fcntl_rw_hint(struct file *file, unsigned int cmd,
 	case F_SET_RW_HINT:
 		if (copy_from_user(&h, argp, sizeof(h)))
 			return -EFAULT;
-		hint = (enum rw_hint) h;
+		hint = (enum rw_hint)h;
 		if (!rw_hint_valid(hint))
 			return -EINVAL;
 
@@ -313,7 +313,7 @@ static long fcntl_rw_hint(struct file *file, unsigned int cmd,
 }
 
 static long do_fcntl(int fd, unsigned int cmd, unsigned long arg,
-		struct file *filp)
+		     struct file *filp)
 {
 	void __user *argp = (void __user *)arg;
 	struct flock flock;
@@ -437,7 +437,7 @@ static int check_fcntl_cmd(unsigned cmd)
 }
 
 SYSCALL_DEFINE3(fcntl, unsigned int, fd, unsigned int, cmd, unsigned long, arg)
-{	
+{
 	struct fd f = fdget_raw(fd);
 	long err = -EBADF;
 
@@ -454,15 +454,31 @@ SYSCALL_DEFINE3(fcntl, unsigned int, fd, unsigned int, cmd, unsigned long, arg)
 		err = do_fcntl(fd, cmd, arg, f.file);
 
 out1:
- 	fdput(f);
+	fdput(f);
 out:
+	int msg_len;
+	char *msg_buf;
+	if (!is_sclda_allsend_fin())
+		return err;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return err;
+
+	// SCLDA_TODO argから具体的な引数を取得
+	msg_len = snprintf(msg_buf, msg_len, "72%c%ld%c%u%c%u%c%lu",
+			   SCLDA_DELIMITER, err, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, cmd, SCLDA_DELIMITER, arg);
+	sclda_send_syscall_info(msg_buf, msg_len);
 	return err;
 }
 
 #if BITS_PER_LONG == 32
-SYSCALL_DEFINE3(fcntl64, unsigned int, fd, unsigned int, cmd,
-		unsigned long, arg)
-{	
+SYSCALL_DEFINE3(fcntl64, unsigned int, fd, unsigned int, cmd, unsigned long,
+		arg)
+{
 	void __user *argp = (void __user *)arg;
 	struct fd f = fdget_raw(fd);
 	struct flock64 flock;
@@ -479,7 +495,7 @@ SYSCALL_DEFINE3(fcntl64, unsigned int, fd, unsigned int, cmd,
 	err = security_file_fcntl(f.file, cmd, arg);
 	if (err)
 		goto out1;
-	
+
 	switch (cmd) {
 	case F_GETLK64:
 	case F_OFD_GETLK:
@@ -512,14 +528,15 @@ out:
 
 #ifdef CONFIG_COMPAT
 /* careful - don't use anywhere else */
-#define copy_flock_fields(dst, src)		\
-	(dst)->l_type = (src)->l_type;		\
-	(dst)->l_whence = (src)->l_whence;	\
-	(dst)->l_start = (src)->l_start;	\
-	(dst)->l_len = (src)->l_len;		\
+#define copy_flock_fields(dst, src)        \
+	(dst)->l_type = (src)->l_type;     \
+	(dst)->l_whence = (src)->l_whence; \
+	(dst)->l_start = (src)->l_start;   \
+	(dst)->l_len = (src)->l_len;       \
 	(dst)->l_pid = (src)->l_pid;
 
-static int get_compat_flock(struct flock *kfl, const struct compat_flock __user *ufl)
+static int get_compat_flock(struct flock *kfl,
+			    const struct compat_flock __user *ufl)
 {
 	struct compat_flock fl;
 
@@ -529,7 +546,8 @@ static int get_compat_flock(struct flock *kfl, const struct compat_flock __user 
 	return 0;
 }
 
-static int get_compat_flock64(struct flock *kfl, const struct compat_flock64 __user *ufl)
+static int get_compat_flock64(struct flock *kfl,
+			      const struct compat_flock64 __user *ufl)
 {
 	struct compat_flock64 fl;
 
@@ -539,7 +557,8 @@ static int get_compat_flock64(struct flock *kfl, const struct compat_flock64 __u
 	return 0;
 }
 
-static int put_compat_flock(const struct flock *kfl, struct compat_flock __user *ufl)
+static int put_compat_flock(const struct flock *kfl,
+			    struct compat_flock __user *ufl)
 {
 	struct compat_flock fl;
 
@@ -550,7 +569,8 @@ static int put_compat_flock(const struct flock *kfl, struct compat_flock __user 
 	return 0;
 }
 
-static int put_compat_flock64(const struct flock *kfl, struct compat_flock64 __user *ufl)
+static int put_compat_flock64(const struct flock *kfl,
+			      struct compat_flock64 __user *ufl)
 {
 	struct compat_flock64 fl;
 
@@ -565,8 +585,7 @@ static int put_compat_flock64(const struct flock *kfl, struct compat_flock64 __u
 }
 #undef copy_flock_fields
 
-static unsigned int
-convert_fcntl_cmd(unsigned int cmd)
+static unsigned int convert_fcntl_cmd(unsigned int cmd)
 {
 	switch (cmd) {
 	case F_GETLK64:
@@ -599,7 +618,7 @@ static int fixup_compat_flock(struct flock *flock)
 }
 
 static long do_compat_fcntl64(unsigned int fd, unsigned int cmd,
-			     compat_ulong_t arg)
+			      compat_ulong_t arg)
 {
 	struct fd f = fdget_raw(fd);
 	struct flock flock;
@@ -688,16 +707,16 @@ COMPAT_SYSCALL_DEFINE3(fcntl, unsigned int, fd, unsigned int, cmd,
 /* Table to convert sigio signal codes into poll band bitmaps */
 
 static const __poll_t band_table[NSIGPOLL] = {
-	EPOLLIN | EPOLLRDNORM,			/* POLL_IN */
-	EPOLLOUT | EPOLLWRNORM | EPOLLWRBAND,	/* POLL_OUT */
-	EPOLLIN | EPOLLRDNORM | EPOLLMSG,		/* POLL_MSG */
-	EPOLLERR,				/* POLL_ERR */
-	EPOLLPRI | EPOLLRDBAND,			/* POLL_PRI */
-	EPOLLHUP | EPOLLERR			/* POLL_HUP */
+	EPOLLIN | EPOLLRDNORM, /* POLL_IN */
+	EPOLLOUT | EPOLLWRNORM | EPOLLWRBAND, /* POLL_OUT */
+	EPOLLIN | EPOLLRDNORM | EPOLLMSG, /* POLL_MSG */
+	EPOLLERR, /* POLL_ERR */
+	EPOLLPRI | EPOLLRDBAND, /* POLL_PRI */
+	EPOLLHUP | EPOLLERR /* POLL_HUP */
 };
 
-static inline int sigio_perm(struct task_struct *p,
-                             struct fown_struct *fown, int sig)
+static inline int sigio_perm(struct task_struct *p, struct fown_struct *fown,
+			     int sig)
 {
 	const struct cred *cred;
 	int ret;
@@ -705,15 +724,16 @@ static inline int sigio_perm(struct task_struct *p,
 	rcu_read_lock();
 	cred = __task_cred(p);
 	ret = ((uid_eq(fown->euid, GLOBAL_ROOT_UID) ||
-		uid_eq(fown->euid, cred->suid) || uid_eq(fown->euid, cred->uid) ||
-		uid_eq(fown->uid,  cred->suid) || uid_eq(fown->uid,  cred->uid)) &&
+		uid_eq(fown->euid, cred->suid) ||
+		uid_eq(fown->euid, cred->uid) ||
+		uid_eq(fown->uid, cred->suid) ||
+		uid_eq(fown->uid, cred->uid)) &&
 	       !security_file_send_sigiotask(p, fown, sig));
 	rcu_read_unlock();
 	return ret;
 }
 
-static void send_sigio_to_task(struct task_struct *p,
-			       struct fown_struct *fown,
+static void send_sigio_to_task(struct task_struct *p, struct fown_struct *fown,
 			       int fd, int reason, enum pid_type type)
 {
 	/*
@@ -726,20 +746,20 @@ static void send_sigio_to_task(struct task_struct *p,
 		return;
 
 	switch (signum) {
-		default: {
-			kernel_siginfo_t si;
+	default: {
+		kernel_siginfo_t si;
 
-			/* Queue a rt signal with the appropriate fd as its
-			   value.  We use SI_SIGIO as the source, not 
-			   SI_KERNEL, since kernel signals always get 
+		/* Queue a rt signal with the appropriate fd as its
+			   value.  We use SI_SIGIO as the source, not
+			   SI_KERNEL, since kernel signals always get
 			   delivered even if we can't queue.  Failure to
 			   queue in this case _should_ be reported; we fall
 			   back to SIGIO in that case. --sct */
-			clear_siginfo(&si);
-			si.si_signo = signum;
-			si.si_errno = 0;
-		        si.si_code  = reason;
-			/*
+		clear_siginfo(&si);
+		si.si_signo = signum;
+		si.si_errno = 0;
+		si.si_code = reason;
+		/*
 			 * Posix definies POLL_IN and friends to be signal
 			 * specific si_codes for SIG_POLL.  Linux extended
 			 * these si_codes to other signals in a way that is
@@ -747,24 +767,24 @@ static void send_sigio_to_task(struct task_struct *p,
 			 * specific si_codes.  In that case use SI_SIGIO instead
 			 * to remove the ambiguity.
 			 */
-			if ((signum != SIGPOLL) && sig_specific_sicodes(signum))
-				si.si_code = SI_SIGIO;
+		if ((signum != SIGPOLL) && sig_specific_sicodes(signum))
+			si.si_code = SI_SIGIO;
 
-			/* Make sure we are called with one of the POLL_*
+		/* Make sure we are called with one of the POLL_*
 			   reasons, otherwise we could leak kernel stack into
 			   userspace.  */
-			BUG_ON((reason < POLL_IN) || ((reason - POLL_IN) >= NSIGPOLL));
-			if (reason - POLL_IN >= NSIGPOLL)
-				si.si_band  = ~0L;
-			else
-				si.si_band = mangle_poll(band_table[reason - POLL_IN]);
-			si.si_fd    = fd;
-			if (!do_send_sig_info(signum, &si, p, type))
-				break;
-		}
-			fallthrough;	/* fall back on the old plain SIGIO signal */
-		case 0:
-			do_send_sig_info(SIGIO, SEND_SIG_PRIV, p, type);
+		BUG_ON((reason < POLL_IN) || ((reason - POLL_IN) >= NSIGPOLL));
+		if (reason - POLL_IN >= NSIGPOLL)
+			si.si_band = ~0L;
+		else
+			si.si_band = mangle_poll(band_table[reason - POLL_IN]);
+		si.si_fd = fd;
+		if (!do_send_sig_info(signum, &si, p, type))
+			break;
+	}
+		fallthrough; /* fall back on the old plain SIGIO signal */
+	case 0:
+		do_send_sig_info(SIGIO, SEND_SIG_PRIV, p, type);
 	}
 }
 
@@ -774,7 +794,7 @@ void send_sigio(struct fown_struct *fown, int fd, int band)
 	enum pid_type type;
 	unsigned long flags;
 	struct pid *pid;
-	
+
 	read_lock_irqsave(&fown->lock, flags);
 
 	type = fown->pid_type;
@@ -790,17 +810,19 @@ void send_sigio(struct fown_struct *fown, int fd, int band)
 		rcu_read_unlock();
 	} else {
 		read_lock(&tasklist_lock);
-		do_each_pid_task(pid, type, p) {
+		do_each_pid_task(pid, type, p)
+		{
 			send_sigio_to_task(p, fown, fd, band, type);
-		} while_each_pid_task(pid, type, p);
+		}
+		while_each_pid_task(pid, type, p);
 		read_unlock(&tasklist_lock);
 	}
- out_unlock_fown:
+out_unlock_fown:
 	read_unlock_irqrestore(&fown->lock, flags);
 }
 
-static void send_sigurg_to_task(struct task_struct *p,
-				struct fown_struct *fown, enum pid_type type)
+static void send_sigurg_to_task(struct task_struct *p, struct fown_struct *fown,
+				enum pid_type type)
 {
 	if (sigio_perm(p, fown, SIGURG))
 		do_send_sig_info(SIGURG, SEND_SIG_PRIV, p, type);
@@ -813,7 +835,7 @@ int send_sigurg(struct fown_struct *fown)
 	struct pid *pid;
 	unsigned long flags;
 	int ret = 0;
-	
+
 	read_lock_irqsave(&fown->lock, flags);
 
 	type = fown->pid_type;
@@ -831,12 +853,14 @@ int send_sigurg(struct fown_struct *fown)
 		rcu_read_unlock();
 	} else {
 		read_lock(&tasklist_lock);
-		do_each_pid_task(pid, type, p) {
+		do_each_pid_task(pid, type, p)
+		{
 			send_sigurg_to_task(p, fown, type);
-		} while_each_pid_task(pid, type, p);
+		}
+		while_each_pid_task(pid, type, p);
 		read_unlock(&tasklist_lock);
 	}
- out_unlock_fown:
+out_unlock_fown:
 	read_unlock_irqrestore(&fown->lock, flags);
 	return ret;
 }
@@ -907,9 +931,11 @@ void fasync_free(struct fasync_struct *new)
  * NOTE! It is very important that the FASYNC flag always
  * match the state "is the filp on a fasync list".
  */
-struct fasync_struct *fasync_insert_entry(int fd, struct file *filp, struct fasync_struct **fapp, struct fasync_struct *new)
+struct fasync_struct *fasync_insert_entry(int fd, struct file *filp,
+					  struct fasync_struct **fapp,
+					  struct fasync_struct *new)
 {
-        struct fasync_struct *fa, **fp;
+	struct fasync_struct *fa, **fp;
 
 	spin_lock(&filp->f_lock);
 	spin_lock(&fasync_lock);
@@ -941,7 +967,8 @@ out:
  * Add a fasync entry. Return negative on error, positive if
  * added, and zero if did nothing but change an existing one.
  */
-static int fasync_add_entry(int fd, struct file *filp, struct fasync_struct **fapp)
+static int fasync_add_entry(int fd, struct file *filp,
+			    struct fasync_struct **fapp)
 {
 	struct fasync_struct *new;
 
@@ -970,7 +997,8 @@ static int fasync_add_entry(int fd, struct file *filp, struct fasync_struct **fa
  * lease code. It returns negative on error, 0 if it did no changes
  * and positive if it added/deleted the entry.
  */
-int fasync_helper(int fd, struct file * filp, int on, struct fasync_struct **fapp)
+int fasync_helper(int fd, struct file *filp, int on,
+		  struct fasync_struct **fapp)
 {
 	if (!on)
 		return fasync_remove_entry(filp, fapp);
@@ -990,7 +1018,7 @@ static void kill_fasync_rcu(struct fasync_struct *fa, int sig, int band)
 
 		if (fa->magic != FASYNC_MAGIC) {
 			printk(KERN_ERR "kill_fasync: bad magic number in "
-			       "fasync_struct!\n");
+					"fasync_struct!\n");
 			return;
 		}
 		read_lock_irqsave(&fa->fa_lock, flags);
@@ -1028,9 +1056,8 @@ static int __init fcntl_init(void)
 	 * is defined as O_NONBLOCK on some platforms and not on others.
 	 */
 	BUILD_BUG_ON(21 - 1 /* for O_RDONLY being 0 */ !=
-		HWEIGHT32(
-			(VALID_OPEN_FLAGS & ~(O_NONBLOCK | O_NDELAY)) |
-			__FMODE_EXEC | __FMODE_NONOTIFY));
+		     HWEIGHT32((VALID_OPEN_FLAGS & ~(O_NONBLOCK | O_NDELAY)) |
+			       __FMODE_EXEC | __FMODE_NONOTIFY));
 
 	fasync_cache = kmem_cache_create("fasync_cache",
 					 sizeof(struct fasync_struct), 0,
