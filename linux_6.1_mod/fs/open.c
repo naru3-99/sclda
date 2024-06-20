@@ -145,7 +145,37 @@ retry:
 
 SYSCALL_DEFINE2(truncate, const char __user *, path, long, length)
 {
-	return do_sys_truncate(path, length);
+	long retval;
+	int msg_len, filename_len;
+	char *msg_buf, *filename_buf;
+
+	retval = do_sys_truncate(path, length);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// ファイル名を取得する
+	filename_len = strnlen_user(path, PATH_MAX);
+	filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
+	if (!filename_buf)
+		return retval;
+	if (copy_from_user(filename_buf, path, filename_len))
+		return retval;
+	filename_buf[filename_len] = '\0';
+
+	// 送信するパート
+	msg_len = 200 + filename_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf) {
+		kfree(filename_buf);
+		return retval;
+	}
+
+	msg_len = snprintf(msg_buf, msg_len, "76%c%ld%c%ld%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, length,
+			   SCLDA_DELIMITER, filename_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	kfree(filename_buf);
+	return retval;
 }
 
 #ifdef CONFIG_COMPAT
@@ -1375,13 +1405,13 @@ SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
 		return ret;
 
 	// ファイル名を取得する
-    // ファイル名を取得する
-    int filename_len = strnlen_user(filename, 1000);
-    char *filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
-    if (!filename_buf)
-        return ret;
-    filename_len -= copy_from_user(filename_buf, filename, filename_len);
-    filename_buf[filename_len] = '\0';
+	// ファイル名を取得する
+	int filename_len = strnlen_user(filename, 1000);
+	char *filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
+	if (!filename_buf)
+		return ret;
+	filename_len -= copy_from_user(filename_buf, filename, filename_len);
+	filename_buf[filename_len] = '\0';
 
 	// 送信するパート
 	int msg_len = filename_len + 200;
