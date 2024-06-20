@@ -26,19 +26,37 @@ int hinagata()
 
 int filename()
 {
-    int filename_len;
-    char *filename_buf;
+	int retval;
+	int msg_len, path_len;
+	char *msg_buf, *path_buf;
+
+	retval = do_mkdirat(AT_FDCWD, getname(pathname), mode);
+	if (!is_sclda_allsend_fin())
+		return retval;
 
 	// ファイル名を取得する
-	filename_len = strnlen_user(filename, PATH_MAX);
-	filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
-	if (!filename_buf)
+	path_len = strnlen_user(pathname, PATH_MAX);
+	path_buf = kmalloc(path_len + 1, GFP_KERNEL);
+	if (!path_buf)
 		return retval;
-	if (copy_from_user(filename_buf, filename, filename_len)) {
-		kfree(filename_buf);
-		return retval;
-	}
-	filename_buf[filename_len] = '\0';
+	if (copy_from_user(path_buf, pathname, path_len))
+		goto free_path;
+	path_buf[path_len] = '\0';
+
+	// 送信するパート
+	msg_len = 100 + path_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_path;
+
+	msg_len = snprintf(msg_buf, msg_len, "83%c%d%c%hu%c%s", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, (unsigned short)mode,
+			   SCLDA_DELIMITER, path_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_path:
+	kfree(path_buf);
+	return retval;
 }
 
 int struct_to_str()
