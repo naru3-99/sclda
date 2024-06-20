@@ -29,39 +29,48 @@
 int linux_dirent_to_str(const struct linux_dirent __user *user_dirent,
 			char **buf)
 {
+	int retval;
+	char *all_buf, *dname;
+	int all_len, dname_len;
 	struct linux_dirent kdirent;
-	char *kname, *all_buf;
-	int ret;
-	size_t name_len, required_size;
+	unsigned long dino, doff;
 
-	// ユーザ空間からカーネル空間へのコピー（固定長部分）
-	if (copy_from_user(&kdirent, user_dirent, sizeof(struct linux_dirent)))
+	// user_direntのd_nameの長さ = d_reclen
+	if (copy_from_user(&dname_len, user_dirent->d_reclen,
+			   sizeof(unsigned short)))
 		return -EFAULT;
-
-	// dname を取得する
-	name_len = kdirent.d_reclen - offsetof(struct linux_dirent, d_name);
-	kname = kmalloc(name_len, GFP_KERNEL);
-	if (!kname)
+	// d_nameを取得する
+	dname = kmalloc(dname_len, GFP_KERNEL);
+	if (!dname)
 		return -ENOMEM;
-	if (copy_from_user(kname, user_dirent->d_name, name_len)) {
-		kfree(kname);
-		return -EFAULT;
+	if (copy_from_user(dname, user_dirent->d_name, dname_len)) {
+		retval = -EFAULT;
+		goto free_dname;
+	}
+	// その他フィールドを取得
+	if (copy_from_user(&dino, user_dirent->d_ino, sizeof(unsigned long))) {
+		retval = -EFAULT;
+		goto free_dname;
+	}
+	if (copy_from_user(&doff, user_dirent->d_off, sizeof(unsigned long))) {
+		retval = -EFAULT;
+		goto free_dname;
 	}
 
-	required_size = 150 + name_len;
-	all_buf = kmalloc(required_size, GFP_KERNEL);
+	all_len = 150 + dname_len;
+	all_buf = kmalloc(all_len, GFP_KERNEL);
 	if (!all_buf) {
-		kfree(kname);
-		return -ENOMEM;
+		retval = -EFAULT;
+		goto free_dname;
 	}
-
-	ret = snprintf(all_buf, required_size, "%lu%c%lu%c%hu%c%s",
-		       kdirent.d_ino, SCLDA_DELIMITER, kdirent.d_off,
-		       SCLDA_DELIMITER, kdirent.d_reclen, SCLDA_DELIMITER,
-		       kname);
-	kfree(kname);
+	retval = snprintf(all_buf, all_len, "%lu%c%lu%c%hu%c%s", dino,
+			  SCLDA_DELIMITER, doff, SCLDA_DELIMITER, dname_len,
+			  SCLDA_DELIMITER, dname);
 	*buf = all_buf;
-	return ret;
+
+free_dname:
+	kfree(dname);
+	return retval;
 }
 
 /*
