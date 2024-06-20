@@ -26,52 +26,6 @@
 
 #include <asm/unaligned.h>
 
-int linux_dirent_to_str(const struct linux_dirent __user *user_dirent,
-			char **buf)
-{
-	int retval;
-	char *all_buf, *dname;
-	int all_len, dname_len;
-	unsigned long dino, doff;
-
-	// user_direntのd_nameの長さ = d_reclen
-	if (copy_from_user(&dname_len, &user_dirent->d_reclen,
-			   sizeof(unsigned short)))
-		return -EFAULT;
-	// d_nameを取得する
-	dname = kmalloc(dname_len, GFP_KERNEL);
-	if (!dname)
-		return -ENOMEM;
-	if (copy_from_user(dname, &user_dirent->d_name, dname_len)) {
-		retval = -EFAULT;
-		goto free_dname;
-	}
-	// その他フィールドを取得
-	if (copy_from_user(&dino, &user_dirent->d_ino, sizeof(unsigned long))) {
-		retval = -EFAULT;
-		goto free_dname;
-	}
-	if (copy_from_user(&doff, &user_dirent->d_off, sizeof(unsigned long))) {
-		retval = -EFAULT;
-		goto free_dname;
-	}
-
-	all_len = 150 + dname_len;
-	all_buf = kmalloc(all_len, GFP_KERNEL);
-	if (!all_buf) {
-		retval = -EFAULT;
-		goto free_dname;
-	}
-	retval = snprintf(all_buf, all_len, "%lu%c%lu%c%hu%c%s", dino,
-			  SCLDA_DELIMITER, doff, SCLDA_DELIMITER, dname_len,
-			  SCLDA_DELIMITER, dname);
-	*buf = all_buf;
-
-free_dname:
-	kfree(dname);
-	return retval;
-}
-
 /*
  * Note the "unsafe_put_user() semantics: we goto a
  * label for errors.
@@ -256,6 +210,52 @@ struct linux_dirent {
 	unsigned short d_reclen;
 	char d_name[1];
 };
+
+int linux_dirent_to_str(const struct linux_dirent __user *user_dirent,
+			char **buf)
+{
+	int retval;
+	char *all_buf, *dname;
+	int all_len, dname_len;
+	unsigned long dino, doff;
+
+	// user_direntのd_nameの長さ = d_reclen
+	if (copy_from_user(&dname_len, user_dirent->d_reclen,
+			   sizeof(unsigned short)))
+		return -EFAULT;
+	// d_nameを取得する
+	dname = kmalloc(dname_len, GFP_KERNEL);
+	if (!dname)
+		return -ENOMEM;
+	if (copy_from_user(dname, user_dirent->d_name, dname_len)) {
+		retval = -EFAULT;
+		goto free_dname;
+	}
+	// その他フィールドを取得
+	if (copy_from_user(&dino, user_dirent->d_ino, sizeof(unsigned long))) {
+		retval = -EFAULT;
+		goto free_dname;
+	}
+	if (copy_from_user(&doff, user_dirent->d_off, sizeof(unsigned long))) {
+		retval = -EFAULT;
+		goto free_dname;
+	}
+
+	all_len = 150 + dname_len;
+	all_buf = kmalloc(all_len, GFP_KERNEL);
+	if (!all_buf) {
+		retval = -EFAULT;
+		goto free_dname;
+	}
+	retval = snprintf(all_buf, all_len, "%lu%c%lu%c%hu%c%s", dino,
+			  SCLDA_DELIMITER, doff, SCLDA_DELIMITER, dname_len,
+			  SCLDA_DELIMITER, dname);
+	*buf = all_buf;
+
+free_dname:
+	kfree(dname);
+	return retval;
+}
 
 struct getdents_callback {
 	struct dir_context ctx;
