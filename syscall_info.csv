@@ -92,6 +92,7 @@ chmod,90,retval,mode,filename
 fchmod,91,retval,fd,mode
 chown,92,retval,user,group,filename
 fchown,93,retval,fd,user,group
+lchown,94,retval,user,group,filename
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 mkdirat,258,retval,dfd,mode,path
 fchownat,260,retval,dfd,user,group,flag,filename
