@@ -69,6 +69,26 @@
 #include <linux/kmsg_dump.h>
 #include <net/sclda.h>
 
+int sysinfo_to_str(struct sysinfo *si, char *buf, size_t buf_size)
+{
+	return snprintf(buf, buf_size,
+			"%ld%c%lu%c%lu%c"
+			"%lu%c%lu%c%lu%c"
+			"%lu%c%lu%c%lu%c"
+			"%lu%c%u%c%u%c"
+			"%lu%c%lu%c%u%c",
+			si->uptime, SCLDA_DELIMITER, si->loads[0],
+			SCLDA_DELIMITER, si->loads[1], SCLDA_DELIMITER,
+			si->loads[2], SCLDA_DELIMITER, si->totalram,
+			SCLDA_DELIMITER, si->freeram, SCLDA_DELIMITER,
+			si->sharedram, SCLDA_DELIMITER, si->bufferram,
+			SCLDA_DELIMITER, si->totalswap, SCLDA_DELIMITER,
+			si->freeswap, SCLDA_DELIMITER, si->procs,
+			SCLDA_DELIMITER, si->pad, SCLDA_DELIMITER,
+			si->totalhigh, SCLDA_DELIMITER, si->freehigh,
+			SCLDA_DELIMITER, si->mem_unit, SCLDA_DELIMITER);
+}
+
 /* Move somewhere else to avoid recompiling? */
 #include <generated/utsrelease.h>
 
@@ -2884,14 +2904,42 @@ out:
 
 SYSCALL_DEFINE1(sysinfo, struct sysinfo __user *, info)
 {
+	int retval = -EFAULT;
+	int msg_len, info_len;
+	char *msg_buf, *info_buf;
+
 	struct sysinfo val;
-
 	do_sysinfo(&val);
-
 	if (copy_to_user(info, &val, sizeof(struct sysinfo)))
-		return -EFAULT;
+		goto sclda;
+	retval = 0;
 
-	return 0;
+sclda:
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// sysinfoを取得する
+	info_len = 500;
+	info_buf = kmalloc(info_len, GFP_KERNEL);
+	if (!info_buf)
+		return retval;
+	info_len = sysinfo_to_str(&val, info_buf, info_len);
+	if (info_len < 0)
+		goto free_infobuf;
+
+	// 送信するパート
+	msg_len = 50 + info_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_infobuf;
+
+	msg_len = snprintf(msg_buf, msg_len, "99%c%d%c%s", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, info_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_infobuf:
+	kfree(info_buf);
+	return retval;
 }
 
 #ifdef CONFIG_COMPAT
