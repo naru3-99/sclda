@@ -185,7 +185,7 @@ sclda:
 			   "%d%c%d",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
 			   (long)kkot.tv_sec, SCLDA_DELIMITER,
-			   (long)kkot.tv_usec SCLDA_DELIMITER,
+			   (long)kkot.tv_usec, SCLDA_DELIMITER,
 			   ktz.tz_minuteswest, SCLDA_DELIMITER, ktz.tz_dsttime);
 	sclda_send_syscall_info(msg_buf, msg_len);
 	return retval;
