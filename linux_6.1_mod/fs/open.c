@@ -1050,7 +1050,29 @@ int ksys_fchown(unsigned int fd, uid_t user, gid_t group)
 
 SYSCALL_DEFINE3(fchown, unsigned int, fd, uid_t, user, gid_t, group)
 {
-	return ksys_fchown(fd, user, group);
+	int retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = ksys_fchown(fd, user, group);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "93%c%d%c%u"
+			   "%c%ld"
+			   "%c%ld",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, (unsigned long)user,
+			   SCLDA_DELIMITER, (unsigned long)group);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 static int do_dentry_open(struct file *f, struct inode *inode,
