@@ -95,6 +95,7 @@ fchown,93,retval,fd,user,group
 lchown,94,retval,user,group,filename
 umask,95,retval,mask
 gettimeofday,96,retval,tv_sec,tv_usectz_minuteswest,tz_dsttime
+getrlimit,97,retval,resource,rlim_cur,rlim_max
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 mkdirat,258,retval,dfd,mode,path
 fchownat,260,retval,dfd,user,group,flag,filename

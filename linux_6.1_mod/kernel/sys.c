@@ -1572,14 +1572,33 @@ static int do_prlimit(struct task_struct *tsk, unsigned int resource,
 
 SYSCALL_DEFINE2(getrlimit, unsigned int, resource, struct rlimit __user *, rlim)
 {
+	int retval;
+	int msg_len;
+	char *msg_buf;
 	struct rlimit value;
-	int ret;
 
-	ret = do_prlimit(current, resource, NULL, &value);
-	if (!ret)
-		ret = copy_to_user(rlim, &value, sizeof(*rlim)) ? -EFAULT : 0;
+	retval = do_prlimit(current, resource, NULL, &value);
+	if (!retval)
+		retval = copy_to_user(rlim, &value, sizeof(*rlim)) ? -EFAULT :
+								     0;
 
-	return ret;
+	// sclda: send syscall info
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	msg_len = 300;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "97%c%d%c%u"
+			   "%c%lu%c%lu",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, resource,
+			   SCLDA_DELIMITER, value.rlim_cur, SCLDA_DELIMITER,
+			   value.rlim_max);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 #ifdef CONFIG_COMPAT
