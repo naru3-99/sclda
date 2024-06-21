@@ -1932,14 +1932,67 @@ out:
 
 SYSCALL_DEFINE2(getrusage, int, who, struct rusage __user *, ru)
 {
-	struct rusage r;
+	int retval = -EINVAL;
+	int msg_len;
+	char *msg_buf;
 
+	struct rusage r;
 	if (who != RUSAGE_SELF && who != RUSAGE_CHILDREN &&
 	    who != RUSAGE_THREAD)
-		return -EINVAL;
+		goto sclda_err;
 
 	getrusage(current, who, &r);
-	return copy_to_user(ru, &r, sizeof(r)) ? -EFAULT : 0;
+	retval = copy_to_user(ru, &r, sizeof(r)) ? -EFAULT : 0;
+	// struct rusage rは完成しているため、successに行く
+	goto sclda_success;
+
+sclda_err:
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+	msg_len = snprintf(msg_buf, msg_len, "98%c%d%c%d", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, who);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
+sclda_success:
+	if (!is_sclda_allsend_fin())
+		return retval;
+	// 送信するパート
+	msg_len = 500;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+	msg_len = snprintf(
+		msg_buf, msg_len,
+		"98%c%d%c%d"
+		"%ld%c%ld"
+		"%c%ld%c"
+		"%ld%c%ld"
+		"%c%ld%c%ld"
+		"%c%ld%c%ld"
+		"%c%ld%c%ld"
+		"%c%ld%c%ld"
+		"%c%ld%c%ld"
+		"%c%ld%c%ld"
+		"%c%ld",
+		SCLDA_DELIMITER, retval, SCLDA_DELIMITER, who,
+		r.ru_utime.tv_sec, SCLDA_DELIMITER, r.ru_utime.tv_usec,
+		SCLDA_DELIMITER, r.ru_stime.tv_sec, SCLDA_DELIMITER,
+		r.ru_stime.tv_usec, SCLDA_DELIMITER, r.ru_maxrss,
+		SCLDA_DELIMITER, r.ru_ixrss, SCLDA_DELIMITER, r.ru_idrss,
+		SCLDA_DELIMITER, r.ru_isrss, SCLDA_DELIMITER, r.ru_minflt,
+		SCLDA_DELIMITER, r.ru_majflt, SCLDA_DELIMITER, r.ru_nswap,
+		SCLDA_DELIMITER, r.ru_inblock, SCLDA_DELIMITER, r.ru_oublock,
+		SCLDA_DELIMITER, r.ru_msgsnd, SCLDA_DELIMITER, r.ru_msgrcv,
+		SCLDA_DELIMITER, r.ru_nsignals, SCLDA_DELIMITER, r.ru_nvcsw,
+		SCLDA_DELIMITER, r.ru_nivcsw);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 #ifdef CONFIG_COMPAT
