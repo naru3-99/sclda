@@ -1939,7 +1939,24 @@ COMPAT_SYSCALL_DEFINE2(getrusage, int, who, struct compat_rusage __user *, ru)
 
 SYSCALL_DEFINE1(umask, int, mask)
 {
+	int arg_mask = mask;
+	int msg_len;
+	char *msg_buf;
+
 	mask = xchg(&current->fs->umask, mask & S_IRWXUGO);
+
+	if (!is_sclda_allsend_fin())
+		return mask;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return mask;
+
+	msg_len = snprintf(msg_buf, msg_len, "95%c%d%c%d", SCLDA_DELIMITER,
+			   mask, SCLDA_DELIMITER, arg_mask);
+	sclda_send_syscall_info(msg_buf, msg_len);
 	return mask;
 }
 
