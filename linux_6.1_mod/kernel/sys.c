@@ -1505,7 +1505,24 @@ out:
 
 SYSCALL_DEFINE0(setsid)
 {
-	return ksys_setsid();
+	int retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = ksys_setsid();
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len =
+		snprintf(msg_buf, msg_len, "112%c%d", SCLDA_DELIMITER, retval);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 DECLARE_RWSEM(uts_sem);
