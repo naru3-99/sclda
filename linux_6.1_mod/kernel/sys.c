@@ -633,7 +633,26 @@ error:
 
 SYSCALL_DEFINE2(setreuid, uid_t, ruid, uid_t, euid)
 {
-	return __sys_setreuid(ruid, euid);
+	long retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = __sys_setreuid(ruid, euid);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "113%c%ld%c%u%c%u",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
+			   (unsigned int)ruid, SCLDA_DELIMITER,
+			   (unsigned int)euid);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 /*
