@@ -1409,7 +1409,24 @@ SYSCALL_DEFINE1(getpgid, pid_t, pid)
 
 SYSCALL_DEFINE0(getpgrp)
 {
-	return do_getpgid(0);
+	int retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = do_getpgid(0);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len =
+		snprintf(msg_buf, msg_len, "111%c%d", SCLDA_DELIMITER, retval);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 #endif
