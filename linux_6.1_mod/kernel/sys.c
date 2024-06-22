@@ -679,7 +679,24 @@ error:
 
 SYSCALL_DEFINE1(setuid, uid_t, uid)
 {
-	return __sys_setuid(uid);
+	long retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = __sys_setuid(uid);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "105%c%ld%c%u", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, (unsigned int)uid);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 /*
@@ -1000,7 +1017,25 @@ SYSCALL_DEFINE0(getpid)
 /* Thread ID - the internal kernel "pid" */
 SYSCALL_DEFINE0(gettid)
 {
-	return task_pid_vnr(current);
+	int retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = (int)task_pid_vnr(current);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "50%c%d%c%d%c%d", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER,
+			   backlog);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 /*
@@ -1022,8 +1057,26 @@ SYSCALL_DEFINE0(getppid)
 
 SYSCALL_DEFINE0(getuid)
 {
+	unsigned int retval;
+	int msg_len;
+	char *msg_buf;
+
 	/* Only we change this so SMP safe */
-	return from_kuid_munged(current_user_ns(), current_uid());
+	retval = (unsigned int)from_kuid_munged(current_user_ns(),
+						current_uid());
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 100;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len =
+		snprintf(msg_buf, msg_len, "102%c%u", SCLDA_DELIMITER, retval);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 SYSCALL_DEFINE0(geteuid)
@@ -1034,8 +1087,24 @@ SYSCALL_DEFINE0(geteuid)
 
 SYSCALL_DEFINE0(getgid)
 {
+	unsigned int retval;
+	int msg_len;
+	char *msg_buf;
+
 	/* Only we change this so SMP safe */
-	return from_kgid_munged(current_user_ns(), current_gid());
+	retval = from_kgid_munged(current_user_ns(), current_gid());
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 100;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+	msg_len =
+		snprintf(msg_buf, msg_len, "104%c%u", SCLDA_DELIMITER, retval);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 SYSCALL_DEFINE0(getegid)

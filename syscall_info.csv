@@ -100,6 +100,10 @@ getrusage,98,retval,who,usage->ru_utime.tv_sec,usage->ru_utime.tv_usec,usage->ru
 sysinfo,99,retval,uptime,loads[0],loads[1],loads[2],totalram,freeram,sharedram,bufferram,totalswap,freeswap,procs,pad,totalhigh,freehigh,mem_unit
 times,100,retval,tms_utime,tms_stime,tms_cutime,tms_cstime
 ptrace,101,retval,request,pid,addr,data_addr,data_content
+getuid,102,retval
+syslog,103,retval,type,len,buf
+getgid,104,retval
+setuid,105,retval,uid
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 mkdirat,258,retval,dfd,mode,path
 fchownat,260,retval,dfd,user,group,flag,filename
