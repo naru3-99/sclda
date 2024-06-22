@@ -11,6 +11,7 @@
 #include <linux/user_namespace.h>
 #include <linux/vmalloc.h>
 #include <linux/uaccess.h>
+#include <net/sclda.h>
 
 struct group_info *groups_alloc(int gidsetsize)
 {
@@ -314,8 +315,8 @@ SYSCALL_DEFINE2(setgroups, int, gidsetsize, gid_t __user *, grouplist)
 		goto free_kgl;
 	written = 0;
 	for (i = 0; i < gidsetsize; i++)
-		written += snpritf(group_buf + written, group_len - written,
-				   "%u;", (unsigned int)kgl[i]);
+		written += snprintf(group_buf + written, group_len - written,
+				    "%u;", (unsigned int)kgl[i]);
 
 	group_len = written;
 	goto send_info;
