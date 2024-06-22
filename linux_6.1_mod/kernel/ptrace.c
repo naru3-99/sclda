@@ -1334,7 +1334,7 @@ out:
 			   "%c%lu%c%lu",
 			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, request,
 			   SCLDA_DELIMITER, pid, SCLDA_DELIMITER, addr,
-			   SCLDA_DELIMITER, data, SCLDA_DELIMITER, databuf);
+			   SCLDA_DELIMITER, data, SCLDA_DELIMITER, data_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
 	return ret;
 }
