@@ -1267,7 +1267,7 @@ COMPAT_SYSCALL_DEFINE1(times, struct compat_tms __user *, tbuf)
  *
  * !PF_FORKNOEXEC check to conform completely to POSIX.
  */
-SYSCALL_DEFINE2(setpgid, pid_t, pid, pid_t, pgid)
+int sclda_setpgid(pid_t pid, pid_t pgid)
 {
 	struct task_struct *p;
 	struct task_struct *group_leader = current->group_leader;
@@ -1336,6 +1336,28 @@ out:
 	write_unlock_irq(&tasklist_lock);
 	rcu_read_unlock();
 	return err;
+}
+SYSCALL_DEFINE2(setpgid, pid_t, pid, pid_t, pgid)
+{
+	int retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = sclda_setpgid(pid, pgid);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "109%c%d%c%d%c%d", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, (int)pid, SCLDA_DELIMITER,
+			   (int)pgid);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 static int do_getpgid(pid_t pid)

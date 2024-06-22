@@ -107,6 +107,7 @@ setuid,105,retval,uid
 setgid,106,retval,gid
 geteuid,107,retval
 getegid,108,retval
+setpgid,109,retval,pid,pgid
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 mkdirat,258,retval,dfd,mode,path
 fchownat,260,retval,dfd,user,group,flag,filename
