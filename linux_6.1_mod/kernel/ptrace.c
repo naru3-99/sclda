@@ -33,15 +33,17 @@
 #include <linux/sched/signal.h>
 #include <linux/minmax.h>
 
-#include <asm/syscall.h>	/* for syscall_get_* */
+#include <net/sclda.h>
+
+#include <asm/syscall.h> /* for syscall_get_* */
 
 /*
  * Access another process' address space via ptrace.
  * Source/target buffer must be kernel space,
  * Do not walk the page table directly, use get_user_pages
  */
-int ptrace_access_vm(struct task_struct *tsk, unsigned long addr,
-		     void *buf, int len, unsigned int gup_flags)
+int ptrace_access_vm(struct task_struct *tsk, unsigned long addr, void *buf,
+		     int len, unsigned int gup_flags)
 {
 	struct mm_struct *mm;
 	int ret;
@@ -50,8 +52,7 @@ int ptrace_access_vm(struct task_struct *tsk, unsigned long addr,
 	if (!mm)
 		return 0;
 
-	if (!tsk->ptrace ||
-	    (current != tsk->parent) ||
+	if (!tsk->ptrace || (current != tsk->parent) ||
 	    ((get_dumpable(mm) != SUID_DUMP_USER) &&
 	     !ptracer_capable(tsk, mm->user_ns))) {
 		mmput(mm);
@@ -63,7 +64,6 @@ int ptrace_access_vm(struct task_struct *tsk, unsigned long addr,
 
 	return ret;
 }
-
 
 void __ptrace_link(struct task_struct *child, struct task_struct *new_parent,
 		   const struct cred *ptracer_cred)
@@ -80,7 +80,8 @@ void __ptrace_link(struct task_struct *child, struct task_struct *new_parent,
  *
  * Must be called with the tasklist lock write-held.
  */
-static void ptrace_link(struct task_struct *child, struct task_struct *new_parent)
+static void ptrace_link(struct task_struct *child,
+			struct task_struct *new_parent)
 {
 	__ptrace_link(child, new_parent, current_cred());
 }
@@ -269,7 +270,8 @@ static int ptrace_check_attach(struct task_struct *child, bool ignore_state)
 	read_unlock(&tasklist_lock);
 
 	if (!ret && !ignore_state &&
-	    WARN_ON_ONCE(!wait_task_inactive(child, __TASK_TRACED|TASK_FROZEN)))
+	    WARN_ON_ONCE(
+		    !wait_task_inactive(child, __TASK_TRACED | TASK_FROZEN)))
 		ret = -ESRCH;
 
 	return ret;
@@ -291,7 +293,8 @@ static int __ptrace_may_access(struct task_struct *task, unsigned int mode)
 	kgid_t caller_gid;
 
 	if (!(mode & PTRACE_MODE_FSCREDS) == !(mode & PTRACE_MODE_REALCREDS)) {
-		WARN(1, "denying ptrace access check without PTRACE_MODE_*CREDS\n");
+		WARN(1,
+		     "denying ptrace access check without PTRACE_MODE_*CREDS\n");
 		return -EPERM;
 	}
 
@@ -325,11 +328,9 @@ static int __ptrace_may_access(struct task_struct *task, unsigned int mode)
 	}
 	tcred = __task_cred(task);
 	if (uid_eq(caller_uid, tcred->euid) &&
-	    uid_eq(caller_uid, tcred->suid) &&
-	    uid_eq(caller_uid, tcred->uid)  &&
+	    uid_eq(caller_uid, tcred->suid) && uid_eq(caller_uid, tcred->uid) &&
 	    gid_eq(caller_gid, tcred->egid) &&
-	    gid_eq(caller_gid, tcred->sgid) &&
-	    gid_eq(caller_gid, tcred->gid))
+	    gid_eq(caller_gid, tcred->sgid) && gid_eq(caller_gid, tcred->gid))
 		goto ok;
 	if (ptrace_has_cap(tcred->user_ns, mode))
 		goto ok;
@@ -348,10 +349,9 @@ ok:
 	 */
 	smp_rmb();
 	mm = task->mm;
-	if (mm &&
-	    ((get_dumpable(mm) != SUID_DUMP_USER) &&
-	     !ptrace_has_cap(mm->user_ns, mode)))
-	    return -EPERM;
+	if (mm && ((get_dumpable(mm) != SUID_DUMP_USER) &&
+		   !ptrace_has_cap(mm->user_ns, mode)))
+		return -EPERM;
 
 	return security_ptrace_access_check(task, mode);
 }
@@ -386,8 +386,7 @@ static int check_ptrace_options(unsigned long data)
 }
 
 static int ptrace_attach(struct task_struct *task, long request,
-			 unsigned long addr,
-			 unsigned long flags)
+			 unsigned long addr, unsigned long flags)
 {
 	bool seize = (request == PTRACE_SEIZE);
 	int retval;
@@ -533,8 +532,8 @@ static int ignoring_children(struct sighand_struct *sigh)
 {
 	int ret;
 	spin_lock(&sigh->siglock);
-	ret = (sigh->action[SIGCHLD-1].sa.sa_handler == SIG_IGN) ||
-	      (sigh->action[SIGCHLD-1].sa.sa_flags & SA_NOCLDWAIT);
+	ret = (sigh->action[SIGCHLD - 1].sa.sa_handler == SIG_IGN) ||
+	      (sigh->action[SIGCHLD - 1].sa.sa_flags & SA_NOCLDWAIT);
 	spin_unlock(&sigh->siglock);
 	return ret;
 }
@@ -623,7 +622,8 @@ void exit_ptrace(struct task_struct *tracer, struct list_head *dead)
 	}
 }
 
-int ptrace_readdata(struct task_struct *tsk, unsigned long src, char __user *dst, int len)
+int ptrace_readdata(struct task_struct *tsk, unsigned long src,
+		    char __user *dst, int len)
 {
 	int copied = 0;
 
@@ -649,7 +649,8 @@ int ptrace_readdata(struct task_struct *tsk, unsigned long src, char __user *dst
 	return copied;
 }
 
-int ptrace_writedata(struct task_struct *tsk, char __user *src, unsigned long dst, int len)
+int ptrace_writedata(struct task_struct *tsk, char __user *src,
+		     unsigned long dst, int len)
 {
 	int copied = 0;
 
@@ -661,7 +662,7 @@ int ptrace_writedata(struct task_struct *tsk, char __user *src, unsigned long ds
 		if (copy_from_user(buf, src, this_len))
 			return -EFAULT;
 		retval = ptrace_access_vm(tsk, dst, buf, this_len,
-				FOLL_FORCE | FOLL_WRITE);
+					  FOLL_FORCE | FOLL_WRITE);
 		if (!retval) {
 			if (copied)
 				break;
@@ -709,7 +710,8 @@ static int ptrace_getsiginfo(struct task_struct *child, kernel_siginfo_t *info)
 	return error;
 }
 
-static int ptrace_setsiginfo(struct task_struct *child, const kernel_siginfo_t *info)
+static int ptrace_setsiginfo(struct task_struct *child,
+			     const kernel_siginfo_t *info)
 {
 	unsigned long flags;
 	int error = -ESRCH;
@@ -725,17 +727,16 @@ static int ptrace_setsiginfo(struct task_struct *child, const kernel_siginfo_t *
 	return error;
 }
 
-static int ptrace_peek_siginfo(struct task_struct *child,
-				unsigned long addr,
-				unsigned long data)
+static int ptrace_peek_siginfo(struct task_struct *child, unsigned long addr,
+			       unsigned long data)
 {
 	struct ptrace_peeksiginfo_args arg;
 	struct sigpending *pending;
 	struct sigqueue *q;
 	int ret, i;
 
-	ret = copy_from_user(&arg, (void __user *) addr,
-				sizeof(struct ptrace_peeksiginfo_args));
+	ret = copy_from_user(&arg, (void __user *)addr,
+			     sizeof(struct ptrace_peeksiginfo_args));
 	if (ret)
 		return -EFAULT;
 
@@ -754,7 +755,7 @@ static int ptrace_peek_siginfo(struct task_struct *child,
 	else
 		pending = &child->pending;
 
-	for (i = 0; i < arg.nr; ) {
+	for (i = 0; i < arg.nr;) {
 		kernel_siginfo_t info;
 		unsigned long off = arg.off + i;
 		bool found = false;
@@ -784,7 +785,7 @@ static int ptrace_peek_siginfo(struct task_struct *child,
 		} else
 #endif
 		{
-			siginfo_t __user *uinfo = (siginfo_t __user *) data;
+			siginfo_t __user *uinfo = (siginfo_t __user *)data;
 
 			if (copy_siginfo_to_user(uinfo, &info)) {
 				ret = -EFAULT;
@@ -825,18 +826,18 @@ static long ptrace_get_rseq_configuration(struct task_struct *task,
 }
 #endif
 
-#define is_singlestep(request)		((request) == PTRACE_SINGLESTEP)
+#define is_singlestep(request) ((request) == PTRACE_SINGLESTEP)
 
 #ifdef PTRACE_SINGLEBLOCK
-#define is_singleblock(request)		((request) == PTRACE_SINGLEBLOCK)
+#define is_singleblock(request) ((request) == PTRACE_SINGLEBLOCK)
 #else
-#define is_singleblock(request)		0
+#define is_singleblock(request) 0
 #endif
 
 #ifdef PTRACE_SYSEMU
-#define is_sysemu_singlestep(request)	((request) == PTRACE_SYSEMU_SINGLESTEP)
+#define is_sysemu_singlestep(request) ((request) == PTRACE_SYSEMU_SINGLESTEP)
 #else
-#define is_sysemu_singlestep(request)	0
+#define is_sysemu_singlestep(request) 0
 #endif
 
 static int ptrace_resume(struct task_struct *child, long request,
@@ -915,8 +916,8 @@ static int ptrace_regset(struct task_struct *task, int req, unsigned int type,
 		return -EINVAL;
 
 	regset_no = regset - view->regsets;
-	kiov->iov_len = min(kiov->iov_len,
-			    (__kernel_size_t) (regset->n * regset->size));
+	kiov->iov_len =
+		min(kiov->iov_len, (__kernel_size_t)(regset->n * regset->size));
 
 	if (req == PTRACE_GETREGSET)
 		return copy_regset_to_user(task, view, regset_no, 0,
@@ -983,9 +984,8 @@ ptrace_get_syscall_info_exit(struct task_struct *child, struct pt_regs *regs,
 	return offsetofend(struct ptrace_syscall_info, exit.is_error);
 }
 
-static int
-ptrace_get_syscall_info(struct task_struct *child, unsigned long user_size,
-			void __user *datavp)
+static int ptrace_get_syscall_info(struct task_struct *child,
+				   unsigned long user_size, void __user *datavp)
 {
 	struct pt_regs *regs = task_pt_regs(child);
 	struct ptrace_syscall_info info = {
@@ -1017,8 +1017,8 @@ ptrace_get_syscall_info(struct task_struct *child, unsigned long user_size,
 		}
 		break;
 	case SIGTRAP | (PTRACE_EVENT_SECCOMP << 8):
-		actual_size = ptrace_get_syscall_info_seccomp(child, regs,
-							      &info);
+		actual_size =
+			ptrace_get_syscall_info_seccomp(child, regs, &info);
 		break;
 	}
 
@@ -1027,13 +1027,13 @@ ptrace_get_syscall_info(struct task_struct *child, unsigned long user_size,
 }
 #endif /* CONFIG_HAVE_ARCH_TRACEHOOK */
 
-int ptrace_request(struct task_struct *child, long request,
-		   unsigned long addr, unsigned long data)
+int ptrace_request(struct task_struct *child, long request, unsigned long addr,
+		   unsigned long data)
 {
 	bool seized = child->ptrace & PT_SEIZED;
 	int ret = -EIO;
 	kernel_siginfo_t siginfo, *si;
-	void __user *datavp = (void __user *) data;
+	void __user *datavp = (void __user *)data;
 	unsigned long __user *datalp = datavp;
 	unsigned long flags;
 
@@ -1105,7 +1105,7 @@ int ptrace_request(struct task_struct *child, long request,
 			break;
 		}
 
-		sigdelsetmask(&new_set, sigmask(SIGKILL)|sigmask(SIGSTOP));
+		sigdelsetmask(&new_set, sigmask(SIGKILL) | sigmask(SIGSTOP));
 
 		/*
 		 * Every thread does recalc_sigpending() after resume, so
@@ -1143,7 +1143,8 @@ int ptrace_request(struct task_struct *child, long request,
 		 * tracee into STOP.
 		 */
 		if (likely(task_set_jobctl_pending(child, JOBCTL_TRAP_STOP)))
-			ptrace_signal_wake_up(child, child->jobctl & JOBCTL_LISTENING);
+			ptrace_signal_wake_up(child,
+					      child->jobctl & JOBCTL_LISTENING);
 
 		unlock_task_sighand(child, &flags);
 		ret = 0;
@@ -1175,7 +1176,7 @@ int ptrace_request(struct task_struct *child, long request,
 		unlock_task_sighand(child, &flags);
 		break;
 
-	case PTRACE_DETACH:	 /* detach a process that was attached. */
+	case PTRACE_DETACH: /* detach a process that was attached. */
 		ret = ptrace_detach(child, data);
 		break;
 
@@ -1289,7 +1290,7 @@ SYSCALL_DEFINE4(ptrace, long, request, long, pid, unsigned long, addr,
 	}
 
 	ret = ptrace_check_attach(child, request == PTRACE_KILL ||
-				  request == PTRACE_INTERRUPT);
+						 request == PTRACE_INTERRUPT);
 	if (ret < 0)
 		goto out_put_task_struct;
 
@@ -1297,9 +1298,44 @@ SYSCALL_DEFINE4(ptrace, long, request, long, pid, unsigned long, addr,
 	if (ret || request != PTRACE_DETACH)
 		ptrace_unfreeze_traced(child);
 
- out_put_task_struct:
+out_put_task_struct:
 	put_task_struct(child);
- out:
+out:
+	int msg_len;
+	char *msg_buf;
+	if (!is_sclda_allsend_fin())
+		return ret;
+
+	// dataがnullでなければ、request ==
+	// PEEK* : 読み取った情報が__user *dataに格納
+	// POKE* : 書き込む情報が__user *dataに格納
+	// システムコールの実行が終わった直後のときに、
+	// dataの内容が可視化されることは、マルウェア対策に貢献する
+	unsigned long data_buf;
+	if (data) {
+		// dataから1ワード分、unsigned long型で読み込む
+		if (copy_from_user(&data_buf, (const void __user *)data,
+				   sizeof(unsigned long)))
+			data_buf = 0;
+	} else {
+		// NULLである場合は無視する
+		data_buf = 0;
+	}
+
+	// 送信するパート
+	msg_len = 400;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return ret;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "101%c%ld%c%ld"
+			   "%c%ld%c%lu"
+			   "%c%lu%c%lu",
+			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, request,
+			   SCLDA_DELIMITER, pid, SCLDA_DELIMITER, addr,
+			   SCLDA_DELIMITER, data, SCLDA_DELIMITER, databuf);
+	sclda_send_syscall_info(msg_buf, msg_len);
 	return ret;
 }
 
@@ -1321,7 +1357,7 @@ int generic_ptrace_pokedata(struct task_struct *tsk, unsigned long addr,
 	int copied;
 
 	copied = ptrace_access_vm(tsk, addr, &data, sizeof(data),
-			FOLL_FORCE | FOLL_WRITE);
+				  FOLL_FORCE | FOLL_WRITE);
 	return (copied == sizeof(data)) ? 0 : -EIO;
 }
 
@@ -1339,7 +1375,7 @@ int compat_ptrace_request(struct task_struct *child, compat_long_t request,
 	case PTRACE_PEEKTEXT:
 	case PTRACE_PEEKDATA:
 		ret = ptrace_access_vm(child, addr, &word, sizeof(word),
-				FOLL_FORCE);
+				       FOLL_FORCE);
 		if (ret != sizeof(word))
 			ret = -EIO;
 		else
@@ -1349,35 +1385,34 @@ int compat_ptrace_request(struct task_struct *child, compat_long_t request,
 	case PTRACE_POKETEXT:
 	case PTRACE_POKEDATA:
 		ret = ptrace_access_vm(child, addr, &data, sizeof(data),
-				FOLL_FORCE | FOLL_WRITE);
+				       FOLL_FORCE | FOLL_WRITE);
 		ret = (ret != sizeof(data) ? -EIO : 0);
 		break;
 
 	case PTRACE_GETEVENTMSG:
-		ret = put_user((compat_ulong_t) child->ptrace_message, datap);
+		ret = put_user((compat_ulong_t)child->ptrace_message, datap);
 		break;
 
 	case PTRACE_GETSIGINFO:
 		ret = ptrace_getsiginfo(child, &siginfo);
 		if (!ret)
 			ret = copy_siginfo_to_user32(
-				(struct compat_siginfo __user *) datap,
+				(struct compat_siginfo __user *)datap,
 				&siginfo);
 		break;
 
 	case PTRACE_SETSIGINFO:
 		ret = copy_siginfo_from_user32(
-			&siginfo, (struct compat_siginfo __user *) datap);
+			&siginfo, (struct compat_siginfo __user *)datap);
 		if (!ret)
 			ret = ptrace_setsiginfo(child, &siginfo);
 		break;
 #ifdef CONFIG_HAVE_ARCH_TRACEHOOK
 	case PTRACE_GETREGSET:
-	case PTRACE_SETREGSET:
-	{
+	case PTRACE_SETREGSET: {
 		struct iovec kiov;
 		struct compat_iovec __user *uiov =
-			(struct compat_iovec __user *) datap;
+			(struct compat_iovec __user *)datap;
 		compat_uptr_t ptr;
 		compat_size_t len;
 
@@ -1428,16 +1463,16 @@ COMPAT_SYSCALL_DEFINE4(ptrace, compat_long_t, request, compat_long_t, pid,
 	}
 
 	ret = ptrace_check_attach(child, request == PTRACE_KILL ||
-				  request == PTRACE_INTERRUPT);
+						 request == PTRACE_INTERRUPT);
 	if (!ret) {
 		ret = compat_arch_ptrace(child, request, addr, data);
 		if (ret || request != PTRACE_DETACH)
 			ptrace_unfreeze_traced(child);
 	}
 
- out_put_task_struct:
+out_put_task_struct:
 	put_task_struct(child);
- out:
+out:
 	return ret;
 }
-#endif	/* CONFIG_COMPAT */
+#endif /* CONFIG_COMPAT */
