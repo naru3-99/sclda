@@ -1269,7 +1269,7 @@ COMPAT_SYSCALL_DEFINE1(times, struct compat_tms __user *, tbuf)
  */
 SYSCALL_DEFINE2(setpgid, pid_t, pid, pid_t, pgid)
 {
-	int struct task_struct *p;
+	struct task_struct *p;
 	struct task_struct *group_leader = current->group_leader;
 	struct pid *pgrp;
 	int err;
