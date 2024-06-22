@@ -113,6 +113,7 @@ getpgrp,111,retval
 setsid,112,retval
 setreuid,113,retval,ruid,euid,
 setregid,114,retval,rgid,egid
+getgroups,115,retval,gidsetsize,group_id_list
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 mkdirat,258,retval,dfd,mode,path
 fchownat,260,retval,dfd,user,group,flag,filename
