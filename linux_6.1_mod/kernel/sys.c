@@ -497,7 +497,24 @@ error:
 
 SYSCALL_DEFINE1(setgid, gid_t, gid)
 {
-	return __sys_setgid(gid);
+	long retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = __sys_setgid(gid);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "106%c%ld%c%u", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, (unsigned int)gid);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 /*
@@ -1031,9 +1048,7 @@ SYSCALL_DEFINE0(gettid)
 	if (!msg_buf)
 		return retval;
 
-	msg_len = snprintf(msg_buf, msg_len, "50%c%d%c%d%c%d", SCLDA_DELIMITER,
-			   retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER,
-			   backlog);
+	msg_len = snprintf(msg_buf, msg_len, "50%c%d", SCLDA_DELIMITER, retval);
 	sclda_send_syscall_info(msg_buf, msg_len);
 	return retval;
 }
@@ -1082,7 +1097,25 @@ SYSCALL_DEFINE0(getuid)
 SYSCALL_DEFINE0(geteuid)
 {
 	/* Only we change this so SMP safe */
-	return from_kuid_munged(current_user_ns(), current_euid());
+	unsigned int retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = (unsigned int)from_kuid_munged(current_user_ns(),
+						current_euid());
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len =
+		snprintf(msg_buf, msg_len, "107%c%u", SCLDA_DELIMITER, retval);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 SYSCALL_DEFINE0(getgid)
@@ -1110,7 +1143,26 @@ SYSCALL_DEFINE0(getgid)
 SYSCALL_DEFINE0(getegid)
 {
 	/* Only we change this so SMP safe */
-	return from_kgid_munged(current_user_ns(), current_egid());
+	unsigned int retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = (unsigned int)from_kgid_munged(current_user_ns(),
+						current_egid());
+
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len =
+		snprintf(msg_buf, msg_len, "108%c%u", SCLDA_DELIMITER, retval);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 static void do_sys_times(struct tms *tms)
@@ -1217,7 +1269,7 @@ COMPAT_SYSCALL_DEFINE1(times, struct compat_tms __user *, tbuf)
  */
 SYSCALL_DEFINE2(setpgid, pid_t, pid, pid_t, pgid)
 {
-	struct task_struct *p;
+	int struct task_struct *p;
 	struct task_struct *group_leader = current->group_leader;
 	struct pid *pgrp;
 	int err;
