@@ -217,7 +217,7 @@ SYSCALL_DEFINE2(getgroups, int, gidsetsize, gid_t __user *, grouplist)
 		goto free_kgl;
 	written = 0;
 	for (i = 0; i < retval; i++)
-		written += snpritf(group_buf + written, group_len - written,
+		written += snprintf(group_buf + written, group_len - written,
 				   "%u;", (unsigned int)kgl[i]);
 
 	group_len = written;
