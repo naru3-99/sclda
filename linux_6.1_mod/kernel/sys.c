@@ -451,7 +451,26 @@ error:
 
 SYSCALL_DEFINE2(setregid, gid_t, rgid, gid_t, egid)
 {
-	return __sys_setregid(rgid, egid);
+	long retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = __sys_setregid(rgid, egid);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "114%c%ld%c%u%c%u",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
+			   (unsigned int)rgid, SCLDA_DELIMITER,
+			   (unsigned int)egid);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 /*
