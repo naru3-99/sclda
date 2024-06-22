@@ -1062,11 +1062,23 @@ SYSCALL_DEFINE0(gettid)
 SYSCALL_DEFINE0(getppid)
 {
 	int pid;
+	int msg_len;
+	char *msg_buf;
 
 	rcu_read_lock();
 	pid = task_tgid_vnr(rcu_dereference(current->real_parent));
 	rcu_read_unlock();
 
+	if (!is_sclda_allsend_fin())
+		return pid;
+
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return pid;
+
+	msg_len = snprintf(msg_buf, msg_len, "110%c%d", SCLDA_DELIMITER, pid);
+	sclda_send_syscall_info(msg_buf, msg_len);
 	return pid;
 }
 
