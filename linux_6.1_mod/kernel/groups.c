@@ -185,10 +185,10 @@ out:
 SYSCALL_DEFINE2(getgroups, int, gidsetsize, gid_t __user *, grouplist)
 {
 	int retval;
-	int i, written;
-	gid_t *kgl;
 	int msg_len, group_len;
 	char *msg_buf, *group_buf;
+	int i, written;
+	gid_t *kgl;
 
 	retval = sclda_getgroups(gidsetsize, grouplist);
 	if (!is_sclda_allsend_fin())
@@ -228,7 +228,7 @@ no_info:
 
 send_info:
 	// 送信するパート
-	msg_len = 200 + group_buf;
+	msg_len = 200 + group_len;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		goto free_group_buf;
@@ -258,7 +258,7 @@ bool may_setgroups(void)
  *	without another task interfering.
  */
 
-SYSCALL_DEFINE2(setgroups, int, gidsetsize, gid_t __user *, grouplist)
+int sclda_setgroups(int gidsetsize, gid_t __user *grouplist)
 {
 	struct group_info *group_info;
 	int retval;
@@ -281,6 +281,65 @@ SYSCALL_DEFINE2(setgroups, int, gidsetsize, gid_t __user *, grouplist)
 	retval = set_current_groups(group_info);
 	put_group_info(group_info);
 
+	return retval;
+}
+
+SYSCALL_DEFINE2(setgroups, int, gidsetsize, gid_t __user *, grouplist)
+{
+	int retval;
+	int msg_len, group_len;
+	char *msg_buf, *group_buf;
+	int i, written;
+	gid_t *kgl;
+
+	retval = sclda_setgroups(gidsetsize, grouplist);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// grouplistの中身を取得する
+	if (gidsetsize <= 0 || (unsigned)gidsetsize > NGROUPS_MAX)
+		goto no_info;
+
+	// grouplistをカーネルにコピーする
+	kgl = kmalloc_array(gidsetsize, sizeof(gid_t), GFP_KERNEL);
+	if (!kgl)
+		return retval;
+	if (copy_from_user(kgl, grouplist, sizeof(gid_t) * gidsetsize))
+		goto free_kgl;
+
+	// バッファに情報を書き込む
+	group_len = 30 * gidsetsize; // 1 groupidにつき30で十分
+	group_buf = kmalloc(group_len, GFP_KERNEL);
+	if (!group_buf)
+		goto free_kgl;
+	written = 0;
+	for (i = 0; i < gidsetsize; i++)
+		written += snpritf(group_buf + written, group_len - written,
+				   "%u;", (unsigned int)kgl[i]);
+
+	group_len = written;
+	goto send_info;
+
+no_info:
+	group_len = 1;
+	group_buf[0] = '\0';
+
+send_info:
+	// 送信するパート
+	msg_len = 200 + group_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_group_buf;
+
+	msg_len = snprintf(msg_buf, msg_len, "116%c%d%c%d%c%s", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, gidsetsize, SCLDA_DELIMITER,
+			   group_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_group_buf:
+	kfree(group_buf);
+free_kgl:
+	kfree(kgl);
 	return retval;
 }
 
