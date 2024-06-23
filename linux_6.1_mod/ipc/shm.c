@@ -1349,7 +1349,7 @@ SYSCALL_DEFINE3(shmctl, int, shmid, int, cmd, struct shmid_ds __user *, buf)
 	if (struct_len < 0) {
 		// 失敗したみたいだが、一応送信を試みる
 		struct_len = 1;
-		struct_buf = '\0';
+		struct_buf[0] = '\0';
 	}
 
 	// 送信するパート

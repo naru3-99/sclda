@@ -2367,7 +2367,7 @@ SYSCALL_DEFINE3(semop, int, semid, struct sembuf __user *, tsops, unsigned,
 	struct_len = sembuf_to_str(tsops, struct_buf, struct_len);
 	if (struct_len < 0) {
 		struct_len = 1;
-		struct_buf = '\0';
+		struct_buf[0] = '\0';
 	}
 
 	// 送信するパート

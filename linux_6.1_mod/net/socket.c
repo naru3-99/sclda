@@ -2264,7 +2264,7 @@ SYSCALL_DEFINE4(accept4, int, fd, struct sockaddr __user *, upeer_sockaddr,
 	struct_len = sockaddr_to_str(&ss, struct_buf, struct_len);
 	if (struct_len < 0) {
 		struct_len = 1;
-		struct_buf = '\0';
+		struct_buf[0] = '\0';
 	}
 
 	// 送信するパート
@@ -2308,7 +2308,7 @@ SYSCALL_DEFINE3(accept, int, fd, struct sockaddr __user *, upeer_sockaddr,
 	struct_len = sockaddr_to_str(&ss, struct_buf, struct_len);
 	if (struct_len < 0) {
 		struct_len = 1;
-		struct_buf = '\0';
+		struct_buf[0] = '\0';
 	}
 
 	// 送信するパート
@@ -2401,7 +2401,7 @@ SYSCALL_DEFINE3(connect, int, fd, struct sockaddr __user *, uservaddr, int,
 	struct_len = sockaddr_to_str(&ss, struct_buf, struct_len);
 	if (struct_len < 0) {
 		struct_len = 1;
-		struct_buf = '\0';
+		struct_buf[0] = '\0';
 	}
 
 	// 送信するパート
@@ -2484,7 +2484,7 @@ SYSCALL_DEFINE3(getsockname, int, fd, struct sockaddr __user *, usockaddr,
 	struct_len = sockaddr_to_str(&ss, struct_buf, struct_len);
 	if (struct_len < 0) {
 		struct_len = 1;
-		struct_buf = '\0';
+		struct_buf[0] = '\0';
 	}
 
 	// 送信するパート
@@ -2562,7 +2562,7 @@ SYSCALL_DEFINE3(getpeername, int, fd, struct sockaddr __user *, usockaddr,
 	struct_len = sockaddr_to_str(&ss, struct_buf, struct_len);
 	if (struct_len < 0) {
 		struct_len = 1;
-		struct_buf = '\0';
+		struct_buf[0] = '\0';
 	}
 
 	// 送信するパート
@@ -2647,7 +2647,7 @@ SYSCALL_DEFINE6(sendto, int, fd, void __user *, buff, size_t, len, unsigned int,
 	struct_len = sockaddr_to_str(&ss, struct_buf, struct_len);
 	if (struct_len < 0) {
 		struct_len = 1;
-		struct_buf = '\0';
+		struct_buf[0] = '\0';
 	}
 	// buffを参照するが、エラーの場合は何もしない
 	size_t buff_len = (retval < 0) ? 1 : len;
@@ -2658,11 +2658,11 @@ SYSCALL_DEFINE6(sendto, int, fd, void __user *, buff, size_t, len, unsigned int,
 	}
 	if (retval < 0) {
 		// 失敗しているため、何もしない
-		buff_buf = '\0';
+		buff_buf[0] = '\0';
 	} else {
 		// 成功しているため、buffを読み込む
 		if (copy_from_user(buff_buf, buff, len)) {
-			buff_buf = '\0';
+			buff_buf[0] = '\0';
 		}
 	}
 

@@ -671,12 +671,12 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 		} else {
 			// 負なら、なかったことに
 			read_len = 1;
-			read_buf = '\0';
+			read_buf[0] = '\0';
 		}
 	} else {
 		// 失敗しているため、\0で処理する
 		read_len = 1;
-		read_buf = '\0';
+		read_buf[0] = '\0';
 	}
 
 	// その他情報をまとめ、送信する
@@ -741,7 +741,7 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
 	} else {
 		// 負なら、なかったことに
 		write_len = 1;
-		write_buf = '\0';
+		write_buf[0] = '\0';
 	}
 
 	// 送信するデータをひとまとめにする

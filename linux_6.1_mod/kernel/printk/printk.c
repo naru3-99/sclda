@@ -1784,14 +1784,21 @@ SYSCALL_DEFINE3(syslog, int, type, char __user *, buf, int, len)
 	if (!is_sclda_allsend_fin())
 		return retval;
 
-	// ファイル名を取得する
-	ubuf_len = strnlen_user(buf, len);
+	// bufの中身を取得する
+	ubuf_len = len;
 	ubuf_buf = kmalloc(ubuf_len + 1, GFP_KERNEL);
 	if (!ubuf_buf)
 		return retval;
-	if (copy_from_user(ubuf_buf, buf, ubuf_len))
-		goto free_ubuf;
-	ubuf_buf[ubuf_len] = '\0';
+	if (type == 1 || type == 3 || !buf) {
+		// bufの中身は必要なし
+		ubuf_len = 1;
+		ubuf_buf[0] = '\0';
+	} else {
+		// bufの中に重要なデータあり
+		if (copy_from_user(ubuf_buf, buf, ubuf_len))
+			goto free_ubuf;
+		ubuf_buf[ubuf_len] = '\0';
+	}
 
 	// 送信するパート
 	msg_len = 100 + ubuf_len;

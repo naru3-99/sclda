@@ -305,7 +305,7 @@ sclda_err:
 	vec_buf = kmalloc(vec_len, GFP_KERNEL);
 	if (!vec_buf)
 		return sclda_ret;
-	vec_buf = '\0';
+	vec_buf[0] = '\0';
 	goto sclda;
 sclda_success:
 	// うまく行ったときはvecの中身を参照する

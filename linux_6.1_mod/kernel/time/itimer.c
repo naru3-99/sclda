@@ -148,7 +148,7 @@ SYSCALL_DEFINE2(getitimer, int, which, struct __kernel_old_itimerval __user *,
 		__kernel_old_itimerval_to_str(value, struct_buf, struct_len);
 	if (struct_len < 0) {
 		struct_len = 1;
-		struct_buf = '\0';
+		struct_buf[0] = '\0';
 	}
 
 	// 送信するパート
@@ -435,7 +435,7 @@ sclda:
 	value_len = __kernel_old_itimerval_to_str(value, value_buf, value_len);
 	if (value_len < 0) {
 		value_len = 1;
-		value_buf = '\0';
+		value_buf[0] = '\0';
 	}
 
 	int ovalue_len = 200;
@@ -448,7 +448,7 @@ sclda:
 		__kernel_old_itimerval_to_str(ovalue, ovalue_buf, ovalue_len);
 	if (ovalue_len < 0) {
 		ovalue_len = 1;
-		ovalue_buf = '\0';
+		ovalue_buf[0] = '\0';
 	}
 
 	// 送信するパート
