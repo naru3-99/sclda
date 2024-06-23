@@ -861,6 +861,7 @@ SYSCALL_DEFINE3(setresuid, uid_t, ruid, uid_t, euid, uid_t, suid)
 SYSCALL_DEFINE3(getresuid, uid_t __user *, ruidp, uid_t __user *, euidp,
 		uid_t __user *, suidp)
 {
+	// 118
 	const struct cred *cred = current_cred();
 	int retval;
 	uid_t ruid, euid, suid;
@@ -870,11 +871,32 @@ SYSCALL_DEFINE3(getresuid, uid_t __user *, ruidp, uid_t __user *, euidp,
 	suid = from_kuid_munged(cred->user_ns, cred->suid);
 
 	retval = put_user(ruid, ruidp);
-	if (!retval) {
-		retval = put_user(euid, euidp);
-		if (!retval)
-			return put_user(suid, suidp);
-	}
+	if (retval)
+		goto sclda;
+
+	retval = put_user(euid, euidp);
+	if (retval)
+		goto sclda;
+
+	retval = put_user(suid, suidp);
+sclda:
+	int msg_len;
+	char *msg_buf;
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "118%c%d%c%u%c%u%c%u",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
+			   (unsigned int)ruid, SCLDA_DELIMITER,
+			   (unsigned int)euid, SCLDA_DELIMITER,
+			   (unsigned int)suid);
+	sclda_send_syscall_info(msg_buf, msg_len);
 	return retval;
 }
 
