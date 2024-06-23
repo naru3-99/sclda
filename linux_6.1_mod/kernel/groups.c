@@ -196,11 +196,11 @@ SYSCALL_DEFINE2(getgroups, int, gidsetsize, gid_t __user *, grouplist)
 		return retval;
 
 	// grouplistの中身を取得する
-	// gidsetsize == 0 or 返り値<0のとき
+	// gidsetsize == 0
+	// 返り値 < 0
+	// grouplist == NULLのとき
 	// grouplistには何も書き込まれない
-	if (gidsetsize == 0)
-		goto no_info;
-	if (retval < 0)
+	if (gidsetsize == 0 && retval < 0 && !grouplist)
 		goto no_info;
 
 	// grouplistをカーネルにコピーする
@@ -218,7 +218,7 @@ SYSCALL_DEFINE2(getgroups, int, gidsetsize, gid_t __user *, grouplist)
 	written = 0;
 	for (i = 0; i < retval; i++)
 		written += snprintf(group_buf + written, group_len - written,
-				   "%u;", (unsigned int)kgl[i]);
+				    "%u;", (unsigned int)kgl[i]);
 
 	group_len = written;
 	goto send_info;
