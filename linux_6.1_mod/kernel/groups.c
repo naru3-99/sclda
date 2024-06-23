@@ -298,7 +298,7 @@ SYSCALL_DEFINE2(setgroups, int, gidsetsize, gid_t __user *, grouplist)
 		return retval;
 
 	// grouplistの中身を取得する
-	if (retval < 0 || gidsetsize <= 0 || !grouplist)
+	if (retval < 0 && gidsetsize <= 0 && !grouplist)
 		goto no_info;
 
 	// grouplistをカーネルにコピーする
