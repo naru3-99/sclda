@@ -835,7 +835,27 @@ error:
 
 SYSCALL_DEFINE3(setresuid, uid_t, ruid, uid_t, euid, uid_t, suid)
 {
-	return __sys_setresuid(ruid, euid, suid);
+	long retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = __sys_setresuid(ruid, euid, suid);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "117%c%ld%c%u%c%u%c%u",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
+			   (unsigned int)ruid, SCLDA_DELIMITER,
+			   (unsigned int)euid, SCLDA_DELIMITER,
+			   (unsigned int)suid);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 SYSCALL_DEFINE3(getresuid, uid_t __user *, ruidp, uid_t __user *, euidp,
