@@ -311,7 +311,6 @@ int sclda_sendall_syscallinfo(void *data)
 			failed_cnt++;
 			temp_tail->next = curptr;
 			temp_tail = temp_tail->next;
-			temp_tail->next = NULL;
 		}
 		next = curptr->next;
 		if (send_ret >= 0) {
@@ -327,6 +326,7 @@ int sclda_sendall_syscallinfo(void *data)
 	sclda_syscallinfo_exist[target_index] = failed_cnt;
 	sclda_syscall_heads[target_index] = temp_head;
 	sclda_syscall_tails[target_index] = temp_tail;
+	sclda_syscall_tails[target_index]->next = NULL;
 	mutex_unlock(&syscall_mutex[target_index]);
 	return 0;
 }
