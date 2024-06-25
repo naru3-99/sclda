@@ -123,87 +123,6 @@ int sclda_send_mutex(char *buf, int len,
 	return ret;
 }
 
-int sclda_syscallinfo_init(struct sclda_syscallinfo_struct **ptr, char *msg,
-			   int len)
-{
-	// メモリを割り当て、ポインタを初期化
-	struct sclda_syscallinfo_struct *s;
-	s = kmalloc(sizeof(struct sclda_syscallinfo_struct), GFP_KERNEL);
-	if (!s)
-		return -ENOMEM;
-
-	// メモリ割り当てが成功したら、情報を初期化する
-	s->pid_cputime_len = snprintf(s->pid_cputime_msg, SCLDA_PID_CLOCK_SIZE,
-				      "%d%c%llu%c", sclda_get_current_pid(),
-				      SCLDA_DELIMITER, sched_clock(),
-				      SCLDA_DELIMITER);
-
-	// msg, len
-	s->syscall_msg = msg;
-	s->syscall_msg_len = len;
-	*ptr = s;
-	return 0;
-}
-
-int sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr)
-{
-	int current_index;
-	// 新しいリストを定義
-	struct sclda_syscallinfo_ls *new_node;
-	new_node = kmalloc(sizeof(struct sclda_syscallinfo_ls), GFP_KERNEL);
-	if (!new_node)
-		return -ENOMEM;
-	new_node->s = ptr;
-	new_node->next = NULL;
-
-	// リストを末端に追加する
-	current_index = sclda_sci_index;
-	mutex_lock(&syscall_mutex[current_index]);
-	// 末尾に追加する
-	sclda_syscall_tails[current_index]->next = new_node;
-	sclda_syscall_tails[current_index] =
-		sclda_syscall_tails[current_index]->next;
-	// 一つ増やす
-	sclda_syscallinfo_exist[current_index]++;
-	if (sclda_syscallinfo_exist[current_index] < SCLDA_NUM_TO_SEND_SINFO) {
-		struct task_struct *task;
-		int *arg;
-		arg = kmalloc(sizeof(int), GFP_KERNEL);
-		if (!arg)
-			goto out;
-		*arg = current_index;
-		// current_indexの更新
-		sclda_sci_index++;
-		sclda_sci_index = sclda_sci_index % SCLDA_SCI_NUM;
-		// 送信メカニズムを呼び出す
-		struct task_struct *newkthread;
-		newkthread = kthread_run(sclda_sendall_syscallinfo, arg,
-					 "sclda_sendall");
-	}
-out:
-	mutex_unlock(&syscall_mutex[current_index]);
-	return 0;
-}
-
-// SYSCALL_DEFINEマクロ内で使用する関数
-// 送信し終えたときに、送信したものが、
-// msg_buf, syscallinfoを解放する責任を負う
-int sclda_send_syscall_info(char *msg_buf, int msg_len)
-{
-	int retval;
-	struct sclda_syscallinfo_struct *sss = NULL;
-
-	retval = sclda_syscallinfo_init(&sss, msg_buf, msg_len);
-	if (retval < 0) {
-		// こいつの初期化ができなかったときは、
-		// もうmsgの中身を送信するチャンスはない。
-		kfree(msg_buf);
-		return retval;
-	}
-	// リストに追加する
-	return sclda_add_syscallinfo(sss);
-}
-
 int __sclda_send_split(struct sclda_syscallinfo_struct *ptr, int which_port)
 {
 	// 大きいサイズの文字列を分割して送信する実装
@@ -266,6 +185,98 @@ free_chunkbuf:
 free_all_msg:
 	kfree(all_msg);
 out:
+	return retval;
+}
+
+int sclda_syscallinfo_init(struct sclda_syscallinfo_struct **ptr, char *msg,
+			   int len)
+{
+	// メモリを割り当て、ポインタを初期化
+	struct sclda_syscallinfo_struct *s;
+	s = kmalloc(sizeof(struct sclda_syscallinfo_struct), GFP_KERNEL);
+	if (!s)
+		return -ENOMEM;
+
+	// メモリ割り当てが成功したら、情報を初期化する
+	s->pid_cputime_len = snprintf(s->pid_cputime_msg, SCLDA_PID_CLOCK_SIZE,
+				      "%d%c%llu%c", sclda_get_current_pid(),
+				      SCLDA_DELIMITER, sched_clock(),
+				      SCLDA_DELIMITER);
+
+	// msg, len
+	s->syscall_msg = msg;
+	s->syscall_msg_len = len;
+	*ptr = s;
+	return 0;
+}
+
+int sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr)
+{
+	// 新しいリストを定義
+	struct sclda_syscallinfo_ls *new_node;
+	new_node = kmalloc(sizeof(struct sclda_syscallinfo_ls), GFP_KERNEL);
+	if (!new_node)
+		return -ENOMEM;
+	new_node->s = ptr;
+	new_node->next = NULL;
+
+	// リストを末端に追加する
+	mutex_lock(&syscall_mutex[sclda_sci_index]);
+	// 末尾に追加する
+	sclda_syscall_tails[sclda_sci_index]->next = new_node;
+	sclda_syscall_tails[sclda_sci_index] =
+		sclda_syscall_tails[sclda_sci_index]->next;
+	// 一つ増やす
+	sclda_syscallinfo_exist[sclda_sci_index]++;
+	mutex_unlock(&syscall_mutex[sclda_sci_index]);
+	return 0;
+}
+
+// SYSCALL_DEFINEマクロ内で使用する関数
+// 送信し終えたときに、送信したものが、
+// msg_buf, syscallinfoを解放する責任を負う
+static DEFINE_MUTEX(send_by_kthread);
+int sclda_send_syscall_info(char *msg_buf, int msg_len)
+{
+	int retval;
+	struct sclda_syscallinfo_struct *sss = NULL;
+
+	retval = sclda_syscallinfo_init(&sss, msg_buf, msg_len);
+	if (retval < 0) {
+		// こいつの初期化ができなかったときは、
+		// もうmsgの中身を送信するチャンスはない。
+		kfree(msg_buf);
+		return retval;
+	}
+	// リストに追加する
+	retval = sclda_add_syscallinfo(sss);
+
+	// リストが溜まっていたら、送信する
+	if (mutex_is_locked(&send_by_kthread))
+		return retval;
+	if (sclda_syscallinfo_exist[sclda_sci_index] <
+	    SCLDA_NUM_TO_SEND_SINFO) {
+		mutex_lock(&send_by_kthread);
+		struct task_struct *task;
+		int *arg;
+
+		arg = kmalloc(sizeof(int), GFP_KERNEL);
+		if (!arg) {
+			mutex_unlock(&send_by_kthread);
+			return -ENOMEM;
+		}
+		*arg = sclda_sci_index;
+
+		// current_indexの更新
+		sclda_sci_index++;
+		sclda_sci_index = sclda_sci_index % SCLDA_SCI_NUM;
+
+		// 送信メカニズムを呼び出す
+		struct task_struct *newkthread;
+		newkthread = kthread_run(sclda_sendall_syscallinfo, arg,
+					 "sclda_sendall");
+		mutex_unlock(&send_by_kthread);
+	}
 	return retval;
 }
 
