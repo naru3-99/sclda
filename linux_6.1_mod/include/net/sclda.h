@@ -28,18 +28,18 @@
 // システムコールに関係する情報を取得する
 // BASEPORT + (プロセッサID % PORTNUM)をPORTとして使用する
 #define SCLDA_SYSCALL_BASEPORT ((int)15002)
-#define SCLDA_PORT_NUMBER ((int)24)
+#define SCLDA_PORT_NUMBER ((int)16)
 // システムコールに関連する情報を送信する
 // chunksizeごとに文字列を分割して送信する
 #define SCLDA_CHUNKSIZE ((size_t)1000)
-// 付加情報（stime、スタック・ヒープ・メモリ全体の消費量）
-#define SCLDA_STIME_MEMORY_SIZE ((int)200)
 // 付加情報（utime、PID）
-#define SCLDA_UTIME_PID_SIZE ((int)50)
+#define SCLDA_PID_CLOCK_SIZE ((int)50)
 // プロセス生成に関連する情報を送信する
 #define SCLDA_PIDPPID_BUFSIZE ((int)80)
 // syscall_info構造体がいくつ貯まると送信するか
-#define SCLDA_NUM_TO_SEND_SINFO ((int)500)
+#define SCLDA_NUM_TO_SEND_SINFO ((int)2000)
+// syscall_info構造体の頭とmutexを用意する数
+#define SCLDA_SCI_NUM ((int)2)
 
 // ソケットなどをひとまとめにする構造体
 struct sclda_client_struct {
@@ -60,10 +60,7 @@ struct sclda_pidinfo_ls {
 struct sclda_syscallinfo_struct {
 	// PIDとutimeに関連する情報
 	int pid_cputime_len;
-	char pid_cputime_msg[SCLDA_UTIME_PID_SIZE];
-	// stime, stack, heap, allmemoryに関連する情報
-	int memory_len;
-	char memory_msg[SCLDA_STIME_MEMORY_SIZE];
+	char pid_cputime_msg[SCLDA_PID_CLOCK_SIZE];
 	// システムコールに関連する情報
 	int syscall_msg_len;
 	char *syscall_msg;
@@ -72,7 +69,6 @@ struct sclda_syscallinfo_struct {
 // システムコールの情報を保持しておくためのリスト
 struct sclda_syscallinfo_ls {
 	struct sclda_syscallinfo_struct *s;
-	// 次の情報
 	struct sclda_syscallinfo_ls *next;
 };
 
@@ -89,12 +85,12 @@ int sclda_get_current_pid(void);
 int sclda_syscallinfo_init(struct sclda_syscallinfo_struct **ptr, char *msg,
 			   int len);
 // システムコール情報を保持するためのリストに追加
-void sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr);
+int sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr);
 // システムコールの情報を送信する
 int sclda_sendall_syscallinfo(void *data);
 
 // システムコール情報が大きな文字列だった場合、分割して送信
-int sclda_send_syscall_info(char *msg_buf,int msg_len);
+int sclda_send_syscall_info(char *msg_buf, int msg_len);
 
 // システムコール関連情報を送信する際の、
 // sclda_client_structを決定する

@@ -16,24 +16,26 @@ struct sclda_pidinfo_ls sclda_pidinfo_head = {
 struct sclda_pidinfo_ls *sclda_pidinfo_tail = &sclda_pidinfo_head;
 
 // syscallの配列を操作するときのmutex
-static struct mutex syscall_mutex[SCLDA_PORT_NUMBER];
+static struct mutex syscall_mutex[SCLDA_SCI_NUM];
 // システムコール情報のダミーヘッド
-struct sclda_syscallinfo_ls sclda_syscall_heads[SCLDA_PORT_NUMBER];
+struct sclda_syscallinfo_ls sclda_syscall_heads[SCLDA_SCI_NUM];
 // システムコール情報の末尾
-struct sclda_syscallinfo_ls *sclda_syscall_tails[SCLDA_PORT_NUMBER];
+struct sclda_syscallinfo_ls *sclda_syscall_tails[SCLDA_SCI_NUM];
+// syscallinfo_structがいくつ溜まっているか
+int sclda_syscallinfo_exist[SCLDA_SCI_NUM];
+
+// どのsyscallinfo構造体のヘッド or mutexに追加するか
+int sclda_sci_index = 0;
 
 // ソケットなどの初期化が済んだかどうか
 int sclda_init_fin = 0;
 // PIDの情報を送信したかどうか
 int sclda_allsend_fin = 0;
-// syscallinfo_structがいくつ溜まっているか
-int sclda_syscallinfo_exist[SCLDA_PORT_NUMBER];
 
 int __sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
 {
-	int ret = sock_create_kern(&init_net, PF_INET, SOCK_DGRAM, IPPROTO_UDP,
-				   &(sclda_cs_ptr->sock));
-	return ret;
+	return sock_create_kern(&init_net, PF_INET, SOCK_DGRAM, IPPROTO_UDP,
+				&(sclda_cs_ptr->sock));
 }
 
 int __sclda_connect_socket(struct sclda_client_struct *sclda_cs_ptr, int port)
@@ -42,10 +44,9 @@ int __sclda_connect_socket(struct sclda_client_struct *sclda_cs_ptr, int port)
 	sclda_cs_ptr->addr.sin_port = htons(port);
 	sclda_cs_ptr->addr.sin_addr.s_addr = htonl(SCLDA_SERVER_IP);
 
-	int ret = kernel_connect(sclda_cs_ptr->sock,
-				 (struct sockaddr *)(&(sclda_cs_ptr->addr)),
-				 sizeof(struct sockaddr_in), 0);
-	return ret;
+	return kernel_connect(sclda_cs_ptr->sock,
+			      (struct sockaddr *)(&(sclda_cs_ptr->addr)),
+			      sizeof(struct sockaddr_in), 0);
 }
 
 int __init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
@@ -73,7 +74,7 @@ int sclda_init(void)
 {
 	// scldaの初期化を行う
 	// init/main.cで呼び出す
-	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
+	for (size_t i = 0; i < SCLDA_SCI_NUM; i++) {
 		// mutexの初期化
 		mutex_init(&syscall_mutex[i]);
 		// ダミーヘッドの初期化
@@ -113,128 +114,135 @@ static DEFINE_MUTEX(send_mutex);
 int sclda_send_mutex(char *buf, int len,
 		     struct sclda_client_struct *sclda_struct_ptr)
 {
+	int ret = -1;
 	if (!sclda_init_fin)
-		return -1;
+		return ret;
 	mutex_lock(&send_mutex);
-	int ret = sclda_send(buf, len, sclda_struct_ptr);
+	ret = sclda_send(buf, len, sclda_struct_ptr);
 	mutex_unlock(&send_mutex);
 	return ret;
-}
-
-int sclda_get_current_pid(void)
-{
-	// 現在のPIDを取得する関数
-	return (int)pid_nr(get_task_pid(current, PIDTYPE_PID));
-}
-
-unsigned long sclda_get_current_spsize(void)
-{
-	// currentから、スタックの大きさを取得する(バイト単位)
-	return current->mm->stack_vm * PAGE_SIZE;
-}
-
-unsigned long sclda_get_current_heapsize(void)
-{
-	// currentから、ヒープのサイズを取得する(バイト単位)
-	return current->mm->brk - current->mm->start_brk;
-}
-
-unsigned long sclda_get_current_totalsize(void)
-{
-	// currentから、全体のメモリ使用量を取得する(バイト単位)
-	return current->mm->total_vm * PAGE_SIZE;
 }
 
 int sclda_syscallinfo_init(struct sclda_syscallinfo_struct **ptr, char *msg,
 			   int len)
 {
 	// メモリを割り当て、ポインタを初期化
-	*ptr = kmalloc(sizeof(struct sclda_syscallinfo_struct), GFP_KERNEL);
-	if (!*ptr) {
-		return 0;
-	}
+	struct sclda_syscallinfo_struct *s;
+	s = kmalloc(sizeof(struct sclda_syscallinfo_struct), GFP_KERNEL);
+	if (!s)
+		return -ENOMEM;
+
 	// メモリ割り当てが成功したら、情報を初期化する
-	struct sclda_syscallinfo_struct *s = *ptr;
-	// pid, cputime
 	s->pid_cputime_len = snprintf(s->pid_cputime_msg, SCLDA_UTIME_PID_SIZE,
 				      "%d%c%llu%c", sclda_get_current_pid(),
 				      SCLDA_DELIMITER, sched_clock(),
 				      SCLDA_DELIMITER);
-	// stime, memory usage
-	s->memory_len = snprintf(s->memory_msg, SCLDA_STIME_MEMORY_SIZE,
-				 "%lu%c%lu%c%lu%c", sclda_get_current_spsize(),
-				 SCLDA_DELIMITER, sclda_get_current_heapsize(),
-				 SCLDA_DELIMITER, sclda_get_current_totalsize(),
-				 SCLDA_DELIMITER);
 
 	// msg, len
 	s->syscall_msg = msg;
 	s->syscall_msg_len = len;
-	return 1;
+	*ptr = s;
+	return 0;
 }
 
-void sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr)
+int sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr)
 {
+	int current_index;
 	// 新しいリストを定義
-	struct sclda_syscallinfo_ls *new_node =
-		kmalloc(sizeof(struct sclda_syscallinfo_ls), GFP_KERNEL);
-	// 失敗したら諦めるしか無いか
+	struct sclda_syscallinfo_ls *new_node;
+	new_node = kmalloc(sizeof(struct sclda_syscallinfo_ls), GFP_KERNEL);
 	if (!new_node)
-		return;
-
+		return -ENOMEM;
 	new_node->s = ptr;
 	new_node->next = NULL;
 
-	unsigned int target_id = smp_processor_id() % SCLDA_PORT_NUMBER;
-	mutex_lock(&syscall_mutex[target_id]);
+	// リストを末端に追加する
+	current_index = sclda_sci_index;
+	mutex_lock(&syscall_mutex[current_index]);
 	// 末尾に追加する
-	sclda_syscall_tails[target_id]->next = new_node;
-	sclda_syscall_tails[target_id] = sclda_syscall_tails[target_id]->next;
-
+	sclda_syscall_tails[current_index]->next = new_node;
+	sclda_syscall_tails[current_index] =
+		sclda_syscall_tails[current_index]->next;
 	// 一つ増やす
-	sclda_syscallinfo_exist[target_id]++;
-	mutex_unlock(&syscall_mutex[target_id]);
+	sclda_syscallinfo_exist[current_index]++;
+	if (sclda_syscallinfo_exist[current_index] < SCLDA_NUM_TO_SEND_SINFO) {
+		struct task_struct *task;
+		int *arg;
+		arg = kmalloc(sizeof(int), GFP_KERNEL);
+		if (!arg)
+			goto out;
+		*arg = current_index;
+		// current_indexの更新
+		sclda_sci_index++;
+		sclda_sci_index = sclda_sci_index % SCLDA_SCI_NUM;
+		// 送信メカニズムを呼び出す
+		struct task_struct *task;
+		task = kthread_run(sclda_sendall_syscallinfo, arg,
+				   "sclda_sendall");
+	}
+out:
+	mutex_unlock(&syscall_mutex[current_index]);
+	return 0;
 }
 
-int __sclda_send_split(struct sclda_syscallinfo_struct *ptr,
-		       struct sclda_client_struct *sclda_to_send)
+// SYSCALL_DEFINEマクロ内で使用する関数
+// 送信し終えたときに、送信したものが、
+// msg_buf, syscallinfoを解放する責任を負う
+int sclda_send_syscall_info(char *msg_buf, int msg_len)
+{
+	int retval;
+	struct sclda_syscallinfo_struct *sss = NULL;
+
+	retval = sclda_syscallinfo_init(&sss, msg_buf, msg_len);
+	if (retval < 0) {
+		// こいつの初期化ができなかったときは、
+		// もうmsgの中身を送信するチャンスはない。
+		kfree(msg_buf);
+		return retval;
+	}
+	// リストに追加する
+	return sclda_add_syscallinfo(sss);
+}
+
+int __sclda_send_split(struct sclda_syscallinfo_struct *ptr, int which_port)
 {
 	// 大きいサイズの文字列を分割して送信する実装
 	// ヘッダ情報としてPIDとutimeを最初にくっつける
 	// system-call関連情報を送信するときのみ使用する
+	struct sclda_client_struct *sclda_to_send;
+	int all_msg_len, max_packet_len;
+	char *all_msg, *chunkbuf, *sending_msg;
+	int send_ret, sending_len;
+	int retval = -EFAULT;
+	// まだnetのinit が済んでいない場合
 	if (!sclda_init_fin)
-		return -1;
+		goto out;
+
+	// 送信先になるポートのclient_struct
+	sclda_to_send = &syscall_sclda[which_port];
 
 	// 送信する情報を確定する
-	int all_msg_len = ptr->memory_len + ptr->syscall_msg_len + 1;
-	char *all_msg = kmalloc(all_msg_len, GFP_KERNEL);
+	all_msg_len = ptr->memory_len + ptr->syscall_msg_len + 1;
+	all_msg = kmalloc(all_msg_len, GFP_KERNEL);
 	if (!all_msg)
-		return -1;
-
+		goto out;
 	all_msg_len = snprintf(all_msg, all_msg_len, "%s%s", ptr->memory_msg,
 			       ptr->syscall_msg);
 
 	// chunksizeごとに分割して送信するパート
 	// chunksizeのバッファを段取り
-	char *chunkbuf = kmalloc(SCLDA_CHUNKSIZE + 1, GFP_KERNEL);
-	if (!chunkbuf) {
-		kfree(all_msg);
-		return -1;
-	}
+	chunkbuf = kmalloc(SCLDA_CHUNKSIZE + 1, GFP_KERNEL);
+	if (!chunkbuf)
+		goto free_all_msg;
 	// 一度に送信するパケットのバッファを段取り
-	int max_packet_len = SCLDA_CHUNKSIZE + ptr->pid_cputime_len + 1;
-	char *sending_msg = kmalloc(max_packet_len, GFP_KERNEL);
-	if (!sending_msg) {
-		kfree(all_msg);
-		kfree(chunkbuf);
-		return -1;
-	}
+	max_packet_len = SCLDA_CHUNKSIZE + ptr->pid_cputime_len + 1;
+	sending_msg = kmalloc(max_packet_len, GFP_KERNEL);
+	if (!sending_msg)
+		goto free_chunkbuf;
 
 	// 分割して送信する
 	size_t offset = 0;
 	size_t len = 0;
-	int send_ret;
-	int sending_len;
 	while (offset < all_msg_len) {
 		// chunksizeごとに文字列を分割
 		len = min(SCLDA_CHUNKSIZE, (size_t)all_msg_len - offset);
@@ -247,129 +255,71 @@ int __sclda_send_split(struct sclda_syscallinfo_struct *ptr,
 		// 文字列を送信
 		send_ret = sclda_send_mutex(sending_msg, sending_len,
 					    sclda_to_send);
-		if (send_ret < 0) {
-			kfree(all_msg);
-			kfree(chunkbuf);
-			kfree(sending_msg);
-			return -1;
-		}
+		if (send_ret < 0)
+			goto free_sending_msg;
 		offset += len;
 	}
+	retval = 0;
 
-	kfree(all_msg);
-	kfree(chunkbuf);
+free_sending_msg:
 	kfree(sending_msg);
-	return 1;
-}
-
-static DEFINE_MUTEX(sendall_syscall_mutex);
-// 送信し終えたときに、送信したものが、
-// msg_buf, sclda_client_structを解放する責任を負う
-int sclda_send_syscall_info(char *msg_buf, int msg_len)
-{
-	// sclda_client_structの作成
-	struct sclda_syscallinfo_struct *sss = NULL;
-	if (!sclda_syscallinfo_init(&sss, msg_buf, msg_len)) {
-		// こいつの初期化ができなかったときは、
-		// もうmsgの中身を送信するチャンスはない。
-		kfree(msg_buf);
-		return -1;
-	}
-
-	// 送信を試みて、送信できなかったらaddする
-	int ret = __sclda_send_split(sss, sclda_decide_struct());
-	if (ret < 0) {
-		sclda_add_syscallinfo(sss);
-		return -1;
-	}
-	// 送信できたので、解放
-	kfree(msg_buf);
-	kfree(sss);
-	// addしたものが溜まっている場合、送信する
-	// 他がsendall呼び出しているならしなくて良い
-	if (mutex_is_locked(&sendall_syscall_mutex))
-		return -1;
-	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
-		if (sclda_syscallinfo_exist[i] > SCLDA_NUM_TO_SEND_SINFO) {
-			// リンクドリストが解放されないため
-			// エラーがおきてもだいじょうぶい
-			struct task_struct *my_thread =
-				kthread_run(sclda_sendall_syscallinfo, NULL,
-					    "sclda_sendall");
-			// 別スレッドでどこを送信するか決定する
-			// 1度呼び出せばそれで良い。
-			return ret;
-		}
-	}
-	return ret;
+free_chunkbuf:
+	kfree(chunkbuf);
+free_all_msg:
+	kfree(all_msg);
+out:
+	return retval;
 }
 
 int sclda_sendall_syscallinfo(void *data)
 {
-	mutex_lock(&sendall_syscall_mutex);
-	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
-		// まだ必要数溜まって無いところは無視する
-		if (sclda_syscallinfo_exist[i] < SCLDA_NUM_TO_SEND_SINFO)
-			continue;
+	int target_index, cnt, send_ret, failed_cnt;
+	// while文でイテレーションを回すためのポインタ
+	struct sclda_syscallinfo_ls *curptr, *next;
+	// 失敗したときに退避するための頭・尻
+	struct sclda_syscallinfo_ls temp_head, *temp_tail;
 
-		struct sclda_syscallinfo_ls *curptr =
-			sclda_syscall_heads[i].next;
-		struct sclda_syscallinfo_ls *next;
+	// ターゲットになるindexを特定
+	target_index = *(int *)data;
+	kfree(data);
 
-		// 何らかのエラーでNULLだった場合、諦めて初期化する
-		if (curptr == NULL) {
-			mutex_lock(&syscall_mutex[i]);
-			sclda_syscallinfo_exist[i] = 0;
-			sclda_syscall_heads[i].s =
-				(struct sclda_syscallinfo_struct *)NULL;
-			sclda_syscall_heads[i].next =
-				(struct sclda_syscallinfo_ls *)NULL;
-			sclda_syscall_tails[i] = &sclda_syscall_heads[i];
-			mutex_unlock(&syscall_mutex[i]);
-			continue;
+	mutex_lock(&syscall_mutex[target_index]);
+
+	// curptrを初期化し、全リストのデータを送信する
+	curptr = sclda_syscall_heads[target_index].next;
+	cnt = 0;
+	failed_cnt = 0;
+	// ダミ頭・尻の初期化
+	temp_head.s = (struct sclda_syscallinfo_struct *)NULL;
+	temp_head.next = (struct sclda_syscallinfo_ls *)NULL;
+	temp_tail = &temp_head;
+	while (curptr != NULL) {
+		send_ret =
+			__sclda_send_split(curptr->s, cnt % SCLDA_PORT_NUMBER);
+		if (send_ret < 0) {
+			// 送信できていないため、削除せず
+			// tempに退避する
+			failed_cnt++;
+			temp_tail->next = curptr;
+			temp_tail = temp_tail->next;
+			temp_tail->next = NULL;
 		}
-
-		// 送信を開始する
-		mutex_lock(&syscall_mutex[i]);
-		int ret;
-		int count = 0;
-		struct sclda_syscallinfo_ls temp_head;
-		struct sclda_syscallinfo_ls *temp_tail;
-		temp_tail = &temp_head;
-		while (curptr != NULL) {
-			ret = __sclda_send_split(curptr->s,
-						 &(syscall_sclda[i]));
-			if (ret < 0) {
-				// 送信できていないため、削除せず
-				// tempに退避する
-				temp_tail->next = curptr;
-				temp_tail = temp_tail->next;
-				temp_tail->next = NULL;
-				count += 1;
-			}
-			next = curptr->next;
-			if (ret >= 0) {
-				// 送信できたので解放する
-				kfree(curptr->s->syscall_msg); // msg_bufの解放
-				kfree(curptr->s); // sclda_syscallinfo_structの解放
-				kfree(curptr); // sclda_syscallinfo_lsの解放
-			}
-			curptr = next;
+		next = curptr->next;
+		if (ret >= 0) {
+			// 送信できたので解放する
+			kfree(curptr->s->syscall_msg); // msg_bufの解放
+			kfree(curptr->s); // sclda_syscallinfo_structの解放
+			kfree(curptr); // sclda_syscallinfo_lsの解放
 		}
-		// headとtailの再初期化
-		sclda_syscallinfo_exist[i] = count;
-		sclda_syscall_heads[i] = temp_head;
-		sclda_syscall_tails[i] = temp_tail;
-		mutex_unlock(&syscall_mutex[i]);
+		curptr = next;
+		cnt++;
 	}
-	mutex_unlock(&sendall_syscall_mutex);
+	// 頭・尻の再初期化
+	sclda_syscallinfo_exist[target_index] = failed_cnt;
+	sclda_syscall_heads[target_index] = temp_head;
+	sclda_syscall_tails[target_index] = temp_tail;
+	mutex_unlock(&syscall_mutex[target_index]);
 	return 0;
-}
-
-struct sclda_client_struct *sclda_decide_struct(void)
-{
-	unsigned int cpu_id = smp_processor_id();
-	return &(syscall_sclda[cpu_id % SCLDA_PORT_NUMBER]);
 }
 
 struct sclda_client_struct *sclda_get_pidppid_struct(void)
@@ -407,6 +357,12 @@ void sclda_sendall_pidinfo(void)
 	}
 	sclda_allsend_fin = 1;
 	mutex_unlock(&pidinfo_mutex);
+}
+
+int sclda_get_current_pid(void)
+{
+	// 現在のPIDを取得する関数
+	return (int)pid_nr(get_task_pid(current, PIDTYPE_PID));
 }
 
 int is_sclda_init_fin(void)
