@@ -2776,8 +2776,7 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 		return nr;
 	}
 	// 初期化はされたがallsendできていない場合
-	int count = sclda_send_mutex("sclda\0", 6, sclda_get_pidppid_struct());
-	if (count < 0) {
+	if (sclda_send_mutex("sclda\0", 6, sclda_get_pidppid_struct()) < 0) {
 		// まだ送信できない場合
 		sclda_add_pidinfo(pid_buf, pid_len);
 		return nr;
