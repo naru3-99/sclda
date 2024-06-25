@@ -2764,6 +2764,7 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	pid_len = snprintf(pid_buf, pid_len, "%d%c%d%c%s", (int)nr,
 			   SCLDA_DELIMITER, sclda_get_current_pid(),
 			   SCLDA_DELIMITER, p->comm);
+
 	// まだ初期化されていない場合
 	if (!is_sclda_init_fin()) {
 		sclda_add_pidinfo(pid_buf, pid_len);
@@ -2776,16 +2777,17 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 		return nr;
 	}
 	// 初期化はされたがallsendできていない場合
-	if (sclda_send_mutex("sclda\0", 6, sclda_get_pidppid_struct()) < 0) {
+	if (sclda_send_mutex("sclda\0", 6, sclda_get_pidppid_struct()) == 6) {
+		// 送信可能になったため、sendallする
+		sclda_sendall_pidinfo();
+		sclda_send_mutex(pid_buf, pid_len, sclda_get_pidppid_struct());
+		kfree(pid_buf);
+		return nr;
+	} else {
 		// まだ送信できない場合
 		sclda_add_pidinfo(pid_buf, pid_len);
 		return nr;
 	}
-	// 送信可能になったため、sendallする
-	sclda_sendall_pidinfo();
-	sclda_send_mutex(pid_buf, pid_len, sclda_get_pidppid_struct());
-	kfree(pid_buf);
-	return nr;
 }
 
 /*

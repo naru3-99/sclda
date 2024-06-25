@@ -11,7 +11,7 @@ static DEFINE_MUTEX(pidinfo_mutex);
 // PID情報のダミーヘッド
 struct sclda_pidinfo_ls sclda_pidinfo_head = { 0, NULL, NULL };
 // PID情報の末尾
-struct sclda_pidinfo_ls *sclda_pidinfo_tail;
+struct sclda_pidinfo_ls *sclda_pidinfo_tail = &sclda_pidinfo_head;
 
 // syscallの配列を操作するときのmutex
 static struct mutex syscall_mutex[SCLDA_SCI_NUM];
@@ -83,7 +83,6 @@ int sclda_init(void)
 		// まだ溜まっていないから0で初期化
 		sclda_syscallinfo_exist[i] = 0;
 	}
-	sclda_pidinfo_tail = &sclda_pidinfo_head;
 
 	__init_sclda_client(&pidppid_sclda, SCLDA_PIDPPID_PORT);
 	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
