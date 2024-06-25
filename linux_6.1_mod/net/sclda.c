@@ -214,6 +214,8 @@ int sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr)
 	new_node->s = ptr;
 	new_node->next = (struct sclda_syscallinfo_ls *)NULL;
 
+	if (sclda_sci_index > 7)
+		printk(KERN_ERR "SCLDA_SCI_INDEX: %d", sclda_sci_index);
 	// リストを末端に追加する
 	mutex_lock(&syscall_mutex[sclda_sci_index]);
 	// 末尾に追加する
@@ -321,7 +323,8 @@ int sclda_sendall_syscallinfo(void *data)
 	sclda_syscall_heads[target_index].s = temp_head.s;
 	sclda_syscall_heads[target_index].next = temp_head.next;
 	sclda_syscall_tails[target_index] = temp_tail;
-	sclda_syscall_tails[target_index]->next = NULL;
+	sclda_syscall_tails[target_index]->next =
+		(struct sclda_syscallinfo_ls *)NULL;
 	mutex_unlock(&syscall_mutex[target_index]);
 	return 0;
 }
