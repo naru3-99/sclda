@@ -214,10 +214,6 @@ int sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr)
 	new_node->s = ptr;
 	new_node->next = (struct sclda_syscallinfo_ls *)NULL;
 
-	if (sclda_sci_index > 7)
-		while (1)
-			printk(KERN_ERR "SCLDA_SCI_INDEX: %d", sclda_sci_index);
-
 	// リストを末端に追加する
 	mutex_lock(&syscall_mutex[sclda_sci_index]);
 	// 末尾に追加する
@@ -299,8 +295,8 @@ int sclda_sendall_syscallinfo(void *data)
 	cnt = 0;
 	failed_cnt = 0;
 	// ダミ頭・尻の初期化
-	temp_head.s = (struct sclda_syscallinfo_struct *)NULL;
-	temp_head.next = (struct sclda_syscallinfo_ls *)NULL;
+	temp_head.s = NULL;
+	temp_head.next = NULL;
 	temp_tail = &temp_head;
 	while (curptr != NULL) {
 		send_ret =
@@ -308,7 +304,7 @@ int sclda_sendall_syscallinfo(void *data)
 		next = curptr->next;
 		if (send_ret < 0) {
 			// 送信できていないため、tempに退避する
-			failed_cnt = failed_cnt + 1;
+			failed_cnt++;
 			temp_tail->next = curptr;
 			temp_tail = temp_tail->next;
 		} else {
@@ -321,12 +317,17 @@ int sclda_sendall_syscallinfo(void *data)
 		cnt = cnt + 1;
 	}
 	// 頭・尻の再初期化
-	sclda_syscallinfo_exist[target_index] = failed_cnt;
-	sclda_syscall_heads[target_index].s = temp_head.s;
 	sclda_syscall_heads[target_index].next = temp_head.next;
-	sclda_syscall_tails[target_index] = temp_tail;
-	sclda_syscall_tails[target_index]->next =
-		(struct sclda_syscallinfo_ls *)NULL;
+	if (temp_tail == &temp_head) {
+		// 全て送信できた場合は、tailも初期化
+		sclda_syscall_tails[target_index] =
+			&sclda_syscall_heads[target_index];
+	} else {
+		sclda_syscall_tails[target_index] = temp_tail;
+		sclda_syscall_tails[target_index]->next = NULL;
+	}
+	sclda_syscallinfo_exist[target_index] = failed_cnt;
+
 	mutex_unlock(&syscall_mutex[target_index]);
 	return 0;
 }
