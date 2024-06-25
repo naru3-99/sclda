@@ -276,7 +276,7 @@ int sclda_send_syscall_info(char *msg_buf, int msg_len)
 		newkthread = kthread_create(sclda_sendall_syscallinfo, arg,
 					    "sclda_sendall");
 		if (!IS_ERR(newkthread))
-			wake_up_process(my_task);
+			wake_up_process(newkthread);
 	}
 	mutex_unlock(&send_by_kthread);
 	return retval;
