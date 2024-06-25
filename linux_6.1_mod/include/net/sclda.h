@@ -39,7 +39,7 @@
 // syscall_info構造体がいくつ貯まると送信するか
 #define SCLDA_NUM_TO_SEND_SINFO ((int)2000)
 // syscall_info構造体の頭とmutexを用意する数
-#define SCLDA_SCI_NUM ((int)2)
+#define SCLDA_SCI_NUM ((int)8)
 
 // ソケットなどをひとまとめにする構造体
 struct sclda_client_struct {
