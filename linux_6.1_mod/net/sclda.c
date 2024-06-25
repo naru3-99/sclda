@@ -215,7 +215,9 @@ int sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr)
 	new_node->next = (struct sclda_syscallinfo_ls *)NULL;
 
 	if (sclda_sci_index > 7)
-		printk(KERN_ERR "SCLDA_SCI_INDEX: %d", sclda_sci_index);
+		while (1)
+			printk(KERN_ERR "SCLDA_SCI_INDEX: %d", sclda_sci_index);
+
 	// リストを末端に追加する
 	mutex_lock(&syscall_mutex[sclda_sci_index]);
 	// 末尾に追加する
