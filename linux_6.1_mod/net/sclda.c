@@ -307,26 +307,25 @@ int sclda_sendall_syscallinfo(void *data)
 	while (curptr != NULL) {
 		send_ret =
 			__sclda_send_split(curptr->s, cnt % SCLDA_PORT_NUMBER);
+		next = curptr->next;
 		if (send_ret < 0) {
-			// 送信できていないため、削除せず
-			// tempに退避する
-			failed_cnt++;
+			// 送信できていないため、tempに退避する
+			failed_cnt = failed_cnt + 1;
 			temp_tail->next = curptr;
 			temp_tail = temp_tail->next;
-		}
-		next = curptr->next;
-		if (send_ret >= 0) {
+		} else {
 			// 送信できたので解放する
 			kfree(curptr->s->syscall_msg); // msg_bufの解放
 			kfree(curptr->s); // sclda_syscallinfo_structの解放
 			kfree(curptr); // sclda_syscallinfo_lsの解放
 		}
 		curptr = next;
-		cnt++;
+		cnt = cnt + 1;
 	}
 	// 頭・尻の再初期化
 	sclda_syscallinfo_exist[target_index] = failed_cnt;
-	sclda_syscall_heads[target_index] = temp_head;
+	sclda_syscall_heads[target_index].s = temp_head.s;
+	sclda_syscall_heads[target_index].next = temp_head.next;
 	sclda_syscall_tails[target_index] = temp_tail;
 	sclda_syscall_tails[target_index]->next = NULL;
 	mutex_unlock(&syscall_mutex[target_index]);
