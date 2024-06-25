@@ -128,11 +128,12 @@ int __sclda_send_split(struct sclda_syscallinfo_struct *ptr, int which_port)
 	// 大きいサイズの文字列を分割して送信する実装
 	// ヘッダ情報としてPIDとutimeを最初にくっつける
 	// system-call関連情報を送信するときのみ使用する
-	struct sclda_client_struct *sclda_to_send;
-	int all_msg_len, max_packet_len;
-	char *all_msg, *chunkbuf, *sending_msg;
-	int send_ret, sending_len;
 	int retval = -EFAULT;
+
+	struct sclda_client_struct *sclda_to_send;
+	char *chunkbuf, *sending_msg;
+	int send_ret, sending_len, max_packet_len;
+
 	// まだnetのinit が済んでいない場合
 	if (!sclda_init_fin)
 		goto out;
@@ -140,17 +141,11 @@ int __sclda_send_split(struct sclda_syscallinfo_struct *ptr, int which_port)
 	// 送信先になるポートのclient_struct
 	sclda_to_send = &syscall_sclda[which_port];
 
-	// 送信する情報を確定する
-	all_msg_len = ptr->syscall_msg_len + 1;
-	all_msg = kmalloc(all_msg_len, GFP_KERNEL);
-	if (!all_msg)
-		goto out;
-
-	// chunksizeごとに分割して送信するパート
 	// chunksizeのバッファを段取り
 	chunkbuf = kmalloc(SCLDA_CHUNKSIZE + 1, GFP_KERNEL);
 	if (!chunkbuf)
-		goto free_all_msg;
+		goto out;
+
 	// 一度に送信するパケットのバッファを段取り
 	max_packet_len = SCLDA_CHUNKSIZE + ptr->pid_cputime_len + 1;
 	sending_msg = kmalloc(max_packet_len, GFP_KERNEL);
@@ -160,9 +155,10 @@ int __sclda_send_split(struct sclda_syscallinfo_struct *ptr, int which_port)
 	// 分割して送信する
 	size_t offset = 0;
 	size_t len = 0;
-	while (offset < all_msg_len) {
+	while (offset < ptr->syscall_msg_len) {
 		// chunksizeごとに文字列を分割
-		len = min(SCLDA_CHUNKSIZE, (size_t)all_msg_len - offset);
+		len = min(SCLDA_CHUNKSIZE,
+			  (size_t)(ptr->syscall_msg_len - offset));
 		memcpy(chunkbuf, all_msg + offset, len);
 		chunkbuf[len] = '\0';
 
@@ -182,8 +178,6 @@ free_sending_msg:
 	kfree(sending_msg);
 free_chunkbuf:
 	kfree(chunkbuf);
-free_all_msg:
-	kfree(all_msg);
 out:
 	return retval;
 }
