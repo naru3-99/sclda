@@ -133,7 +133,7 @@ int sclda_syscallinfo_init(struct sclda_syscallinfo_struct **ptr, char *msg,
 		return -ENOMEM;
 
 	// メモリ割り当てが成功したら、情報を初期化する
-	s->pid_cputime_len = snprintf(s->pid_cputime_msg, SCLDA_UTIME_PID_SIZE,
+	s->pid_cputime_len = snprintf(s->pid_cputime_msg, SCLDA_PID_CLOCK_SIZE,
 				      "%d%c%llu%c", sclda_get_current_pid(),
 				      SCLDA_DELIMITER, sched_clock(),
 				      SCLDA_DELIMITER);
@@ -176,9 +176,9 @@ int sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr)
 		sclda_sci_index++;
 		sclda_sci_index = sclda_sci_index % SCLDA_SCI_NUM;
 		// 送信メカニズムを呼び出す
-		struct task_struct *task;
-		task = kthread_run(sclda_sendall_syscallinfo, arg,
-				   "sclda_sendall");
+		struct task_struct *newkthread;
+		newkthread = kthread_run(sclda_sendall_syscallinfo, arg,
+					 "sclda_sendall");
 	}
 out:
 	mutex_unlock(&syscall_mutex[current_index]);
@@ -222,12 +222,10 @@ int __sclda_send_split(struct sclda_syscallinfo_struct *ptr, int which_port)
 	sclda_to_send = &syscall_sclda[which_port];
 
 	// 送信する情報を確定する
-	all_msg_len = ptr->memory_len + ptr->syscall_msg_len + 1;
+	all_msg_len = ptr->syscall_msg_len + 1;
 	all_msg = kmalloc(all_msg_len, GFP_KERNEL);
 	if (!all_msg)
 		goto out;
-	all_msg_len = snprintf(all_msg, all_msg_len, "%s%s", ptr->memory_msg,
-			       ptr->syscall_msg);
 
 	// chunksizeごとに分割して送信するパート
 	// chunksizeのバッファを段取り
@@ -305,7 +303,7 @@ int sclda_sendall_syscallinfo(void *data)
 			temp_tail->next = NULL;
 		}
 		next = curptr->next;
-		if (ret >= 0) {
+		if (send_ret >= 0) {
 			// 送信できたので解放する
 			kfree(curptr->s->syscall_msg); // msg_bufの解放
 			kfree(curptr->s); // sclda_syscallinfo_structの解放
