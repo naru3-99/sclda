@@ -239,7 +239,7 @@ static DEFINE_MUTEX(send_by_kthread);
 int sclda_send_syscall_info(char *msg_buf, int msg_len)
 {
 	int retval;
-	struct sclda_syscallinfo_struct *sss = NULL;
+	struct sclda_syscallinfo_struct *sss;
 
 	retval = sclda_syscallinfo_init(&sss, msg_buf, msg_len);
 	if (retval < 0) {
@@ -254,9 +254,10 @@ int sclda_send_syscall_info(char *msg_buf, int msg_len)
 	// リストが溜まっていたら、送信する
 	if (mutex_is_locked(&send_by_kthread))
 		return retval;
-	if (sclda_syscallinfo_exist[sclda_sci_index] <
+
+	mutex_lock(&send_by_kthread);
+	if (sclda_syscallinfo_exist[sclda_sci_index] >
 	    SCLDA_NUM_TO_SEND_SINFO) {
-		mutex_lock(&send_by_kthread);
 		struct task_struct *task;
 		int *arg;
 
@@ -268,15 +269,16 @@ int sclda_send_syscall_info(char *msg_buf, int msg_len)
 		*arg = sclda_sci_index;
 
 		// current_indexの更新
-		sclda_sci_index++;
-		sclda_sci_index = sclda_sci_index % SCLDA_SCI_NUM;
+		sclda_sci_index = (sclda_sci_index + 1) % SCLDA_SCI_NUM;
 
 		// 送信メカニズムを呼び出す
 		struct task_struct *newkthread;
-		newkthread = kthread_run(sclda_sendall_syscallinfo, arg,
-					 "sclda_sendall");
-		mutex_unlock(&send_by_kthread);
+		newkthread = kthread_create(sclda_sendall_syscallinfo, arg,
+					    "sclda_sendall");
+		if (!IS_ERR(newkthread))
+			wake_up_process(my_task);
 	}
+	mutex_unlock(&send_by_kthread);
 	return retval;
 }
 
