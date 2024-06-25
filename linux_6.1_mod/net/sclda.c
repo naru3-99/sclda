@@ -159,7 +159,7 @@ int __sclda_send_split(struct sclda_syscallinfo_struct *ptr, int which_port)
 		// chunksizeごとに文字列を分割
 		len = min(SCLDA_CHUNKSIZE,
 			  (size_t)(ptr->syscall_msg_len - offset));
-		memcpy(chunkbuf, all_msg + offset, len);
+		memcpy(chunkbuf, ptr->syscall_msg + offset, len);
 		chunkbuf[len] = '\0';
 
 		// 送信する文字列を段取り
@@ -212,7 +212,7 @@ int sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr)
 	if (!new_node)
 		return -ENOMEM;
 	new_node->s = ptr;
-	new_node->next = NULL;
+	new_node->next = (struct sclda_syscallinfo_ls *)NULL;
 
 	// リストを末端に追加する
 	mutex_lock(&syscall_mutex[sclda_sci_index]);
