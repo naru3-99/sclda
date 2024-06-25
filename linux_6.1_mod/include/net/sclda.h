@@ -34,8 +34,6 @@
 #define SCLDA_CHUNKSIZE ((size_t)1000)
 // 付加情報（utime、PID）
 #define SCLDA_PID_CLOCK_SIZE ((int)50)
-// プロセス生成に関連する情報を送信する
-#define SCLDA_PIDPPID_BUFSIZE ((int)80)
 // syscall_info構造体がいくつ貯まると送信するか
 #define SCLDA_NUM_TO_SEND_SINFO ((int)2000)
 // syscall_info構造体の頭とmutexを用意する数
@@ -51,8 +49,8 @@ struct sclda_client_struct {
 
 // 文字列を保持するためのノードを定義
 struct sclda_pidinfo_ls {
-	char str[SCLDA_PIDPPID_BUFSIZE];
 	int len;
+	char *str;
 	struct sclda_pidinfo_ls *next;
 };
 
@@ -98,7 +96,7 @@ struct sclda_client_struct *sclda_decide_struct(void);
 struct sclda_client_struct *sclda_get_pidppid_struct(void);
 
 // pid情報を送信するための機構
-void sclda_add_pidinfo(const char *, int);
+int sclda_add_pidinfo(char *, int);
 void sclda_sendall_pidinfo(void);
 // fork.cで初期化処理などが終わったかどうかを参照する
 int is_sclda_init_fin(void);

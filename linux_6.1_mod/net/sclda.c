@@ -9,9 +9,7 @@ struct sclda_client_struct syscall_sclda[SCLDA_PORT_NUMBER];
 // PIDの配列を操作するときのmutex
 static DEFINE_MUTEX(pidinfo_mutex);
 // PID情報のダミーヘッド
-struct sclda_pidinfo_ls sclda_pidinfo_head = {
-	"\0", 1, (struct sclda_pidinfo_ls *)NULL
-};
+struct sclda_pidinfo_ls sclda_pidinfo_head = { 0, NULL, NULL };
 // PID情報の末尾
 struct sclda_pidinfo_ls *sclda_pidinfo_tail = &sclda_pidinfo_head;
 
@@ -78,10 +76,8 @@ int sclda_init(void)
 		// mutexの初期化
 		mutex_init(&syscall_mutex[i]);
 		// ダミーヘッドの初期化
-		sclda_syscall_heads[i].s =
-			(struct sclda_syscallinfo_struct *)NULL;
-		sclda_syscall_heads[i].next =
-			(struct sclda_syscallinfo_ls *)NULL;
+		sclda_syscall_heads[i].s = NULL;
+		sclda_syscall_heads[i].next = NULL;
 		// 末尾の初期化
 		sclda_syscall_tails[i] = &sclda_syscall_heads[i];
 		// まだ溜まっていないから0で初期化
@@ -212,7 +208,7 @@ int sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr)
 	if (!new_node)
 		return -ENOMEM;
 	new_node->s = ptr;
-	new_node->next = (struct sclda_syscallinfo_ls *)NULL;
+	new_node->next = NULL;
 
 	// リストを末端に追加する
 	mutex_lock(&syscall_mutex[sclda_sci_index]);
@@ -337,14 +333,14 @@ struct sclda_client_struct *sclda_get_pidppid_struct(void)
 	return &pidppid_sclda;
 }
 
-void sclda_add_pidinfo(const char *msg, int len)
+int sclda_add_pidinfo(char *msg, int len)
 {
-	struct sclda_pidinfo_ls *new_node =
-		kmalloc(sizeof(struct sclda_pidinfo_ls), GFP_KERNEL);
+	struct sclda_pidinfo_ls *new_node;
+	new_node = kmalloc(sizeof(struct sclda_pidinfo_ls), GFP_KERNEL);
 	if (!new_node)
-		return;
+		return -ENOMEM;
 
-	strlcpy(new_node->str, msg, SCLDA_PIDPPID_BUFSIZE);
+	new_node->str = msg;
 	new_node->len = len;
 	new_node->next = NULL;
 
@@ -352,16 +348,18 @@ void sclda_add_pidinfo(const char *msg, int len)
 	sclda_pidinfo_tail->next = new_node;
 	sclda_pidinfo_tail = sclda_pidinfo_tail->next;
 	mutex_unlock(&pidinfo_mutex);
+	return 0;
 }
 
 void sclda_sendall_pidinfo(void)
 {
-	struct sclda_pidinfo_ls *curptr = sclda_pidinfo_head.next;
-	struct sclda_pidinfo_ls *next;
+	struct sclda_pidinfo_ls *curptr, *next;
+	curptr = sclda_pidinfo_head.next;
 	mutex_lock(&pidinfo_mutex);
 	while (curptr != NULL) {
-		sclda_send(curptr->str, curptr->len, &pidppid_sclda);
+		sclda_send_mutex(curptr->str, curptr->len, &pidppid_sclda);
 		next = curptr->next;
+		kfree(curptr->str);
 		kfree(curptr);
 		curptr = next;
 	}
