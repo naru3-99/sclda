@@ -168,9 +168,9 @@ free_ts_buf:
 	return retval;
 }
 
-SYSCALL_DEFINE4(clock_nanosleep, const clockid_t, which_clock, int, flags,
-		const struct __kernel_timespec __user *, rqtp,
-		struct __kernel_timespec __user *, rmtp)
+long _sclda_clock_nanosleep(const clockid_t which_clock, int flags,
+			    const struct __kernel_timespec __user *rqtp,
+			    struct __kernel_timespec __user *rmtp)
 {
 	struct timespec64 t;
 	ktime_t texp;
@@ -200,6 +200,62 @@ SYSCALL_DEFINE4(clock_nanosleep, const clockid_t, which_clock, int, flags,
 				 flags & TIMER_ABSTIME ? HRTIMER_MODE_ABS :
 							 HRTIMER_MODE_REL,
 				 which_clock);
+}
+
+SYSCALL_DEFINE4(clock_nanosleep, const clockid_t, which_clock, int, flags,
+		const struct __kernel_timespec __user *, rqtp,
+		struct __kernel_timespec __user *, rmtp)
+{
+	long retval;
+	int msg_len, rqtp_len, rmtp_len;
+	char *msg_buf, *rqtp_buf, *rmtp_buf;
+
+	retval = _sclda_clock_nanosleep(which_clock, flags, rqtp, rmtp);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 第1引数を文字列に変換
+	rqtp_len = 200;
+	rqtp_buf = kmalloc(rqtp_len, GFP_KERNEL);
+	if (!rqtp_buf)
+		return retval;
+	rqtp_len = kernel_timespec_to_str(rqtp, rqtp_buf, rqtp_len);
+	if (rqtp_len < 0) {
+		rqtp_len = 1;
+		rqtp_buf[0] = '\0';
+	}
+
+	// 第2引数を文字列に変換
+	rmtp_len = 200;
+	rmtp_buf = kmalloc(rmtp_len, GFP_KERNEL);
+	if (!rmtp_buf)
+		goto free_rqtp_buf;
+	rmtp_len = kernel_timespec_to_str(rqtp, rmtp_buf, rmtp_len);
+	if (rmtp_len < 0) {
+		rmtp_len = 1;
+		rmtp_buf[0] = '\0';
+	}
+
+	// 送信するパート
+	msg_len = 200 + rmtp_len + rqtp_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_rmtp_buf;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "230%c%ld%c%d"
+			   "%c%d%c%s%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
+			   (int)which_clock, SCLDA_DELIMITER, flags,
+			   SCLDA_DELIMITER, rqtp_buf, SCLDA_DELIMITER,
+			   rmtp_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_rmtp_buf:
+	kfree(rmtp_buf);
+free_rqtp_buf:
+	kfree(rqtp_buf);
+	return retval;
 }
 
 #ifdef CONFIG_COMPAT
