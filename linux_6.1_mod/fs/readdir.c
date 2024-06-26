@@ -216,18 +216,20 @@ int linux_dirent_to_str(const struct linux_dirent __user *user_dirent,
 {
 	int retval;
 	char *all_buf, *dname;
-	int all_len, dname_len;
+	int all_len;
+	unsigned short dname_len, dname_real_len;
 	unsigned long dino, doff;
 
 	// user_direntのd_nameの長さ = d_reclen
 	if (copy_from_user(&dname_len, &(user_dirent->d_reclen),
 			   sizeof(unsigned short)))
 		return -EFAULT;
+	dname_real_len = strnlen_user(user_dirent->d_name, dname_len);
 	// d_nameを取得する
-	dname = kmalloc(dname_len, GFP_KERNEL);
+	dname = kmalloc(dname_real_len, GFP_KERNEL);
 	if (!dname)
 		return -ENOMEM;
-	if (copy_from_user(dname, user_dirent->d_name, dname_len)) {
+	if (copy_from_user(dname, user_dirent->d_name, dname_real_len)) {
 		retval = -EFAULT;
 		goto free_dname;
 	}
@@ -424,18 +426,78 @@ efault:
 	return false;
 }
 
+int linux_dirent64_to_str(const struct linux_dirent64 __user *user_dirent,
+			  char **buf)
+{
+	int retval;
+	char *all_buf, *dname;
+	int all_len;
+	unsigned short dname_len, dname_real_len;
+	u64 dino;
+	s64 doff;
+	unsigned char kd_type;
+
+	// user_direntのd_nameの長さ = d_reclen
+	if (copy_from_user(&dname_len, &(user_dirent->d_reclen),
+			   sizeof(unsigned short)))
+		return -EFAULT;
+	// d_nameを取得する
+	dname_real_len = strnlen_user(user_dirent->d_name, dname_len);
+	dname = kmalloc(dname_real_len, GFP_KERNEL);
+	if (!dname)
+		return -ENOMEM;
+	if (copy_from_user(dname, user_dirent->d_name, dname_real_len)) {
+		retval = -EFAULT;
+		goto free_dname;
+	}
+	// その他フィールドを取得
+	if (copy_from_user(&dino, &(user_dirent->d_ino), sizeof(u64))) {
+		retval = -EFAULT;
+		goto free_dname;
+	}
+	if (copy_from_user(&doff, &(user_dirent->d_off), sizeof(s64))) {
+		retval = -EFAULT;
+		goto free_dname;
+	}
+	if (copy_from_user(&kd_type, &(user_dirent->d_type),
+			   sizeof(unsigned char))) {
+		retval = -EFAULT;
+		goto free_dname;
+	}
+
+	all_len = 150 + dname_len;
+	all_buf = kmalloc(all_len, GFP_KERNEL);
+	if (!all_buf) {
+		retval = -EFAULT;
+		goto free_dname;
+	}
+	retval = snprintf(all_buf, all_len,
+			  "%llu%c%lld%c"
+			  "%hu%c%u%c%s",
+			  dino, SCLDA_DELIMITER, doff, SCLDA_DELIMITER,
+			  dname_len, SCLDA_DELIMITER, kd_type, SCLDA_DELIMITER,
+			  dname);
+	*buf = all_buf;
+
+free_dname:
+	kfree(dname);
+	return retval;
+}
+
 SYSCALL_DEFINE3(getdents64, unsigned int, fd, struct linux_dirent64 __user *,
 		dirent, unsigned int, count)
 {
+	int retval, error;
 	struct fd f;
 	struct getdents_callback64 buf = { .ctx.actor = filldir64,
 					   .count = count,
 					   .current_dir = dirent };
-	int error;
 
 	f = fdget_pos(fd);
-	if (!f.file)
-		return -EBADF;
+	if (!f.file) {
+		retval = -EBADF;
+		goto sclda;
+	}
 
 	error = iterate_dir(f.file, &buf.ctx);
 	if (error >= 0)
@@ -451,7 +513,37 @@ SYSCALL_DEFINE3(getdents64, unsigned int, fd, struct linux_dirent64 __user *,
 			error = count - buf.count;
 	}
 	fdput_pos(f);
-	return error;
+	retval = error;
+sclda:
+	int msg_len, ld_len;
+	char *msg_buf, *ld_buf;
+
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// linux_derent64構造体を文字列に起こす
+	ld_len = linux_dirent64_to_str(dirent, &ld_buf);
+	if (ld_len < 0) {
+		ld_len = 0;
+		ld_buf[0] = '\0';
+	}
+
+	// 送信するパート
+	msg_len = 200 + ld_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_ld_buf;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "217%c%d%c%u"
+			   "%c%u%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, count, SCLDA_DELIMITER, ld_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_ld_buf:
+	kfree(ld_buf);
+	return retval;
 }
 
 #ifdef CONFIG_COMPAT
