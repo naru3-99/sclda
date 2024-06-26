@@ -2907,8 +2907,8 @@ static int prctl_set_vma(unsigned long opt, unsigned long start,
 }
 #endif /* CONFIG_ANON_VMA_NAME */
 
-SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
-		unsigned long, arg4, unsigned long, arg5)
+long sclda_prctl(int option, unsigned long arg2, unsigned long arg3,
+		 unsigned long arg4, unsigned long arg5)
 {
 	struct task_struct *me = current;
 	unsigned char comm[sizeof(me->comm)];
@@ -3191,6 +3191,34 @@ SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
 		break;
 	}
 	return error;
+}
+
+SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
+		unsigned long, arg4, unsigned long, arg5)
+{
+	long retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = sclda_prctl(option, arg2, arg3, arg4, arg5);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 300;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "157%c%ld%c%lu"
+			   "%c%lu%c%lu"
+			   "%c%lu%c%lu",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, option,
+			   SCLDA_DELIMITER, arg2, SCLDA_DELIMITER, arg3,
+			   SCLDA_DELIMITER, arg4, SCLDA_DELIMITER, arg5);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 SYSCALL_DEFINE3(getcpu, unsigned __user *, cpup, unsigned __user *, nodep,

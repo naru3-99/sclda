@@ -2,7 +2,7 @@
 ## for langMorphDA
 
 
-prctl	157
+
 clock_nanosleep	230
 exit_group	231
 faccessat	269
