@@ -1,43 +1,44 @@
 ## undefined syscall name
 ## for langMorphDA
 
-arch_prctl
-set_tid_address
-set_robust_list
-prlimit64
-futex
-getdents64
-sched_getaffinity
-clock_getres
-gettid
-prctl
-clock_nanosleep
-exit_group
-faccessat
-close_range
-keyctl
-add_key
-capget
-capset
-statfs
-swapoff
-newfstatat
-statx
-epoll_create1
-signalfd4
-epoll_ctl
-inotify_rm_watch
-readlinkat
-fadvise64
-ppoll
-utimensat
-inotify_add_watch
-epoll_wait
-sync
-mount
-waitid
-getrandom
-mbind
-getpriority
-setpriority
-getresgid
+
+arch_prctl	158
+set_tid_address	218
+set_robust_list	273
+prlimit64	302
+futex	202
+getdents64	217
+sched_getaffinity	204
+clock_getres	229
+gettid	186
+prctl	157
+clock_nanosleep	230
+exit_group	231
+faccessat	269
+close_range	436
+keyctl	250
+add_key	248
+capget	125
+capset	126
+statfs	137
+swapoff	168
+newfstatat	262
+statx	332
+epoll_create1	291
+signalfd4	289
+epoll_ctl	233
+inotify_rm_watch	255
+readlinkat	267
+fadvise64	221
+ppoll	271
+utimensat	280
+inotify_add_watch	254
+epoll_wait	232
+sync	162
+mount	165
+waitid	247
+getrandom	318
+mbind	237
+getpriority	140
+setpriority	141
+getresgid	120
