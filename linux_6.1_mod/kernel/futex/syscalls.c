@@ -180,7 +180,7 @@ static __always_inline int futex_init_timeout(u32 cmd, u32 op,
 	return 0;
 }
 
-int __kernel_timespec_to_str(struct __kernel_timespec __user *uptr,
+int __kernel_timespec_to_str(const struct __kernel_timespec __user *uptr,
 			     char *msg_buf, int msg_len)
 {
 	// NULLだった場合は即返
@@ -254,7 +254,7 @@ succeed_cfu:
 	msg_len = 300 + ts_len;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
-		return retval;
+		goto free_ts_buf;
 	// u32 __user *, uaddr, int, op, u32, val,const struct __kernel_timespec __user *, utime, u32 __user *,uaddr2, u32, val3
 	msg_len = snprintf(msg_buf, msg_len,
 			   "202%c%ld%c%u"
@@ -265,6 +265,8 @@ succeed_cfu:
 			   SCLDA_DELIMITER, kaddr2, SCLDA_DELIMITER, val3,
 			   SCLDA_DELIMITER, ts_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
+free_ts_buf:
+	kfree(ts_buf);
 	return retval;
 }
 
