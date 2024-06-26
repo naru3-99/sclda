@@ -180,26 +180,92 @@ static __always_inline int futex_init_timeout(u32 cmd, u32 op,
 	return 0;
 }
 
+int __kernel_timespec_to_str(struct __kernel_timespec __user *uptr,
+			     char *msg_buf, int msg_len)
+{
+	// NULLだった場合は即返
+	if (!uptr)
+		return -1;
+
+	struct __kernel_timespec kptr;
+	if (copy_from_user(&kptr, uptr, sizeof(struct __kernel_timespec)))
+		return -1;
+	return snprintf(msg_buf, msg_len, "%lld%c%lld", kptr.tv_sec,
+			SCLDA_DELIMITER, kptr.tv_nsec);
+}
+
 SYSCALL_DEFINE6(futex, u32 __user *, uaddr, int, op, u32, val,
 		const struct __kernel_timespec __user *, utime, u32 __user *,
 		uaddr2, u32, val3)
 {
+	long retval = -EFAULT;
 	int ret, cmd = op & FUTEX_CMD_MASK;
 	ktime_t t, *tp = NULL;
 	struct timespec64 ts;
 
 	if (utime && futex_cmd_has_timeout(cmd)) {
 		if (unlikely(should_fail_futex(!(op & FUTEX_PRIVATE_FLAG))))
-			return -EFAULT;
+			goto out;
 		if (get_timespec64(&ts, utime))
-			return -EFAULT;
+			goto out;
 		ret = futex_init_timeout(cmd, op, &ts, &t);
-		if (ret)
-			return ret;
+		if (ret) {
+			retval = (long)ret;
+			goto out;
+		}
 		tp = &t;
 	}
+	retval = do_futex(uaddr, op, val, tp, uaddr2, (unsigned long)utime,
+			  val3);
+out:
+	int msg_len, ts_len;
+	char *msg_buf, *ts_buf;
 
-	return do_futex(uaddr, op, val, tp, uaddr2, (unsigned long)utime, val3);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// timespecの情報を取得
+	ts_len = 100;
+	ts_buf = kmalloc(ts_len, GFP_KERNEL);
+	if (!ts_buf)
+		return retval;
+	ts_len = __kernel_timespec_to_str(utime, ts_buf, ts_len);
+	if (ts_len < 0)
+		goto free_ts_buf;
+
+	// ユーザ空間の引数を取得
+	u32 kaddr, kaddr2;
+	if (retval < 0) {
+		goto failed_cfu;
+	} else {
+		if (copy_from_user(&kaddr, uaddr,
+				   sizeof(u32) || copy_from_user(&kaddr, uaddr,
+								 sizeof(u32))))
+			goto failed_cfu;
+	}
+	goto succeed_cfu;
+
+failed_cfu:
+	kaddr = 0;
+	kaddr2 = 0;
+
+succeed_cfu:
+	// 送信するパート
+	msg_len = 300 + ts_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+	// u32 __user *, uaddr, int, op, u32, val,const struct __kernel_timespec __user *, utime, u32 __user *,uaddr2, u32, val3
+	msg_len = snprintf(msg_buf, msg_len,
+			   "202%c%ld%c%u"
+			   "%c%d%c%u"
+			   "%c%u%c%u%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, kaddr,
+			   SCLDA_DELIMITER, op, SCLDA_DELIMITER, val,
+			   SCLDA_DELIMITER, kaddr2, SCLDA_DELIMITER, val3,
+			   SCLDA_DELIMITER, ts_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 /* Mask of available flags for each futex in futex_waitv list */

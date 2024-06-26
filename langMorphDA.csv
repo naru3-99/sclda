@@ -1,10 +1,6 @@
 ## undefined syscall name
 ## for langMorphDA
 
-
-
-prlimit64	302
-futex	202
 getdents64	217
 sched_getaffinity	204
 clock_getres	229
