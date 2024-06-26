@@ -180,20 +180,6 @@ static __always_inline int futex_init_timeout(u32 cmd, u32 op,
 	return 0;
 }
 
-int kernel_timespec_to_str(const struct __kernel_timespec __user *uptr,
-			     char *msg_buf, int msg_len)
-{
-	// NULLだった場合は即返
-	if (!uptr)
-		return -1;
-
-	struct __kernel_timespec kptr;
-	if (copy_from_user(&kptr, uptr, sizeof(struct __kernel_timespec)))
-		return -1;
-	return snprintf(msg_buf, msg_len, "%lld%c%lld", kptr.tv_sec,
-			SCLDA_DELIMITER, kptr.tv_nsec);
-}
-
 SYSCALL_DEFINE6(futex, u32 __user *, uaddr, int, op, u32, val,
 		const struct __kernel_timespec __user *, utime, u32 __user *,
 		uaddr2, u32, val3)
@@ -230,8 +216,10 @@ out:
 	if (!ts_buf)
 		return retval;
 	ts_len = kernel_timespec_to_str(utime, ts_buf, ts_len);
-	if (ts_len < 0)
-		goto free_ts_buf;
+	if (ts_len < 0) {
+		ts_buf[0] = '\0';
+		ts_len = 1;
+	}
 
 	// ユーザ空間の引数を取得
 	u32 kaddr, kaddr2;

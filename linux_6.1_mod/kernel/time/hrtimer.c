@@ -2133,20 +2133,6 @@ out:
 	return ret;
 }
 
-int __kernel_timespec_to_str(struct __kernel_timespec __user *uptr,
-			     char *msg_buf, int msg_len)
-{
-	// NULLだった場合は即返
-	if (!uptr)
-		return -1;
-
-	struct __kernel_timespec kptr;
-	if (copy_from_user(&kptr, uptr, sizeof(struct __kernel_timespec)))
-		return -1;
-	return snprintf(msg_buf, msg_len, "%lld%c%lld", kptr.tv_sec,
-			SCLDA_DELIMITER, kptr.tv_nsec);
-}
-
 #ifdef CONFIG_64BIT
 
 SYSCALL_DEFINE2(nanosleep, struct __kernel_timespec __user *, rqtp,
@@ -2178,7 +2164,7 @@ sclda:
 	char *rqtp_buf = kmalloc(rqtp_len, GFP_KERNEL);
 	if (!rqtp_buf)
 		return retval;
-	rqtp_len = __kernel_timespec_to_str(rqtp, rqtp_buf, rqtp_len);
+	rqtp_len = kernel_timespec_to_str(rqtp, rqtp_buf, rqtp_len);
 	if (rqtp_len < 0) {
 		rqtp_len = 1;
 		rqtp_buf[0] = '\0';
@@ -2191,7 +2177,7 @@ sclda:
 		kfree(rqtp_buf);
 		return retval;
 	}
-	rmtp_len = __kernel_timespec_to_str(rqtp, rmtp_buf, rmtp_len);
+	rmtp_len = kernel_timespec_to_str(rqtp, rmtp_buf, rmtp_len);
 	if (rmtp_len < 0) {
 		rmtp_len = 1;
 		rmtp_buf[0] = '\0';

@@ -101,4 +101,6 @@ void sclda_sendall_pidinfo(void);
 // fork.cで初期化処理などが終わったかどうかを参照する
 int is_sclda_init_fin(void);
 int is_sclda_allsend_fin(void);
+int kernel_timespec_to_str(struct __kernel_timespec __user *uptr,
+			     char *msg_buf, int msg_len);
 #endif // SCLDA_H

@@ -16,6 +16,7 @@
 #include <linux/posix-timers.h>
 #include <linux/time_namespace.h>
 #include <linux/compat.h>
+#include <net/sclda.h>
 
 #ifdef CONFIG_ARCH_HAS_SYSCALL_WRAPPER
 /* Architectures may override SYS_NI and COMPAT_SYS_NI */
@@ -31,11 +32,12 @@ asmlinkage long sys_ni_posix_timers(void)
 }
 
 #ifndef SYS_NI
-#define SYS_NI(name)  SYSCALL_ALIAS(sys_##name, sys_ni_posix_timers)
+#define SYS_NI(name) SYSCALL_ALIAS(sys_##name, sys_ni_posix_timers)
 #endif
 
 #ifndef COMPAT_SYS_NI
-#define COMPAT_SYS_NI(name)  SYSCALL_ALIAS(compat_sys_##name, sys_ni_posix_timers)
+#define COMPAT_SYS_NI(name) \
+	SYSCALL_ALIAS(compat_sys_##name, sys_ni_posix_timers)
 #endif
 
 SYS_NI(timer_create);
@@ -106,7 +108,8 @@ SYSCALL_DEFINE2(clock_gettime, const clockid_t, which_clock,
 	return 0;
 }
 
-SYSCALL_DEFINE2(clock_getres, const clockid_t, which_clock, struct __kernel_timespec __user *, tp)
+int sclda_clock_getres(const clockid_t which_clock,
+		       struct __kernel_timespec __user *tp)
 {
 	struct timespec64 rtn_tp = {
 		.tv_sec = 0,
@@ -123,6 +126,46 @@ SYSCALL_DEFINE2(clock_getres, const clockid_t, which_clock, struct __kernel_time
 	default:
 		return -EINVAL;
 	}
+}
+
+SYSCALL_DEFINE2(clock_getres, const clockid_t, which_clock,
+		struct __kernel_timespec __user *, tp)
+{
+	int retval;
+	int msg_len, ts_len;
+	char *msg_buf, *ts_buf;
+
+	retval = sclda_clock_getres(which_clock, tp);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// kernel_timespecを文字列に変換
+	ts_len = 100;
+	ts_buf = kmalloc(ts_len, GFP_KERNEL);
+	if (!ts_buf)
+		return retval;
+	ts_len = kernel_timespec_to_str(tp, ts_buf, ts_len);
+	if (ts_len < 0) {
+		ts_buf[0] = '\0';
+		ts_len = 1;
+	}
+
+	// 送信するパート
+	msg_len = 200 + ts_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_ts_buf;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "229%c%d%c"
+			   "%d%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
+			   (int)which_clock, SCLDA_DELIMITER, ts_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_ts_buf:
+	kfree(ts_buf);
+	return retval;
 }
 
 SYSCALL_DEFINE4(clock_nanosleep, const clockid_t, which_clock, int, flags,
@@ -153,8 +196,9 @@ SYSCALL_DEFINE4(clock_nanosleep, const clockid_t, which_clock, int, flags,
 	texp = timespec64_to_ktime(t);
 	if (flags & TIMER_ABSTIME)
 		texp = timens_ktime_to_host(which_clock, texp);
-	return hrtimer_nanosleep(texp, flags & TIMER_ABSTIME ?
-				 HRTIMER_MODE_ABS : HRTIMER_MODE_REL,
+	return hrtimer_nanosleep(texp,
+				 flags & TIMER_ABSTIME ? HRTIMER_MODE_ABS :
+							 HRTIMER_MODE_REL,
 				 which_clock);
 }
 
@@ -247,8 +291,9 @@ SYSCALL_DEFINE4(clock_nanosleep_time32, clockid_t, which_clock, int, flags,
 	texp = timespec64_to_ktime(t);
 	if (flags & TIMER_ABSTIME)
 		texp = timens_ktime_to_host(which_clock, texp);
-	return hrtimer_nanosleep(texp, flags & TIMER_ABSTIME ?
-				 HRTIMER_MODE_ABS : HRTIMER_MODE_REL,
+	return hrtimer_nanosleep(texp,
+				 flags & TIMER_ABSTIME ? HRTIMER_MODE_ABS :
+							 HRTIMER_MODE_REL,
 				 which_clock);
 }
 #endif

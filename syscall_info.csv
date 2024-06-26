@@ -122,6 +122,7 @@ futex,202,retval,kaddr,op,val,kaddr2,val3,tv_sec,tv_nsec
 sched_getaffinity,204,retval,pid,len,user_mask
 getdents64,217,retval,fd,count,d_ino,d_off,d_reclen,d_type,d_name
 set_tid_address,218,retval,tid
+clock_getres,229,retval,which_clock,tv_sec,tv_nsec
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 mkdirat,258,retval,dfd,mode,path
 fchownat,260,retval,dfd,user,group,flag,filename

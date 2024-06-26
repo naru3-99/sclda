@@ -380,3 +380,17 @@ int is_sclda_allsend_fin(void)
 {
 	return sclda_allsend_fin;
 }
+
+int kernel_timespec_to_str(struct __kernel_timespec __user *uptr,
+			     char *msg_buf, int msg_len)
+{
+	// NULLだった場合は即返
+	if (!uptr)
+		return -EFAULT;
+
+	struct __kernel_timespec kptr;
+	if (copy_from_user(&kptr, uptr, sizeof(struct __kernel_timespec)))
+		return -EFAULT;
+	return snprintf(msg_buf, msg_len, "%lld%c%lld", kptr.tv_sec,
+			SCLDA_DELIMITER, kptr.tv_nsec);
+}
