@@ -4,6 +4,8 @@
 #include <linux/syscalls.h>
 #include <linux/time_namespace.h>
 
+#include <net/sclda.h>
+
 #include "futex.h"
 
 /*
@@ -26,18 +28,35 @@
  * @head:	pointer to the list-head
  * @len:	length of the list-head, as userspace expects
  */
-SYSCALL_DEFINE2(set_robust_list, struct robust_list_head __user *, head,
-		size_t, len)
+SYSCALL_DEFINE2(set_robust_list, struct robust_list_head __user *, head, size_t,
+		len)
 {
+	int retval = -EINVAL;
+	int msg_len;
+	char *msg_buf;
+
 	/*
 	 * The kernel knows only one size for now:
 	 */
 	if (unlikely(len != sizeof(*head)))
-		return -EINVAL;
-
+		goto out;
 	current->robust_list = head;
 
-	return 0;
+	retval = 0;
+out:
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "273%c%d%c%zu", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, len);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 /**
@@ -47,7 +66,7 @@ SYSCALL_DEFINE2(set_robust_list, struct robust_list_head __user *, head,
  * @len_ptr:	pointer to a length field, the kernel fills in the header size
  */
 SYSCALL_DEFINE3(get_robust_list, int, pid,
-		struct robust_list_head __user * __user *, head_ptr,
+		struct robust_list_head __user *__user *, head_ptr,
 		size_t __user *, len_ptr)
 {
 	struct robust_list_head __user *head;
@@ -83,7 +102,7 @@ err_unlock:
 }
 
 long do_futex(u32 __user *uaddr, int op, u32 val, ktime_t *timeout,
-		u32 __user *uaddr2, u32 val2, u32 val3)
+	      u32 __user *uaddr2, u32 val2, u32 val3)
 {
 	int cmd = op & FUTEX_CMD_MASK;
 	unsigned int flags = 0;
@@ -147,8 +166,8 @@ static __always_inline bool futex_cmd_has_timeout(u32 cmd)
 	return false;
 }
 
-static __always_inline int
-futex_init_timeout(u32 cmd, u32 op, struct timespec64 *ts, ktime_t *t)
+static __always_inline int futex_init_timeout(u32 cmd, u32 op,
+					      struct timespec64 *ts, ktime_t *t)
 {
 	if (!timespec64_valid(ts))
 		return -EINVAL;
@@ -162,8 +181,8 @@ futex_init_timeout(u32 cmd, u32 op, struct timespec64 *ts, ktime_t *t)
 }
 
 SYSCALL_DEFINE6(futex, u32 __user *, uaddr, int, op, u32, val,
-		const struct __kernel_timespec __user *, utime,
-		u32 __user *, uaddr2, u32, val3)
+		const struct __kernel_timespec __user *, utime, u32 __user *,
+		uaddr2, u32, val3)
 {
 	int ret, cmd = op & FUTEX_CMD_MASK;
 	ktime_t t, *tp = NULL;
@@ -243,8 +262,8 @@ static int futex_parse_waitv(struct futex_vector *futexv,
  * smallest index, nor the one most recently woken, nor...)
  */
 
-SYSCALL_DEFINE5(futex_waitv, struct futex_waitv __user *, waiters,
-		unsigned int, nr_futexes, unsigned int, flags,
+SYSCALL_DEFINE5(futex_waitv, struct futex_waitv __user *, waiters, unsigned int,
+		nr_futexes, unsigned int, flags,
 		struct __kernel_timespec __user *, timeout, clockid_t, clockid)
 {
 	struct hrtimer_sleeper to;
@@ -278,7 +297,8 @@ SYSCALL_DEFINE5(futex_waitv, struct futex_waitv __user *, waiters,
 		 * Since there's no opcode for futex_waitv, use
 		 * FUTEX_WAIT_BITSET that uses absolute timeout as well
 		 */
-		ret = futex_init_timeout(FUTEX_WAIT_BITSET, flag_init, &ts, &time);
+		ret = futex_init_timeout(FUTEX_WAIT_BITSET, flag_init, &ts,
+					 &time);
 		if (ret)
 			return ret;
 
@@ -293,7 +313,8 @@ SYSCALL_DEFINE5(futex_waitv, struct futex_waitv __user *, waiters,
 
 	ret = futex_parse_waitv(futexv, waiters, nr_futexes);
 	if (!ret)
-		ret = futex_wait_multiple(futexv, nr_futexes, timeout ? &to : NULL);
+		ret = futex_wait_multiple(futexv, nr_futexes,
+					  timeout ? &to : NULL);
 
 	kfree(futexv);
 
@@ -306,9 +327,8 @@ destroy_timer:
 }
 
 #ifdef CONFIG_COMPAT
-COMPAT_SYSCALL_DEFINE2(set_robust_list,
-		struct compat_robust_list_head __user *, head,
-		compat_size_t, len)
+COMPAT_SYSCALL_DEFINE2(set_robust_list, struct compat_robust_list_head __user *,
+		       head, compat_size_t, len)
 {
 	if (unlikely(len != sizeof(*head)))
 		return -EINVAL;
@@ -318,9 +338,8 @@ COMPAT_SYSCALL_DEFINE2(set_robust_list,
 	return 0;
 }
 
-COMPAT_SYSCALL_DEFINE3(get_robust_list, int, pid,
-			compat_uptr_t __user *, head_ptr,
-			compat_size_t __user *, len_ptr)
+COMPAT_SYSCALL_DEFINE3(get_robust_list, int, pid, compat_uptr_t __user *,
+		       head_ptr, compat_size_t __user *, len_ptr)
 {
 	struct compat_robust_list_head __user *head;
 	unsigned long ret;
@@ -357,8 +376,8 @@ err_unlock:
 
 #ifdef CONFIG_COMPAT_32BIT_TIME
 SYSCALL_DEFINE6(futex_time32, u32 __user *, uaddr, int, op, u32, val,
-		const struct old_timespec32 __user *, utime, u32 __user *, uaddr2,
-		u32, val3)
+		const struct old_timespec32 __user *, utime, u32 __user *,
+		uaddr2, u32, val3)
 {
 	int ret, cmd = op & FUTEX_CMD_MASK;
 	ktime_t t, *tp = NULL;
@@ -376,4 +395,3 @@ SYSCALL_DEFINE6(futex_time32, u32 __user *, uaddr, int, op, u32, val,
 	return do_futex(uaddr, op, val, tp, uaddr2, (unsigned long)utime, val3);
 }
 #endif /* CONFIG_COMPAT_32BIT_TIME */
-

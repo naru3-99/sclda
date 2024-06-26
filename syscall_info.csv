@@ -119,6 +119,7 @@ setresuid,117,retval,ruid,euid,suid
 getresuid,118,retval,ruid,euid,suid
 arch_prctl,158,retval,option,arg2
 set_tid_address,218,retval,tid
+set_robust_list,273,retval,len
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 mkdirat,258,retval,dfd,mode,path
 fchownat,260,retval,dfd,user,group,flag,filename
