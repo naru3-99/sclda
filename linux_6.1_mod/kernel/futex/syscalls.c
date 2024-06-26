@@ -180,7 +180,7 @@ static __always_inline int futex_init_timeout(u32 cmd, u32 op,
 	return 0;
 }
 
-int __kernel_timespec_to_str(const struct __kernel_timespec __user *uptr,
+int kernel_timespec_to_str(const struct __kernel_timespec __user *uptr,
 			     char *msg_buf, int msg_len)
 {
 	// NULLだった場合は即返
@@ -229,7 +229,7 @@ out:
 	ts_buf = kmalloc(ts_len, GFP_KERNEL);
 	if (!ts_buf)
 		return retval;
-	ts_len = __kernel_timespec_to_str(utime, ts_buf, ts_len);
+	ts_len = kernel_timespec_to_str(utime, ts_buf, ts_len);
 	if (ts_len < 0)
 		goto free_ts_buf;
 
