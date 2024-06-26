@@ -1,8 +1,6 @@
 ## undefined syscall name
 ## for langMorphDA
 
-getdents64	217
-sched_getaffinity	204
 clock_getres	229
 gettid	186
 prctl	157

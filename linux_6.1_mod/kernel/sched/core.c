@@ -861,9 +861,7 @@ static inline void hrtick_clear(struct rq *rq)
 {
 }
 
-static inline void hrtick_rq_init(struct rq *rq)
-{
-}
+static inline void hrtick_rq_init(struct rq *rq){}
 #endif /* CONFIG_SCHED_HRTICK */
 
 /*
@@ -8368,8 +8366,8 @@ out_unlock:
  * Return: size of CPU mask copied to user_mask_ptr on success. An
  * error code otherwise.
  */
-SYSCALL_DEFINE3(sched_getaffinity, pid_t, pid, unsigned int, len,
-		unsigned long __user *, user_mask_ptr)
+int sclda_sched_getaffinity(pid_t pid, unsigned int len,
+			    unsigned long __user *user_mask_ptr)
 {
 	int ret;
 	cpumask_var_t mask;
@@ -8378,22 +8376,48 @@ SYSCALL_DEFINE3(sched_getaffinity, pid_t, pid, unsigned int, len,
 		return -EINVAL;
 	if (len & (sizeof(unsigned long) - 1))
 		return -EINVAL;
-
 	if (!zalloc_cpumask_var(&mask, GFP_KERNEL))
 		return -ENOMEM;
 
 	ret = sched_getaffinity(pid, mask);
 	if (ret == 0) {
 		unsigned int retlen = min(len, cpumask_size());
-
 		if (copy_to_user(user_mask_ptr, cpumask_bits(mask), retlen))
 			ret = -EFAULT;
 		else
 			ret = retlen;
 	}
 	free_cpumask_var(mask);
-
 	return ret;
+}
+
+SYSCALL_DEFINE3(sched_getaffinity, pid_t, pid, unsigned int, len,
+		unsigned long __user *, user_mask_ptr)
+{
+	int retval;
+	int msg_len;
+	char *msg_buf;
+	unsigned long user_mask;
+
+	retval = sclda_sched_getaffinity(pid, len, user_mask_ptr);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// user_maskを取得
+	if (copy_from_user(&user_mask, user_mask_ptr, sizeof(unsigned long)))
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "204%c%d%c%d%c%u%c%lu",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, (int)pid,
+			   SCLDA_DELIMITER, len, SCLDA_DELIMITER, user_mask);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 static void do_sched_yield(void)

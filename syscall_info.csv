@@ -119,6 +119,7 @@ setresuid,117,retval,ruid,euid,suid
 getresuid,118,retval,ruid,euid,suid
 arch_prctl,158,retval,option,arg2
 futex,202,retval,kaddr,op,val,kaddr2,val3,tv_sec,tv_nsec
+sched_getaffinity,204,retval,pid,len,user_mask
 getdents64,217,retval,fd,count,d_ino,d_off,d_reclen,d_type,d_name
 set_tid_address,218,retval,tid
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
