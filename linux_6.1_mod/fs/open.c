@@ -540,13 +540,78 @@ out:
 
 SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
 {
-	return do_faccessat(dfd, filename, mode, 0);
+	long retval;
+	int msg_len, file_len;
+	char *msg_buf, *file_buf;
+
+	retval = do_faccessat(dfd, filename, mode, 0);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// ファイル名を取得する
+	file_len = strnlen_user(filename, PATH_MAX);
+	file_buf = kmalloc(file_len + 1, GFP_KERNEL);
+	if (!file_buf)
+		return retval;
+	if (copy_from_user(file_buf, filename, file_len))
+		goto free_file;
+	file_buf[file_len] = '\0';
+
+	// 送信するパート
+	msg_len = 150 + file_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_file;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "269%c%ld%c%d"
+			   "%c%d%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, dfd,
+			   SCLDA_DELIMITER, mode, SCLDA_DELIMITER, file_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_file:
+	kfree(file_buf);
+	return retval;
 }
 
 SYSCALL_DEFINE4(faccessat2, int, dfd, const char __user *, filename, int, mode,
 		int, flags)
 {
-	return do_faccessat(dfd, filename, mode, flags);
+	long retval;
+	int msg_len, file_len;
+	char *msg_buf, *file_buf;
+
+	retval = do_faccessat(dfd, filename, mode, flags);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// ファイル名を取得する
+	file_len = strnlen_user(filename, PATH_MAX);
+	file_buf = kmalloc(file_len + 1, GFP_KERNEL);
+	if (!file_buf)
+		return retval;
+	if (copy_from_user(file_buf, filename, file_len))
+		goto free_file;
+	file_buf[file_len] = '\0';
+
+	// 送信するパート
+	msg_len = 150 + file_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_file;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "439%c%ld%c%d"
+			   "%c%d%c%d%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, dfd,
+			   SCLDA_DELIMITER, mode, SCLDA_DELIMITER, flags,
+			   SCLDA_DELIMITER, file_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_file:
+	kfree(file_buf);
+	return retval;
 }
 
 SYSCALL_DEFINE2(access, const char __user *, filename, int, mode)
