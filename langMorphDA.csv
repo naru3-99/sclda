@@ -1,8 +1,7 @@
 ## undefined syscall name
 ## for langMorphDA
 
-clock_getres	229
-gettid	186
+
 prctl	157
 clock_nanosleep	230
 exit_group	231

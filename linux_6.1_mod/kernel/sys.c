@@ -1123,12 +1123,13 @@ SYSCALL_DEFINE0(gettid)
 		return retval;
 
 	// 送信するパート
-	msg_len = 200;
+	msg_len = 100;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		return retval;
 
-	msg_len = snprintf(msg_buf, msg_len, "50%c%d", SCLDA_DELIMITER, retval);
+	msg_len =
+		snprintf(msg_buf, msg_len, "186%c%d", SCLDA_DELIMITER, retval);
 	sclda_send_syscall_info(msg_buf, msg_len);
 	return retval;
 }
