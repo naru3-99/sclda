@@ -1070,9 +1070,25 @@ void __noreturn do_group_exit(int exit_code)
  */
 SYSCALL_DEFINE1(exit_group, int, error_code)
 {
+	int retval = 0;
+	int msg_len;
+	char *msg_buf;
+
 	do_group_exit((error_code & 0xff) << 8);
 	/* NOTREACHED */
-	return 0;
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 100;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "231%c%d%c%d", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, error_code);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 struct waitid_info {

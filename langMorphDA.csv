@@ -4,7 +4,6 @@
 
 
 
-exit_group	231
 faccessat	269
 close_range	436
 keyctl	250

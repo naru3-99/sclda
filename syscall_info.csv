@@ -126,6 +126,7 @@ getdents64,217,retval,fd,count,d_ino,d_off,d_reclen,d_type,d_name
 set_tid_address,218,retval,tid
 clock_getres,229,retval,which_clock,tv_sec,tv_nsec
 clock_nanosleep,230,retval,which_clock,flags,rqtp_tvsec,rqtp_tvnsec,rmtp_tvsec,rmtp_tvnsec
+exit_group,231,retval,error_code
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 mkdirat,258,retval,dfd,mode,path
 fchownat,260,retval,dfd,user,group,flag,filename
