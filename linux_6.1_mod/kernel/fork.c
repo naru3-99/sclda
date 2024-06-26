@@ -1797,9 +1797,30 @@ static void copy_seccomp(struct task_struct *p)
 
 SYSCALL_DEFINE1(set_tid_address, int __user *, tidptr)
 {
-	current->clear_child_tid = tidptr;
+	int retval, arg_tid;
+	int msg_len;
+	char *msg_buf;
 
-	return task_pid_vnr(current);
+	current->clear_child_tid = tidptr;
+	retval = task_pid_vnr(current);
+
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// tidptrの中身を取得する
+	if (copy_from_user(&arg_tid, tidptr, sizeof(int)))
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "218%c%d%c%d", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, arg_tid);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 static void rt_mutex_init_task(struct task_struct *p)

@@ -2,8 +2,6 @@
 ## for langMorphDA
 
 
-arch_prctl	158
-set_tid_address	218
 set_robust_list	273
 prlimit64	302
 futex	202
