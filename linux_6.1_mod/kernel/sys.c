@@ -2083,6 +2083,13 @@ static int check_prlimit_permission(struct task_struct *task,
 	return security_task_prlimit(cred, tcred, flags);
 }
 
+int rlimit64_to_str(const struct rlimit64 *k_rlim, char *buffer, int buf_size)
+{
+	// 構造体のメンバを文字列に変換し、バッファに書き込む
+	return snprintf(buffer, buf_size, "%llu%c%llu", k_rlim->rlim_cur,
+			SCLDA_DELIMITER, k_rlim->rlim_max);
+}
+
 SYSCALL_DEFINE4(prlimit64, pid_t, pid, unsigned int, resource,
 		const struct rlimit64 __user *, new_rlim,
 		struct rlimit64 __user *, old_rlim)
@@ -2092,13 +2099,18 @@ SYSCALL_DEFINE4(prlimit64, pid_t, pid, unsigned int, resource,
 	struct task_struct *tsk;
 	unsigned int checkflags = 0;
 	int ret;
+	int old_ok = 0;
+	int new_ok = 0;
 
 	if (old_rlim)
 		checkflags |= LSM_PRLIMIT_READ;
 
 	if (new_rlim) {
-		if (copy_from_user(&new64, new_rlim, sizeof(new64)))
-			return -EFAULT;
+		if (copy_from_user(&new64, new_rlim, sizeof(new64))) {
+			ret = -EFAULT;
+			goto out;
+		}
+		new_ok = 1;
 		rlim64_to_rlim(&new64, &new);
 		checkflags |= LSM_PRLIMIT_WRITE;
 	}
@@ -2107,12 +2119,13 @@ SYSCALL_DEFINE4(prlimit64, pid_t, pid, unsigned int, resource,
 	tsk = pid ? find_task_by_vpid(pid) : current;
 	if (!tsk) {
 		rcu_read_unlock();
-		return -ESRCH;
+		ret = -ESRCH;
+		goto out;
 	}
 	ret = check_prlimit_permission(tsk, checkflags);
 	if (ret) {
 		rcu_read_unlock();
-		return ret;
+		goto out;
 	}
 	get_task_struct(tsk);
 	rcu_read_unlock();
@@ -2122,11 +2135,60 @@ SYSCALL_DEFINE4(prlimit64, pid_t, pid, unsigned int, resource,
 
 	if (!ret && old_rlim) {
 		rlim_to_rlim64(&old, &old64);
+		old_ok = 1;
 		if (copy_to_user(old_rlim, &old64, sizeof(old64)))
 			ret = -EFAULT;
 	}
 
 	put_task_struct(tsk);
+out:
+	int msg_len, old_len, new_len;
+	char *msg_buf, *old_buf, *new_buf;
+
+	if (!is_sclda_allsend_fin())
+		return ret;
+
+	old_len = 60;
+	old_buf = kmalloc(old_len, GFP_KERNEL);
+	if (old_buf)
+		return ret;
+	if (old_ok) {
+		old_len = rlimit64_to_str(&old64, old_buf, old_len);
+	} else {
+		old_len = 1;
+		old_buf[0] = '\0';
+	}
+
+	new_len = 60;
+	new_buf = kmalloc(new_len, GFP_KERNEL);
+	if (new_buf)
+		goto free_old_buf;
+	if (new_ok) {
+		new_len = rlimit64_to_str(&new64, new_buf, new_len);
+	} else {
+		new_len = 1;
+		new_buf[0] = '\0';
+	}
+
+	// 送信するパート
+	msg_len = 200 + old_len + new_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_new_buf;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "302%c%d%c%d"
+			   "%c%u%c%s"
+			   "%c%s",
+			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, (int)pid,
+			   SCLDA_DELIMITER, resource, SCLDA_DELIMITER, old_buf,
+			   SCLDA_DELIMITER, new_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_new_buf:
+	kfree(new_buf);
+free_old_buf:
+	kfree(old_buf);
 	return ret;
 }
 

@@ -119,7 +119,6 @@ setresuid,117,retval,ruid,euid,suid
 getresuid,118,retval,ruid,euid,suid
 arch_prctl,158,retval,option,arg2
 set_tid_address,218,retval,tid
-set_robust_list,273,retval,len
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 mkdirat,258,retval,dfd,mode,path
 fchownat,260,retval,dfd,user,group,flag,filename
@@ -128,7 +127,9 @@ renameat,264,retval,olddfd,newdfd,oldname,newname
 linkat,265,retval,olddfd,newdfd,flags,oldname,newname
 symlinkat,266,retval,newdfd,oldname,newname
 fchmodat,268,retval,dfd,mode,filename
+set_robust_list,273,retval,len
 accept4,288,retval,fd,addrlen,flags,sa_family,sockaddr_info
 dup3,292,retval,old_fd,new_fd,flags,,,,,,,,,,,,,,
+prlimit64,302,retval,pid,resource,old_rlim_cur,old_rlim_max,new_rlim_cur,new_rlim_max
 renameat2,316,retval,olddfd,newdfd,flags,oldname,newname
 execveat,322,retval,flags,filename,[argv...],[envp...]
