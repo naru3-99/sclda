@@ -220,19 +220,32 @@ SYSCALL_DEFINE2(capget, cap_user_header_t, header, cap_user_data_t, dataptr)
 	if (!is_sclda_allsend_fin())
 		return retval;
 
-	// headerからコピー
-	if (copy_from_user(&kversion, &header->version, sizeof(__u32)))
-		return retval;
-	if (copy_from_user(&kpid, &header->pid, sizeof(int)))
-		return retval;
+	if (retval > 0) {
+		// 呼び出しが成功した場合
+		// headerからコピー
+		if (copy_from_user(&kversion, &header->version, sizeof(__u32)))
+			return retval;
+		if (copy_from_user(&kpid, &header->pid, sizeof(int)))
+			return retval;
 
-	// dataからコピー
-	if (copy_from_user(&keffective, &dataptr->effective, sizeof(__u32)))
-		return retval;
-	if (copy_from_user(&kpermitted, &dataptr->permitted, sizeof(__u32)))
-		return retval;
-	if (copy_from_user(&kinheritable, &dataptr->inheritable, sizeof(__u32)))
-		return retval;
+		// dataからコピー
+		if (copy_from_user(&keffective, &dataptr->effective,
+				   sizeof(__u32)))
+			return retval;
+		if (copy_from_user(&kpermitted, &dataptr->permitted,
+				   sizeof(__u32)))
+			return retval;
+		if (copy_from_user(&kinheritable, &dataptr->inheritable,
+				   sizeof(__u32)))
+			return retval;
+	} else {
+		// 失敗した場合は諦める
+		kversion = 0;
+		kpid = 0;
+		keffective = 0;
+		kpermitted = 0;
+		kinheritable = 0;
+	}
 
 	// 送信するパート
 	msg_len = 300;
@@ -269,7 +282,7 @@ SYSCALL_DEFINE2(capget, cap_user_header_t, header, cap_user_data_t, dataptr)
  *
  * Returns 0 on success and < 0 on error.
  */
-SYSCALL_DEFINE2(capset, cap_user_header_t, header, const cap_user_data_t, data)
+int sclda_capset(cap_user_header_t header, const cap_user_data_t data)
 {
 	struct __user_cap_data_struct kdata[_KERNEL_CAPABILITY_U32S];
 	unsigned i, tocopy, copybytes;
@@ -328,6 +341,66 @@ SYSCALL_DEFINE2(capset, cap_user_header_t, header, const cap_user_data_t, data)
 error:
 	abort_creds(new);
 	return ret;
+}
+
+SYSCALL_DEFINE2(capset, cap_user_header_t, header, const cap_user_data_t, data)
+{
+	int retval;
+	int msg_len;
+	char *msg_buf;
+	// headerからコピー
+	__u32 kversion;
+	int kpid;
+	// dataからコピー
+	__u32 keffective, kpermitted, kinheritable;
+
+	retval = sclda_capset(header, data);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	if (retval > 0) {
+		// 呼び出しが成功した場合
+		// headerからコピー
+		if (copy_from_user(&kversion, &header->version, sizeof(__u32)))
+			return retval;
+		if (copy_from_user(&kpid, &header->pid, sizeof(int)))
+			return retval;
+
+		// dataからコピー
+		if (copy_from_user(&keffective, &data->effective,
+				   sizeof(__u32)))
+			return retval;
+		if (copy_from_user(&kpermitted, &data->permitted,
+				   sizeof(__u32)))
+			return retval;
+		if (copy_from_user(&kinheritable, &data->inheritable,
+				   sizeof(__u32)))
+			return retval;
+	} else {
+		// 失敗した場合は諦める
+		kversion = 0;
+		kpid = 0;
+		keffective = 0;
+		kpermitted = 0;
+		kinheritable = 0;
+	}
+
+	// 送信するパート
+	msg_len = 300;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "126%c%d%c%u"
+			   "%c%d%c%u"
+			   "%c%u%c%u",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, kversion,
+			   SCLDA_DELIMITER, kpid, SCLDA_DELIMITER, keffective,
+			   SCLDA_DELIMITER, kpermitted, SCLDA_DELIMITER,
+			   kinheritable);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 /**

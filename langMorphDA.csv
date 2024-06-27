@@ -1,7 +1,6 @@
 ## undefined syscall name
 ## for langMorphDA
 
-capset	126
 statfs	137
 swapoff	168
 newfstatat	262
