@@ -147,6 +147,7 @@ faccessat,269,retval,dfd,mode,filename
 set_robust_list,273,retval,len
 signalfd,282,retval,ufd,sizemask,user_mask
 accept4,288,retval,fd,addrlen,flags,sa_family,sockaddr_info
+signalfd4,289,retval,ufd,sizemask,user_mask
 epoll_create1,291,retval,flags
 dup3,292,retval,old_fd,new_fd,flags,,,,,,,,,,,,,,
 prlimit64,302,retval,pid,resource,old_rlim_cur,old_rlim_max,new_rlim_cur,new_rlim_max

@@ -303,13 +303,43 @@ static int do_signalfd4(int ufd, sigset_t *mask, int flags)
 SYSCALL_DEFINE4(signalfd4, int, ufd, sigset_t __user *, user_mask, size_t,
 		sizemask, int, flags)
 {
+	int retval;
+	int msg_len;
+	int mask_ok = 0;
+	char *msg_buf;
 	sigset_t mask;
 
-	if (sizemask != sizeof(sigset_t))
-		return -EINVAL;
-	if (copy_from_user(&mask, user_mask, sizeof(mask)))
-		return -EFAULT;
-	return do_signalfd4(ufd, &mask, flags);
+	if (sizemask != sizeof(sigset_t)) {
+		retval = -EINVAL;
+		goto out;
+	}
+	if (copy_from_user(&mask, user_mask, sizeof(mask))) {
+		retval = -EFAULT;
+		goto out;
+	}
+	mask_ok = 1;
+	retval = do_signalfd4(ufd, &mask, flags);
+
+out:
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	if (!mask_ok)
+		mask = 0;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "289%c%d%c%d"
+			   "%c%zu%c%lu",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, ufd,
+			   SCLDA_DELIMITER, sizemask, SCLDA_DELIMITER, mask);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 SYSCALL_DEFINE3(signalfd, int, ufd, sigset_t __user *, user_mask, size_t,
