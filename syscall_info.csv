@@ -143,3 +143,4 @@ prlimit64,302,retval,pid,resource,old_rlim_cur,old_rlim_max,new_rlim_cur,new_rli
 renameat2,316,retval,olddfd,newdfd,flags,oldname,newname
 execveat,322,retval,flags,filename,[argv...],[envp...]
 faccessat2,439,retval,dfd,mode,filename
+close_range,436,retval,fd,max_fd,flags

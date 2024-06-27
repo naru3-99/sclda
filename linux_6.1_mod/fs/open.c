@@ -1958,7 +1958,27 @@ SYSCALL_DEFINE1(close, unsigned int, fd)
 SYSCALL_DEFINE3(close_range, unsigned int, fd, unsigned int, max_fd,
 		unsigned int, flags)
 {
-	return __close_range(fd, max_fd, flags);
+	int retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = __close_range(fd, max_fd, flags);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "436%c%d%c%u"
+			   "%c%u%c%u",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, max_fd, SCLDA_DELIMITER, flags);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 /*
