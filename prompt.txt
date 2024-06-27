@@ -6,8 +6,21 @@ linux kernelソースコード上で、下記の構造体を文字列に変換�
 - 構造体のメンバの値をsnprintf関数を用いてバッファに書き込むこと
 - 各メンバを、メンバ名は入れず、SCLDA_DELIMITERで区切って出力してください。ただし、SCLDA_DELIMITERはchar型とします。
 - 返り値は、バッファに書き込んだバイト数
-
-struct rlimit64 {
-	__u64 rlim_cur;
-	__u64 rlim_max;
+struct statfs {
+	__statfs_word f_type;
+	__statfs_word f_bsize;
+	__statfs_word f_blocks;
+	__statfs_word f_bfree;
+	__statfs_word f_bavail;
+	__statfs_word f_files;
+	__statfs_word f_ffree;
+	__kernel_fsid_t f_fsid;
+	__statfs_word f_namelen;
+	__statfs_word f_frsize;
+	__statfs_word f_flags;
+	__statfs_word f_spare[4];
 };
+ただし、__kernel_fsid_tは次のように実装されている。
+typedef struct {
+	int	val[2];
+} __kernel_fsid_t;

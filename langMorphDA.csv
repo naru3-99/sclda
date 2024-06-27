@@ -1,7 +1,6 @@
 ## undefined syscall name
 ## for langMorphDA
 
-statfs	137
 swapoff	168
 newfstatat	262
 statx	332
