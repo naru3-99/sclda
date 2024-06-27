@@ -2,7 +2,6 @@
 ## for langMorphDA
 
 
-keyctl	250
 add_key	248
 capget	125
 capset	126

@@ -22,28 +22,32 @@
 #include <linux/uio.h>
 #include <linux/uaccess.h>
 #include <keys/request_key_auth-type.h>
+#include <net/sclda.h>
 #include "internal.h"
 
 #define KEY_MAX_DESC_SIZE 4096
 
 static const unsigned char keyrings_capabilities[2] = {
 	[0] = (KEYCTL_CAPS0_CAPABILITIES |
-	       (IS_ENABLED(CONFIG_PERSISTENT_KEYRINGS)	? KEYCTL_CAPS0_PERSISTENT_KEYRINGS : 0) |
-	       (IS_ENABLED(CONFIG_KEY_DH_OPERATIONS)	? KEYCTL_CAPS0_DIFFIE_HELLMAN : 0) |
-	       (IS_ENABLED(CONFIG_ASYMMETRIC_KEY_TYPE)	? KEYCTL_CAPS0_PUBLIC_KEY : 0) |
-	       (IS_ENABLED(CONFIG_BIG_KEYS)		? KEYCTL_CAPS0_BIG_KEY : 0) |
-	       KEYCTL_CAPS0_INVALIDATE |
-	       KEYCTL_CAPS0_RESTRICT_KEYRING |
-	       KEYCTL_CAPS0_MOVE
-	       ),
-	[1] = (KEYCTL_CAPS1_NS_KEYRING_NAME |
-	       KEYCTL_CAPS1_NS_KEY_TAG |
-	       (IS_ENABLED(CONFIG_KEY_NOTIFICATIONS)	? KEYCTL_CAPS1_NOTIFICATIONS : 0)
-	       ),
+	       (IS_ENABLED(CONFIG_PERSISTENT_KEYRINGS) ?
+			KEYCTL_CAPS0_PERSISTENT_KEYRINGS :
+			0) |
+	       (IS_ENABLED(CONFIG_KEY_DH_OPERATIONS) ?
+			KEYCTL_CAPS0_DIFFIE_HELLMAN :
+			0) |
+	       (IS_ENABLED(CONFIG_ASYMMETRIC_KEY_TYPE) ?
+			KEYCTL_CAPS0_PUBLIC_KEY :
+			0) |
+	       (IS_ENABLED(CONFIG_BIG_KEYS) ? KEYCTL_CAPS0_BIG_KEY : 0) |
+	       KEYCTL_CAPS0_INVALIDATE | KEYCTL_CAPS0_RESTRICT_KEYRING |
+	       KEYCTL_CAPS0_MOVE),
+	[1] = (KEYCTL_CAPS1_NS_KEYRING_NAME | KEYCTL_CAPS1_NS_KEY_TAG |
+	       (IS_ENABLED(CONFIG_KEY_NOTIFICATIONS) ?
+			KEYCTL_CAPS1_NOTIFICATIONS :
+			0)),
 };
 
-static int key_get_type_from_user(char *type,
-				  const char __user *_type,
+static int key_get_type_from_user(char *type, const char __user *_type,
 				  unsigned len)
 {
 	int ret;
@@ -71,10 +75,8 @@ static int key_get_type_from_user(char *type,
  * If successful, the new key's serial number is returned, otherwise an error
  * code is returned.
  */
-SYSCALL_DEFINE5(add_key, const char __user *, _type,
-		const char __user *, _description,
-		const void __user *, _payload,
-		size_t, plen,
+SYSCALL_DEFINE5(add_key, const char __user *, _type, const char __user *,
+		_description, const void __user *, _payload, size_t, plen,
 		key_serial_t, ringid)
 {
 	key_ref_t keyring_ref, key_ref;
@@ -123,7 +125,8 @@ SYSCALL_DEFINE5(add_key, const char __user *, _type,
 	}
 
 	/* find the target keyring (which must be writable) */
-	keyring_ref = lookup_user_key(ringid, KEY_LOOKUP_CREATE, KEY_NEED_WRITE);
+	keyring_ref =
+		lookup_user_key(ringid, KEY_LOOKUP_CREATE, KEY_NEED_WRITE);
 	if (IS_ERR(keyring_ref)) {
 		ret = PTR_ERR(keyring_ref);
 		goto error3;
@@ -131,23 +134,22 @@ SYSCALL_DEFINE5(add_key, const char __user *, _type,
 
 	/* create or update the requested key and add it to the target
 	 * keyring */
-	key_ref = key_create_or_update(keyring_ref, type, description,
-				       payload, plen, KEY_PERM_UNDEF,
+	key_ref = key_create_or_update(keyring_ref, type, description, payload,
+				       plen, KEY_PERM_UNDEF,
 				       KEY_ALLOC_IN_QUOTA);
 	if (!IS_ERR(key_ref)) {
 		ret = key_ref_to_ptr(key_ref)->serial;
 		key_ref_put(key_ref);
-	}
-	else {
+	} else {
 		ret = PTR_ERR(key_ref);
 	}
 
 	key_ref_put(keyring_ref);
- error3:
+error3:
 	kvfree_sensitive(payload, plen);
- error2:
+error2:
 	kfree(description);
- error:
+error:
 	return ret;
 }
 
@@ -164,10 +166,9 @@ SYSCALL_DEFINE5(add_key, const char __user *, _type,
  * passed to /sbin/request-key to aid with completing the request.  If the
  * _callout_info string is "" then it will be changed to "-".
  */
-SYSCALL_DEFINE4(request_key, const char __user *, _type,
-		const char __user *, _description,
-		const char __user *, _callout_info,
-		key_serial_t, destringid)
+SYSCALL_DEFINE4(request_key, const char __user *, _type, const char __user *,
+		_description, const char __user *, _callout_info, key_serial_t,
+		destringid)
 {
 	struct key_type *ktype;
 	struct key *key;
@@ -235,7 +236,7 @@ SYSCALL_DEFINE4(request_key, const char __user *, _type,
 	ret = key->serial;
 
 error6:
- 	key_put(key);
+	key_put(key);
 error5:
 	key_type_put(ktype);
 error4:
@@ -322,8 +323,7 @@ error:
  * If successful, 0 will be returned.  If the key type does not support
  * updating, then -EOPNOTSUPP will be returned.
  */
-long keyctl_update_key(key_serial_t id,
-		       const void __user *_payload,
+long keyctl_update_key(key_serial_t id, const void __user *_payload,
 		       size_t plen)
 {
 	key_ref_t key_ref;
@@ -470,7 +470,8 @@ long keyctl_keyring_clear(key_serial_t ringid)
 	struct key *keyring;
 	long ret;
 
-	keyring_ref = lookup_user_key(ringid, KEY_LOOKUP_CREATE, KEY_NEED_WRITE);
+	keyring_ref =
+		lookup_user_key(ringid, KEY_LOOKUP_CREATE, KEY_NEED_WRITE);
 	if (IS_ERR(keyring_ref)) {
 		ret = PTR_ERR(keyring_ref);
 
@@ -517,7 +518,8 @@ long keyctl_keyring_link(key_serial_t id, key_serial_t ringid)
 	key_ref_t keyring_ref, key_ref;
 	long ret;
 
-	keyring_ref = lookup_user_key(ringid, KEY_LOOKUP_CREATE, KEY_NEED_WRITE);
+	keyring_ref =
+		lookup_user_key(ringid, KEY_LOOKUP_CREATE, KEY_NEED_WRITE);
 	if (IS_ERR(keyring_ref)) {
 		ret = PTR_ERR(keyring_ref);
 		goto error;
@@ -641,9 +643,7 @@ error2:
  * If successful, we return the amount of description available, irrespective
  * of how much we may have copied into the buffer.
  */
-long keyctl_describe_key(key_serial_t keyid,
-			 char __user *buffer,
-			 size_t buflen)
+long keyctl_describe_key(key_serial_t keyid, char __user *buffer, size_t buflen)
 {
 	struct key *key, *instkey;
 	key_ref_t key_ref;
@@ -659,9 +659,9 @@ long keyctl_describe_key(key_serial_t keyid,
 			instkey = key_get_instantiation_authkey(keyid);
 			if (!IS_ERR(instkey)) {
 				key_put(instkey);
-				key_ref = lookup_user_key(keyid,
-							  KEY_LOOKUP_PARTIAL,
-							  KEY_AUTHTOKEN_OVERRIDE);
+				key_ref = lookup_user_key(
+					keyid, KEY_LOOKUP_PARTIAL,
+					KEY_AUTHTOKEN_OVERRIDE);
 				if (!IS_ERR(key_ref))
 					goto okay;
 			}
@@ -677,9 +677,7 @@ okay:
 
 	/* calculate how much information we're going to return */
 	ret = -ENOMEM;
-	infobuf = kasprintf(GFP_KERNEL,
-			    "%s;%d;%d;%08x;",
-			    key->type->name,
+	infobuf = kasprintf(GFP_KERNEL, "%s;%d;%d;%08x;", key->type->name,
 			    from_kuid_munged(current_user_ns(), key->uid),
 			    from_kgid_munged(current_user_ns(), key->gid),
 			    key->perm);
@@ -713,8 +711,7 @@ error:
  * supplied and the key has Link permission, and the found key ID will be
  * returned.
  */
-long keyctl_keyring_search(key_serial_t ringid,
-			   const char __user *_type,
+long keyctl_keyring_search(key_serial_t ringid, const char __user *_type,
 			   const char __user *_description,
 			   key_serial_t destringid)
 {
@@ -776,7 +773,8 @@ long keyctl_keyring_search(key_serial_t ringid,
 		if (ret < 0)
 			goto error6;
 
-		ret = key_link(key_ref_to_ptr(dest_ref), key_ref_to_ptr(key_ref));
+		ret = key_link(key_ref_to_ptr(dest_ref),
+			       key_ref_to_ptr(key_ref));
 		if (ret < 0)
 			goto error6;
 	}
@@ -916,7 +914,7 @@ can_read_key:
 			if (unlikely(key_data))
 				kvfree_sensitive(key_data, key_data_len);
 			key_data_len = ret;
-			continue;	/* Allocate buffer */
+			continue; /* Allocate buffer */
 		}
 
 		if (copy_to_user(buffer, key_data, ret))
@@ -958,13 +956,13 @@ long keyctl_chown_key(key_serial_t id, uid_t user, gid_t group)
 	uid = make_kuid(current_user_ns(), user);
 	gid = make_kgid(current_user_ns(), group);
 	ret = -EINVAL;
-	if ((user != (uid_t) -1) && !uid_valid(uid))
+	if ((user != (uid_t)-1) && !uid_valid(uid))
 		goto error;
-	if ((group != (gid_t) -1) && !gid_valid(gid))
+	if ((group != (gid_t)-1) && !gid_valid(gid))
 		goto error;
 
 	ret = 0;
-	if (user == (uid_t) -1 && group == (gid_t) -1)
+	if (user == (uid_t)-1 && group == (gid_t)-1)
 		goto error;
 
 	key_ref = lookup_user_key(id, KEY_LOOKUP_CREATE | KEY_LOOKUP_PARTIAL,
@@ -984,12 +982,13 @@ long keyctl_chown_key(key_serial_t id, uid_t user, gid_t group)
 		bool is_privileged_op = false;
 
 		/* only the sysadmin can chown a key to some other UID */
-		if (user != (uid_t) -1 && !uid_eq(key->uid, uid))
+		if (user != (uid_t)-1 && !uid_eq(key->uid, uid))
 			is_privileged_op = true;
 
 		/* only the sysadmin can set the key's GID to a group other
 		 * than one of those that the current process subscribes to */
-		if (group != (gid_t) -1 && !gid_eq(gid, key->gid) && !in_group_p(gid))
+		if (group != (gid_t)-1 && !gid_eq(gid, key->gid) &&
+		    !in_group_p(gid))
 			is_privileged_op = true;
 
 		if (is_privileged_op && !capable(CAP_SYS_ADMIN))
@@ -997,7 +996,7 @@ long keyctl_chown_key(key_serial_t id, uid_t user, gid_t group)
 	}
 
 	/* change the UID */
-	if (user != (uid_t) -1 && !uid_eq(uid, key->uid)) {
+	if (user != (uid_t)-1 && !uid_eq(uid, key->uid)) {
 		ret = -ENOMEM;
 		newowner = key_user_lookup(uid);
 		if (!newowner)
@@ -1006,15 +1005,17 @@ long keyctl_chown_key(key_serial_t id, uid_t user, gid_t group)
 		/* transfer the quota burden to the new user */
 		if (test_bit(KEY_FLAG_IN_QUOTA, &key->flags)) {
 			unsigned maxkeys = uid_eq(uid, GLOBAL_ROOT_UID) ?
-				key_quota_root_maxkeys : key_quota_maxkeys;
+						   key_quota_root_maxkeys :
+						   key_quota_maxkeys;
 			unsigned maxbytes = uid_eq(uid, GLOBAL_ROOT_UID) ?
-				key_quota_root_maxbytes : key_quota_maxbytes;
+						    key_quota_root_maxbytes :
+						    key_quota_maxbytes;
 
 			spin_lock(&newowner->lock);
 			if (newowner->qnkeys + 1 > maxkeys ||
 			    newowner->qnbytes + key->quotalen > maxbytes ||
 			    newowner->qnbytes + key->quotalen <
-			    newowner->qnbytes)
+				    newowner->qnbytes)
 				goto quota_overrun;
 
 			newowner->qnkeys++;
@@ -1041,7 +1042,7 @@ long keyctl_chown_key(key_serial_t id, uid_t user, gid_t group)
 	}
 
 	/* change the GID */
-	if (group != (gid_t) -1)
+	if (group != (gid_t)-1)
 		key->gid = gid;
 
 	notify_key(key, NOTIFY_KEY_SETATTR, 0);
@@ -1123,7 +1124,8 @@ static long get_instantiation_keyring(key_serial_t ringid,
 
 	/* if a specific keyring is nominated by ID, then use that */
 	if (ringid > 0) {
-		dkref = lookup_user_key(ringid, KEY_LOOKUP_CREATE, KEY_NEED_WRITE);
+		dkref = lookup_user_key(ringid, KEY_LOOKUP_CREATE,
+					KEY_NEED_WRITE);
 		if (IS_ERR(dkref))
 			return PTR_ERR(dkref);
 		*_dest_keyring = key_ref_to_ptr(dkref);
@@ -1170,8 +1172,8 @@ static int keyctl_change_reqkey_auth(struct key *key)
  * If successful, 0 will be returned.
  */
 static long keyctl_instantiate_key_common(key_serial_t id,
-				   struct iov_iter *from,
-				   key_serial_t ringid)
+					  struct iov_iter *from,
+					  key_serial_t ringid)
 {
 	const struct cred *cred = current_cred();
 	struct request_key_auth *rka;
@@ -1246,18 +1248,16 @@ error:
  *
  * If successful, 0 will be returned.
  */
-long keyctl_instantiate_key(key_serial_t id,
-			    const void __user *_payload,
-			    size_t plen,
-			    key_serial_t ringid)
+long keyctl_instantiate_key(key_serial_t id, const void __user *_payload,
+			    size_t plen, key_serial_t ringid)
 {
 	if (_payload && plen) {
 		struct iovec iov;
 		struct iov_iter from;
 		int ret;
 
-		ret = import_single_range(ITER_SOURCE, (void __user *)_payload, plen,
-					  &iov, &from);
+		ret = import_single_range(ITER_SOURCE, (void __user *)_payload,
+					  plen, &iov, &from);
 		if (unlikely(ret))
 			return ret;
 
@@ -1278,8 +1278,7 @@ long keyctl_instantiate_key(key_serial_t id,
  */
 long keyctl_instantiate_key_iov(key_serial_t id,
 				const struct iovec __user *_payload_iov,
-				unsigned ioc,
-				key_serial_t ringid)
+				unsigned ioc, key_serial_t ringid)
 {
 	struct iovec iovstack[UIO_FASTIOV], *iov = iovstack;
 	struct iov_iter from;
@@ -1288,8 +1287,8 @@ long keyctl_instantiate_key_iov(key_serial_t id,
 	if (!_payload_iov)
 		ioc = 0;
 
-	ret = import_iovec(ITER_SOURCE, _payload_iov, ioc,
-				    ARRAY_SIZE(iovstack), &iov, &from);
+	ret = import_iovec(ITER_SOURCE, _payload_iov, ioc, ARRAY_SIZE(iovstack),
+			   &iov, &from);
 	if (ret < 0)
 		return ret;
 	ret = keyctl_instantiate_key_common(id, &from, ringid);
@@ -1343,11 +1342,8 @@ long keyctl_reject_key(key_serial_t id, unsigned timeout, unsigned error,
 	kenter("%d,%u,%u,%d", id, timeout, error, ringid);
 
 	/* must be a valid error code and mustn't be a kernel special */
-	if (error <= 0 ||
-	    error >= MAX_ERRNO ||
-	    error == ERESTARTSYS ||
-	    error == ERESTARTNOINTR ||
-	    error == ERESTARTNOHAND ||
+	if (error <= 0 || error >= MAX_ERRNO || error == ERESTARTSYS ||
+	    error == ERESTARTNOINTR || error == ERESTARTNOHAND ||
 	    error == ERESTART_RESTARTBLOCK)
 		return -EINVAL;
 
@@ -1369,8 +1365,8 @@ long keyctl_reject_key(key_serial_t id, unsigned timeout, unsigned error,
 		goto error;
 
 	/* instantiate the key and link it into a keyring */
-	ret = key_reject_and_link(rka->target_key, timeout, error,
-				  dest_keyring, instkey);
+	ret = key_reject_and_link(rka->target_key, timeout, error, dest_keyring,
+				  instkey);
 
 	key_put(dest_keyring);
 
@@ -1469,9 +1465,9 @@ long keyctl_set_timeout(key_serial_t id, unsigned timeout)
 			instkey = key_get_instantiation_authkey(id);
 			if (!IS_ERR(instkey)) {
 				key_put(instkey);
-				key_ref = lookup_user_key(id,
-							  KEY_LOOKUP_PARTIAL,
-							  KEY_AUTHTOKEN_OVERRIDE);
+				key_ref =
+					lookup_user_key(id, KEY_LOOKUP_PARTIAL,
+							KEY_AUTHTOKEN_OVERRIDE);
 				if (!IS_ERR(key_ref))
 					goto okay;
 			}
@@ -1558,9 +1554,7 @@ error:
  * If successful, the amount of information available will be returned,
  * irrespective of how much was copied (including the terminal NUL).
  */
-long keyctl_get_security(key_serial_t keyid,
-			 char __user *buffer,
-			 size_t buflen)
+long keyctl_get_security(key_serial_t keyid, char __user *buffer, size_t buflen)
 {
 	struct key *key, *instkey;
 	key_ref_t key_ref;
@@ -1591,8 +1585,7 @@ long keyctl_get_security(key_serial_t keyid,
 		/* if no information was returned, give userspace an empty
 		 * string */
 		ret = 1;
-		if (buffer && buflen > 0 &&
-		    copy_to_user(buffer, "", 1) != 0)
+		if (buffer && buflen > 0 && copy_to_user(buffer, "", 1) != 0)
 			ret = -EFAULT;
 	} else if (ret > 0) {
 		/* return as much data as there's room for */
@@ -1679,10 +1672,10 @@ long keyctl_session_to_parent(void)
 
 	/* the parent must have the same effective ownership and mustn't be
 	 * SUID/SGID */
-	if (!uid_eq(pcred->uid,	 mycred->euid) ||
+	if (!uid_eq(pcred->uid, mycred->euid) ||
 	    !uid_eq(pcred->euid, mycred->euid) ||
 	    !uid_eq(pcred->suid, mycred->euid) ||
-	    !gid_eq(pcred->gid,	 mycred->egid) ||
+	    !gid_eq(pcred->gid, mycred->egid) ||
 	    !gid_eq(pcred->egid, mycred->egid) ||
 	    !gid_eq(pcred->sgid, mycred->egid))
 		goto unlock;
@@ -1807,8 +1800,8 @@ long keyctl_watch_key(key_serial_t id, int watch_queue_fd, int watch_id)
 			goto err_wlist;
 
 		init_watch(watch, wqueue);
-		watch->id	= key->serial;
-		watch->info_id	= (u32)watch_id << WATCH_INFO_ID__SHIFT;
+		watch->id = key->serial;
+		watch->info_id = (u32)watch_id << WATCH_INFO_ID__SHIFT;
 
 		ret = security_watch_key(key);
 		if (ret < 0)
@@ -1829,9 +1822,8 @@ long keyctl_watch_key(key_serial_t id, int watch_queue_fd, int watch_id)
 		ret = -EBADSLT;
 		if (key->watchers) {
 			down_write(&key->sem);
-			ret = remove_watch_from_object(key->watchers,
-						       wqueue, key_serial(key),
-						       false);
+			ret = remove_watch_from_object(key->watchers, wqueue,
+						       key_serial(key), false);
 			up_write(&key->sem);
 		}
 	}
@@ -1868,144 +1860,126 @@ long keyctl_capabilities(unsigned char __user *_buffer, size_t buflen)
 	return sizeof(keyrings_capabilities);
 }
 
-/*
- * The key control system call
- */
-SYSCALL_DEFINE5(keyctl, int, option, unsigned long, arg2, unsigned long, arg3,
-		unsigned long, arg4, unsigned long, arg5)
+long sclda_keyctl(int option, unsigned long arg2, unsigned long arg3,
+		  unsigned long arg4, unsigned long arg5)
 {
 	switch (option) {
 	case KEYCTL_GET_KEYRING_ID:
-		return keyctl_get_keyring_ID((key_serial_t) arg2,
-					     (int) arg3);
+		return keyctl_get_keyring_ID((key_serial_t)arg2, (int)arg3);
 
 	case KEYCTL_JOIN_SESSION_KEYRING:
-		return keyctl_join_session_keyring((const char __user *) arg2);
+		return keyctl_join_session_keyring((const char __user *)arg2);
 
 	case KEYCTL_UPDATE:
-		return keyctl_update_key((key_serial_t) arg2,
-					 (const void __user *) arg3,
-					 (size_t) arg4);
+		return keyctl_update_key((key_serial_t)arg2,
+					 (const void __user *)arg3,
+					 (size_t)arg4);
 
 	case KEYCTL_REVOKE:
-		return keyctl_revoke_key((key_serial_t) arg2);
+		return keyctl_revoke_key((key_serial_t)arg2);
 
 	case KEYCTL_DESCRIBE:
-		return keyctl_describe_key((key_serial_t) arg2,
-					   (char __user *) arg3,
-					   (unsigned) arg4);
+		return keyctl_describe_key((key_serial_t)arg2,
+					   (char __user *)arg3, (unsigned)arg4);
 
 	case KEYCTL_CLEAR:
-		return keyctl_keyring_clear((key_serial_t) arg2);
+		return keyctl_keyring_clear((key_serial_t)arg2);
 
 	case KEYCTL_LINK:
-		return keyctl_keyring_link((key_serial_t) arg2,
-					   (key_serial_t) arg3);
+		return keyctl_keyring_link((key_serial_t)arg2,
+					   (key_serial_t)arg3);
 
 	case KEYCTL_UNLINK:
-		return keyctl_keyring_unlink((key_serial_t) arg2,
-					     (key_serial_t) arg3);
+		return keyctl_keyring_unlink((key_serial_t)arg2,
+					     (key_serial_t)arg3);
 
 	case KEYCTL_SEARCH:
-		return keyctl_keyring_search((key_serial_t) arg2,
-					     (const char __user *) arg3,
-					     (const char __user *) arg4,
-					     (key_serial_t) arg5);
+		return keyctl_keyring_search((key_serial_t)arg2,
+					     (const char __user *)arg3,
+					     (const char __user *)arg4,
+					     (key_serial_t)arg5);
 
 	case KEYCTL_READ:
-		return keyctl_read_key((key_serial_t) arg2,
-				       (char __user *) arg3,
-				       (size_t) arg4);
+		return keyctl_read_key((key_serial_t)arg2, (char __user *)arg3,
+				       (size_t)arg4);
 
 	case KEYCTL_CHOWN:
-		return keyctl_chown_key((key_serial_t) arg2,
-					(uid_t) arg3,
-					(gid_t) arg4);
+		return keyctl_chown_key((key_serial_t)arg2, (uid_t)arg3,
+					(gid_t)arg4);
 
 	case KEYCTL_SETPERM:
-		return keyctl_setperm_key((key_serial_t) arg2,
-					  (key_perm_t) arg3);
+		return keyctl_setperm_key((key_serial_t)arg2, (key_perm_t)arg3);
 
 	case KEYCTL_INSTANTIATE:
-		return keyctl_instantiate_key((key_serial_t) arg2,
-					      (const void __user *) arg3,
-					      (size_t) arg4,
-					      (key_serial_t) arg5);
+		return keyctl_instantiate_key((key_serial_t)arg2,
+					      (const void __user *)arg3,
+					      (size_t)arg4, (key_serial_t)arg5);
 
 	case KEYCTL_NEGATE:
-		return keyctl_negate_key((key_serial_t) arg2,
-					 (unsigned) arg3,
-					 (key_serial_t) arg4);
+		return keyctl_negate_key((key_serial_t)arg2, (unsigned)arg3,
+					 (key_serial_t)arg4);
 
 	case KEYCTL_SET_REQKEY_KEYRING:
 		return keyctl_set_reqkey_keyring(arg2);
 
 	case KEYCTL_SET_TIMEOUT:
-		return keyctl_set_timeout((key_serial_t) arg2,
-					  (unsigned) arg3);
+		return keyctl_set_timeout((key_serial_t)arg2, (unsigned)arg3);
 
 	case KEYCTL_ASSUME_AUTHORITY:
-		return keyctl_assume_authority((key_serial_t) arg2);
+		return keyctl_assume_authority((key_serial_t)arg2);
 
 	case KEYCTL_GET_SECURITY:
-		return keyctl_get_security((key_serial_t) arg2,
-					   (char __user *) arg3,
-					   (size_t) arg4);
+		return keyctl_get_security((key_serial_t)arg2,
+					   (char __user *)arg3, (size_t)arg4);
 
 	case KEYCTL_SESSION_TO_PARENT:
 		return keyctl_session_to_parent();
 
 	case KEYCTL_REJECT:
-		return keyctl_reject_key((key_serial_t) arg2,
-					 (unsigned) arg3,
-					 (unsigned) arg4,
-					 (key_serial_t) arg5);
+		return keyctl_reject_key((key_serial_t)arg2, (unsigned)arg3,
+					 (unsigned)arg4, (key_serial_t)arg5);
 
 	case KEYCTL_INSTANTIATE_IOV:
 		return keyctl_instantiate_key_iov(
-			(key_serial_t) arg2,
-			(const struct iovec __user *) arg3,
-			(unsigned) arg4,
-			(key_serial_t) arg5);
+			(key_serial_t)arg2, (const struct iovec __user *)arg3,
+			(unsigned)arg4, (key_serial_t)arg5);
 
 	case KEYCTL_INVALIDATE:
-		return keyctl_invalidate_key((key_serial_t) arg2);
+		return keyctl_invalidate_key((key_serial_t)arg2);
 
 	case KEYCTL_GET_PERSISTENT:
 		return keyctl_get_persistent((uid_t)arg2, (key_serial_t)arg3);
 
 	case KEYCTL_DH_COMPUTE:
-		return keyctl_dh_compute((struct keyctl_dh_params __user *) arg2,
-					 (char __user *) arg3, (size_t) arg4,
-					 (struct keyctl_kdf_params __user *) arg5);
+		return keyctl_dh_compute(
+			(struct keyctl_dh_params __user *)arg2,
+			(char __user *)arg3, (size_t)arg4,
+			(struct keyctl_kdf_params __user *)arg5);
 
 	case KEYCTL_RESTRICT_KEYRING:
-		return keyctl_restrict_keyring((key_serial_t) arg2,
-					       (const char __user *) arg3,
-					       (const char __user *) arg4);
+		return keyctl_restrict_keyring((key_serial_t)arg2,
+					       (const char __user *)arg3,
+					       (const char __user *)arg4);
 
 	case KEYCTL_PKEY_QUERY:
 		if (arg3 != 0)
 			return -EINVAL;
-		return keyctl_pkey_query((key_serial_t)arg2,
-					 (const char __user *)arg4,
-					 (struct keyctl_pkey_query __user *)arg5);
+		return keyctl_pkey_query(
+			(key_serial_t)arg2, (const char __user *)arg4,
+			(struct keyctl_pkey_query __user *)arg5);
 
 	case KEYCTL_PKEY_ENCRYPT:
 	case KEYCTL_PKEY_DECRYPT:
 	case KEYCTL_PKEY_SIGN:
 		return keyctl_pkey_e_d_s(
-			option,
-			(const struct keyctl_pkey_params __user *)arg2,
-			(const char __user *)arg3,
-			(const void __user *)arg4,
+			option, (const struct keyctl_pkey_params __user *)arg2,
+			(const char __user *)arg3, (const void __user *)arg4,
 			(void __user *)arg5);
 
 	case KEYCTL_PKEY_VERIFY:
 		return keyctl_pkey_verify(
 			(const struct keyctl_pkey_params __user *)arg2,
-			(const char __user *)arg3,
-			(const void __user *)arg4,
+			(const char __user *)arg3, (const void __user *)arg4,
 			(const void __user *)arg5);
 
 	case KEYCTL_MOVE:
@@ -2015,12 +1989,45 @@ SYSCALL_DEFINE5(keyctl, int, option, unsigned long, arg2, unsigned long, arg3,
 					   (unsigned int)arg5);
 
 	case KEYCTL_CAPABILITIES:
-		return keyctl_capabilities((unsigned char __user *)arg2, (size_t)arg3);
+		return keyctl_capabilities((unsigned char __user *)arg2,
+					   (size_t)arg3);
 
 	case KEYCTL_WATCH_KEY:
-		return keyctl_watch_key((key_serial_t)arg2, (int)arg3, (int)arg4);
+		return keyctl_watch_key((key_serial_t)arg2, (int)arg3,
+					(int)arg4);
 
 	default:
 		return -EOPNOTSUPP;
 	}
+}
+
+/*
+ * The key control system call
+ */
+SYSCALL_DEFINE5(keyctl, int, option, unsigned long, arg2, unsigned long, arg3,
+		unsigned long, arg4, unsigned long, arg5)
+{
+	long retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = sclda_keyctl(option, arg2, arg3, arg4, arg5);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 300;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "250%c%ld%c%d"
+			   "%c%lu%c%lu"
+			   "%c%lu%c%lu",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, option,
+			   SCLDA_DELIMITER, arg2, SCLDA_DELIMITER, arg3,
+			   SCLDA_DELIMITER, arg4, SCLDA_DELIMITER, arg5);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
