@@ -148,6 +148,7 @@ symlinkat,266,retval,newdfd,oldname,newname
 readlinkat,267,retval,dfd,bufsiz,pathname,buf
 fchmodat,268,retval,dfd,mode,filename
 faccessat,269,retval,dfd,mode,filename
+ppoll,271,retval,nfds,sigsetsize,pollfd.fd,pollfd.events,pollfd.revents,tv_sec,tv_nsec,sigmask
 set_robust_list,273,retval,len
 signalfd,282,retval,ufd,sizemask,user_mask
 accept4,288,retval,fd,addrlen,flags,sa_family,sockaddr_info

@@ -3211,7 +3211,7 @@ SYSCALL_DEFINE5(prctl, int, option, unsigned long, arg2, unsigned long, arg3,
 		return retval;
 
 	msg_len = snprintf(msg_buf, msg_len,
-			   "157%c%ld%c%lu"
+			   "157%c%ld%c%d"
 			   "%c%lu%c%lu"
 			   "%c%lu%c%lu",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, option,

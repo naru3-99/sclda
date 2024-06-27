@@ -1025,8 +1025,8 @@ SYSCALL_DEFINE5(statx, int, dfd, const char __user *, filename, unsigned int,
 		flags, unsigned int, mask, struct statx __user *, buffer)
 {
 	int retval;
-	int msg_len, path_len;
-	char *msg_buf, *path_buf;
+	int msg_len, path_len, struct_len;
+	char *msg_buf, *path_buf, *struct_buf;
 	struct filename *name;
 
 	name = getname_flags(filename, getname_statx_lookup_flags(flags), NULL);

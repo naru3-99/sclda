@@ -1218,9 +1218,9 @@ SYSCALL_DEFINE3(poll, struct pollfd __user *, ufds, unsigned int, nfds, int,
 	return ret;
 }
 
-SYSCALL_DEFINE5(ppoll, struct pollfd __user *, ufds, unsigned int, nfds,
-		struct __kernel_timespec __user *, tsp, const sigset_t __user *,
-		sigmask, size_t, sigsetsize)
+int sclda_ppoll(struct pollfd __user *ufds, unsigned int nfds,
+		struct __kernel_timespec __user *tsp,
+		const sigset_t __user *sigmask, size_t sigsetsize)
 {
 	struct timespec64 ts, end_time, *to = NULL;
 	int ret;
@@ -1240,6 +1240,65 @@ SYSCALL_DEFINE5(ppoll, struct pollfd __user *, ufds, unsigned int, nfds,
 
 	ret = do_sys_poll(ufds, nfds, to);
 	return poll_select_finish(&end_time, tsp, PT_TIMESPEC, ret);
+}
+
+SYSCALL_DEFINE5(ppoll, struct pollfd __user *, ufds, unsigned int, nfds,
+		struct __kernel_timespec __user *, tsp, const sigset_t __user *,
+		sigmask, size_t, sigsetsize)
+{
+	int retval;
+	int msg_len, struct_len, real_slen;
+	char *msg_buf, *struct_buf;
+	struct pollfd kpollfd;
+	struct __kernel_timespec ktsp;
+	sigset_t ksm;
+
+	retval = sclda_ppoll(ufds, nfds, tsp, sigmask, sigsetsize);
+
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	struct_len = 300;
+	struct_buf = kmalloc(struct_len, GFP_KERNEL);
+	if (!struct_buf)
+		return retval;
+
+	real_slen = 0;
+	if (!copy_from_user(&kpollfd, ufds, sizeof(struct pollfd))) {
+		real_slen += snprintf(struct_buf + real_slen,
+				      struct_len - real_slen, "%d%c%d%c%d%c",
+				      kpollfd.fd, SCLDA_DELIMITER,
+				      kpollfd.events, SCLDA_DELIMITER,
+				      kpollfd.revents, SCLDA_DELIMITER);
+	}
+	if (!copy_from_user(&ktsp, tsp, sizeof(struct __kernel_timespec))) {
+		real_slen += snprintf(struct_buf + real_slen,
+				      struct_len - real_slen, "%lld%c%lld%c",
+				      ktsp.tv_sec, SCLDA_DELIMITER,
+				      ktsp.tv_nsec, SCLDA_DELIMITER);
+	}
+	if (!copy_from_user(&ksm, sigmask, sizeof(sigset_t))) {
+		real_slen += snprintf(struct_buf + real_slen,
+				      struct_len - real_slen, "%lu", ksm);
+	}
+
+	// 送信するパート
+	msg_len = 200 + real_slen;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_struct_buf;
+
+	// unsigned int, nfds, size_t, sigsetsize
+	msg_len = snprintf(msg_buf, msg_len,
+			   "271%c%d%c%d"
+			   "%c%zu%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, nfds,
+			   SCLDA_DELIMITER, sigsetsize, SCLDA_DELIMITER,
+			   struct_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+free_struct_buf:
+	kfree(struct_buf);
+	return retval;
 }
 
 #if defined(CONFIG_COMPAT_32BIT_TIME) && !defined(CONFIG_64BIT)
