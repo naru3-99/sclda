@@ -925,17 +925,114 @@ int do_statx(int dfd, struct filename *filename, unsigned int flags,
  * Note that fstat() can be emulated by setting dfd to the fd of interest,
  * supplying "" as the filename and setting AT_EMPTY_PATH in the flags.
  */
-SYSCALL_DEFINE5(statx, int, dfd, const char __user *, filename, unsigned, flags,
-		unsigned int, mask, struct statx __user *, buffer)
+int statx_to_str(const struct statx __user *user_statx, char *buf, int buf_size)
 {
-	int ret;
+	struct statx k;
+	int len;
+
+	if (copy_from_user(&k, user_statx, sizeof(struct statx)))
+		return -EFAULT;
+
+	// stx_mask(0x00) ~ stx_attributes_mask(0x40)
+	len = snprintf(buf, buf_size,
+		       "%u%c%u%c%llu%c"
+		       "%u%c%u%c"
+		       "%u%c%u%c"
+		       "%llu%c%llu%c"
+		       "%llu%c%llu%c",
+		       k.stx_mask, SCLDA_DELIMITER, k.stx_blksize,
+		       SCLDA_DELIMITER, k.stx_attributes, SCLDA_DELIMITER,
+		       k.stx_nlink, SCLDA_DELIMITER, k.stx_uid, SCLDA_DELIMITER,
+		       k.stx_gid, SCLDA_DELIMITER, k.stx_mode, SCLDA_DELIMITER,
+		       k.stx_ino, SCLDA_DELIMITER, k.stx_size, SCLDA_DELIMITER,
+		       k.stx_blocks, SCLDA_DELIMITER, k.stx_attributes_mask,
+		       SCLDA_DELIMITER);
+
+	// statx_timestampの所(0x80まで)
+	len += snprintf(buf + len, buf_size - len, "%lld%c%u%c",
+			k.stx_atime.tv_sec, SCLDA_DELIMITER,
+			k.stx_atime.tv_nsec, SCLDA_DELIMITER);
+	len += snprintf(buf + len, buf_size - len, "%lld%c%u%c",
+			k.stx_btime.tv_sec, SCLDA_DELIMITER,
+			k.stx_btime.tv_nsec, SCLDA_DELIMITER);
+	len += snprintf(buf + len, buf_size - len, "%lld%c%u%c",
+			k.stx_ctime.tv_sec, SCLDA_DELIMITER,
+			k.stx_ctime.tv_nsec, SCLDA_DELIMITER);
+	len += snprintf(buf + len, buf_size - len, "%lld%c%u%c",
+			k.stx_mtime.tv_sec, SCLDA_DELIMITER,
+			k.stx_mtime.tv_nsec, SCLDA_DELIMITER);
+
+	// stx_rdev_major ~ stx_dio_offset_alignまで
+	len += snprintf(buf + len, buf_size - len,
+			"%u%c%u"
+			"%c%u%c"
+			"%u%c%llu"
+			"%c%u%c%u",
+			k.stx_rdev_major, SCLDA_DELIMITER, k.stx_rdev_minor,
+			SCLDA_DELIMITER, k.stx_dev_major, SCLDA_DELIMITER,
+			k.stx_dev_minor, SCLDA_DELIMITER, k.stx_mnt_id,
+			SCLDA_DELIMITER, k.stx_dio_mem_align, SCLDA_DELIMITER,
+			k.stx_dio_offset_align);
+	// sparexは取得しない。
+	return len;
+}
+
+SYSCALL_DEFINE5(statx, int, dfd, const char __user *, filename, unsigned int,
+		flags, unsigned int, mask, struct statx __user *, buffer)
+{
+	int retval;
+	int msg_len, path_len;
+	char *msg_buf, *path_buf;
 	struct filename *name;
 
 	name = getname_flags(filename, getname_statx_lookup_flags(flags), NULL);
-	ret = do_statx(dfd, name, flags, mask, buffer);
+	retval = do_statx(dfd, name, flags, mask, buffer);
 	putname(name);
 
-	return ret;
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// ファイル名を取得する
+	path_len = strnlen_user(filename, PATH_MAX);
+	path_buf = kmalloc(path_len + 1, GFP_KERNEL);
+	if (!path_buf)
+		return retval;
+	if (copy_from_user(path_buf, filename, path_len))
+		goto free_path;
+	path_buf[path_len] = '\0';
+
+	// 構造体を文字列にする
+	struct_len = 500;
+	struct_buf = kmalloc(struct_len, GFP_KERNEL);
+	if (!struct_buf)
+		goto free_path;
+	struct_len = statx_to_str(buffer, struct_buf, struct_len);
+	if (struct_len < 0) {
+		struct_len = 1;
+		struct_buf[0] = '\0';
+	}
+
+	// 送信するパート
+	msg_len = 100 + path_len + struct_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_struct_buf;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "332%c%d%c%d"
+			   "%c%u%c%u"
+			   "%c%s%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, dfd,
+			   SCLDA_DELIMITER, flags, SCLDA_DELIMITER, mask,
+			   SCLDA_DELIMITER, struct_buf, SCLDA_DELIMITER,
+			   path_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_struct_buf:
+	kfree(struct_buf);
+free_path:
+	kfree(path_buf);
+	return retval;
 }
 
 #if defined(CONFIG_COMPAT) && defined(__ARCH_WANT_COMPAT_STAT)

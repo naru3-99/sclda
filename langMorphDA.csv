@@ -1,7 +1,7 @@
 ## undefined syscall name
 ## for langMorphDA
 
-statx	332
+
 epoll_create1	291
 signalfd4	289
 epoll_ctl	233

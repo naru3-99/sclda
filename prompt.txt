@@ -6,21 +6,44 @@ linux kernelソースコード上で、下記の構造体を文字列に変換�
 - 構造体のメンバの値をsnprintf関数を用いてバッファに書き込むこと
 - 各メンバを、メンバ名は入れず、SCLDA_DELIMITERで区切って出力してください。ただし、SCLDA_DELIMITERはchar型とします。
 - 返り値は、バッファに書き込んだバイト数
-struct statfs {
-	__statfs_word f_type;
-	__statfs_word f_bsize;
-	__statfs_word f_blocks;
-	__statfs_word f_bfree;
-	__statfs_word f_bavail;
-	__statfs_word f_files;
-	__statfs_word f_ffree;
-	__kernel_fsid_t f_fsid;
-	__statfs_word f_namelen;
-	__statfs_word f_frsize;
-	__statfs_word f_flags;
-	__statfs_word f_spare[4];
+
+struct statx {
+	/* 0x00 */
+	__u32	stx_mask;	/* What results were written [uncond] */
+	__u32	stx_blksize;	/* Preferred general I/O size [uncond] */
+	__u64	stx_attributes;	/* Flags conveying information about the file [uncond] */
+	/* 0x10 */
+	__u32	stx_nlink;	/* Number of hard links */
+	__u32	stx_uid;	/* User ID of owner */
+	__u32	stx_gid;	/* Group ID of owner */
+	__u16	stx_mode;	/* File mode */
+	__u16	__spare0[1];
+	/* 0x20 */
+	__u64	stx_ino;	/* Inode number */
+	__u64	stx_size;	/* File size */
+	__u64	stx_blocks;	/* Number of 512-byte blocks allocated */
+	__u64	stx_attributes_mask; /* Mask to show what's supported in stx_attributes */
+	/* 0x40 */
+	struct statx_timestamp	stx_atime;	/* Last access time */
+	struct statx_timestamp	stx_btime;	/* File creation time */
+	struct statx_timestamp	stx_ctime;	/* Last attribute change time */
+	struct statx_timestamp	stx_mtime;	/* Last data modification time */
+	/* 0x80 */
+	__u32	stx_rdev_major;	/* Device ID of special file [if bdev/cdev] */
+	__u32	stx_rdev_minor;
+	__u32	stx_dev_major;	/* ID of device containing file [uncond] */
+	__u32	stx_dev_minor;
+	/* 0x90 */
+	__u64	stx_mnt_id;
+	__u32	stx_dio_mem_align;	/* Memory buffer alignment for direct I/O */
+	__u32	stx_dio_offset_align;	/* File offset alignment for direct I/O */
+	/* 0xa0 */
+	__u64	__spare3[12];	/* Spare space for future expansion */
+	/* 0x100 */
 };
-ただし、__kernel_fsid_tは次のように実装されている。
-typedef struct {
-	int	val[2];
-} __kernel_fsid_t;
+ただし、statx_timestampは次のように実装されている。
+struct statx_timestamp {
+	__s64	tv_sec;
+	__u32	tv_nsec;
+	__s32	__reserved;
+};
