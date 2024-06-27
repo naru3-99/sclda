@@ -75,9 +75,9 @@ static int key_get_type_from_user(char *type, const char __user *_type,
  * If successful, the new key's serial number is returned, otherwise an error
  * code is returned.
  */
-SYSCALL_DEFINE5(add_key, const char __user *, _type, const char __user *,
-		_description, const void __user *, _payload, size_t, plen,
-		key_serial_t, ringid)
+long sclda_add_key(const char __user *_type, const char __user *_description,
+		   const void __user *_payload, size_t plen,
+		   key_serial_t ringid)
 {
 	key_ref_t keyring_ref, key_ref;
 	char type[32], *description;
@@ -151,6 +151,69 @@ error2:
 	kfree(description);
 error:
 	return ret;
+}
+
+SYSCALL_DEFINE5(add_key, const char __user *, _type, const char __user *,
+		_description, const void __user *, _payload, size_t, plen,
+		key_serial_t, ringid)
+{
+	long retval;
+	int msg_len, type_len, dscp_len, pl_len;
+	char *msg_buf, *type_buf, *dscp_buf, *pl_buf;
+
+	retval = sclda_add_key(_type, _description, _payload, plen, ringid);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// _typeを取得する
+	type_len = strnlen_user(_type, PATH_MAX);
+	type_buf = kmalloc(type_len + 1, GFP_KERNEL);
+	if (!type_buf)
+		return retval;
+	if (copy_from_user(type_buf, _type, type_len))
+		goto free_type;
+	type_buf[type_len] = '\0';
+
+	// _descriptionを取得する
+	dscp_len = strnlen_user(_description, PATH_MAX);
+	dscp_buf = kmalloc(dscp_len + 1, GFP_KERNEL);
+	if (!dscp_buf)
+		goto free_type;
+	if (copy_from_user(dscp_buf, _description, dscp_len))
+		goto free_dscp;
+	dscp_buf[dscp_len] = '\0';
+
+	// _payloadを取得する
+	pl_buf = kmalloc(plen + 1, GFP_KERNEL);
+	if (!pl_buf)
+		goto free_dscp;
+	if (copy_from_user(pl_buf, _payload, plen))
+		goto free_pl_buf;
+	pl_buf[plen] = '\0';
+
+	// 送信するパート
+	msg_len = 100 + type_len + dscp_len + pl_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_pl_buf;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "248%c%ld%c%zu"
+			   "%c%d%c"
+			   "%s%c%s%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, plen,
+			   SCLDA_DELIMITER, (int)ringid, SCLDA_DELIMITER,
+			   type_buf, SCLDA_DELIMITER, dscp_buf, SCLDA_DELIMITER,
+			   pl_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_pl_buf:
+	kfree(pl_buf);
+free_dscp:
+	kfree(dscp_buf);
+free_type:
+	kfree(type_buf);
+	return retval;
 }
 
 /*

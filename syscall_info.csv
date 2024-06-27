@@ -127,6 +127,7 @@ set_tid_address,218,retval,tid
 clock_getres,229,retval,which_clock,tv_sec,tv_nsec
 clock_nanosleep,230,retval,which_clock,flags,rqtp_tvsec,rqtp_tvnsec,rmtp_tvsec,rmtp_tvnsec
 exit_group,231,retval,error_code
+add_key,248,retval,plen,ringid,_type,_description,_payload
 keyctl,250,retval,option,arg2,arg3,arg4,arg5
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 mkdirat,258,retval,dfd,mode,path
