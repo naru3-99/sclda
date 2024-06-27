@@ -385,13 +385,17 @@ sclda:
 		return retval;
 
 	// ファイル名を取得する
-	int filename_len = strnlen_user(filename, 1000);
+	int filename_len = strnlen_user(filename, PATH_MAX);
 	char *filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
 	if (!filename_buf) {
 		kfree(stat_msg_buf);
 		return retval;
 	}
-	filename_len -= copy_from_user(filename_buf, filename, filename_len);
+	if (copy_from_user(filename_buf, filename, filename_len)) {
+		kfree(stat_msg_buf);
+		kfree(filename_buf);
+		return retval;
+	}
 	filename_buf[filename_len] = '\0';
 
 	// 送信する情報を確定する
@@ -451,13 +455,17 @@ sclda:
 		return retval;
 
 	// ファイル名を取得する
-	int filename_len = strnlen_user(filename, 1000);
+	int filename_len = strnlen_user(filename, PATH_MAX);
 	char *filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
 	if (!filename_buf) {
 		kfree(stat_msg_buf);
 		return retval;
 	}
-	filename_len -= copy_from_user(filename_buf, filename, filename_len);
+	if (copy_from_user(filename_buf, filename, filename_len)) {
+		kfree(stat_msg_buf);
+		kfree(filename_buf);
+		return retval;
+	}
 	filename_buf[filename_len] = '\0';
 
 	// 送信する情報を確定する
@@ -468,7 +476,7 @@ sclda:
 		kfree(filename_buf);
 		return retval;
 	}
-	msg_len = snprintf(msg_buf, msg_len, "4%c%d%c%s%c%s", SCLDA_DELIMITER,
+	msg_len = snprintf(msg_buf, msg_len, "6%c%d%c%s%c%s", SCLDA_DELIMITER,
 			   retval, SCLDA_DELIMITER, filename_buf,
 			   SCLDA_DELIMITER, stat_msg_buf);
 	kfree(stat_msg_buf);
