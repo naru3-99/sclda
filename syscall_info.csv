@@ -144,6 +144,7 @@ unlinkat,263,retval,dfd,flag,path
 renameat,264,retval,olddfd,newdfd,oldname,newname
 linkat,265,retval,olddfd,newdfd,flags,oldname,newname
 symlinkat,266,retval,newdfd,oldname,newname
+readlinkat,267,retval,dfd,bufsiz,pathname,buf
 fchmodat,268,retval,dfd,mode,filename
 faccessat,269,retval,dfd,mode,filename
 set_robust_list,273,retval,len
