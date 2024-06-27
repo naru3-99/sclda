@@ -3,7 +3,7 @@
 
 
 
-fadvise64	221
+
 ppoll	271
 utimensat	280
 inotify_add_watch	254

@@ -19,6 +19,7 @@
 #include <linux/writeback.h>
 #include <linux/syscalls.h>
 #include <linux/swap.h>
+#include <net/sclda.h>
 
 #include <asm/unistd.h>
 
@@ -34,7 +35,7 @@ int generic_fadvise(struct file *file, loff_t offset, loff_t len, int advice)
 	struct inode *inode;
 	struct address_space *mapping;
 	struct backing_dev_info *bdi;
-	loff_t endbyte;			/* inclusive */
+	loff_t endbyte; /* inclusive */
 	pgoff_t start_index;
 	pgoff_t end_index;
 	unsigned long nrpages;
@@ -74,7 +75,7 @@ int generic_fadvise(struct file *file, loff_t offset, loff_t len, int advice)
 	if (!len || endbyte < len)
 		endbyte = -1;
 	else
-		endbyte--;		/* inclusive */
+		endbyte--; /* inclusive */
 
 	switch (advice) {
 	case POSIX_FADV_NORMAL:
@@ -117,7 +118,7 @@ int generic_fadvise(struct file *file, loff_t offset, loff_t len, int advice)
 		 * preserved on the expectation that it is better to preserve
 		 * needed memory than to discard unneeded memory.
 		 */
-		start_index = (offset+(PAGE_SIZE-1)) >> PAGE_SHIFT;
+		start_index = (offset + (PAGE_SIZE - 1)) >> PAGE_SHIFT;
 		end_index = (endbyte >> PAGE_SHIFT);
 		/*
 		 * The page at end_index will be inclusively discarded according
@@ -127,7 +128,7 @@ int generic_fadvise(struct file *file, loff_t offset, loff_t len, int advice)
 		 * that page - discarding the last page is safe enough.
 		 */
 		if ((endbyte & ~PAGE_MASK) != ~PAGE_MASK &&
-				endbyte != inode->i_size - 1) {
+		    endbyte != inode->i_size - 1) {
 			/* First page is tricky as 0 - 1 = -1, but pgoff_t
 			 * is unsigned, so the end_index >= start_index
 			 * check below would be true and we'll discard the whole
@@ -153,9 +154,8 @@ int generic_fadvise(struct file *file, loff_t offset, loff_t len, int advice)
 			 */
 			lru_add_drain();
 
-			invalidate_mapping_pagevec(mapping,
-						start_index, end_index,
-						&nr_pagevec);
+			invalidate_mapping_pagevec(mapping, start_index,
+						   end_index, &nr_pagevec);
 
 			/*
 			 * If fewer pages were invalidated than expected then
@@ -166,7 +166,7 @@ int generic_fadvise(struct file *file, loff_t offset, loff_t len, int advice)
 			if (nr_pagevec) {
 				lru_add_drain_all();
 				invalidate_mapping_pages(mapping, start_index,
-						end_index);
+							 end_index);
 			}
 		}
 		break;
@@ -211,7 +211,28 @@ SYSCALL_DEFINE4(fadvise64_64, int, fd, loff_t, offset, loff_t, len, int, advice)
 
 SYSCALL_DEFINE4(fadvise64, int, fd, loff_t, offset, size_t, len, int, advice)
 {
-	return ksys_fadvise64_64(fd, offset, len, advice);
+	int retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = ksys_fadvise64_64(fd, offset, len, advice);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "221%c%d%c%d"
+			   "%c%lld%c%zu%c%d",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, offset, SCLDA_DELIMITER, len,
+			   SCLDA_DELIMITER, advice);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 #endif
