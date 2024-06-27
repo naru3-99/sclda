@@ -145,6 +145,7 @@ symlinkat,266,retval,newdfd,oldname,newname
 fchmodat,268,retval,dfd,mode,filename
 faccessat,269,retval,dfd,mode,filename
 set_robust_list,273,retval,len
+signalfd,282,retval,ufd,sizemask,user_mask
 accept4,288,retval,fd,addrlen,flags,sa_family,sockaddr_info
 epoll_create1,291,retval,flags
 dup3,292,retval,old_fd,new_fd,flags,,,,,,,,,,,,,,
