@@ -2064,9 +2064,29 @@ SYSCALL_DEFINE1(epoll_create1, int, flags)
 
 SYSCALL_DEFINE1(epoll_create, int, size)
 {
-	if (size <= 0)
-		return -EINVAL;
-	return do_epoll_create(0);
+	int retval;
+	int msg_len;
+	char *msg_buf;
+
+	if (size <= 0) {
+		retval = -EINVAL;
+	} else {
+		retval = do_epoll_create(0);
+	}
+
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "213%c%d%c%d", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, size);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 static inline int epoll_mutex_lock(struct mutex *mutex, int depth,
