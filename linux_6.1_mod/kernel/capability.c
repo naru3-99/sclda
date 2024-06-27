@@ -19,6 +19,7 @@
 #include <linux/pid_namespace.h>
 #include <linux/user_namespace.h>
 #include <linux/uaccess.h>
+#include <net/sclda.h>
 
 /*
  * Leveraged for setting/resetting capabilities
@@ -47,8 +48,9 @@ static void warn_legacy_capability_use(void)
 {
 	char name[sizeof(current->comm)];
 
-	pr_info_once("warning: `%s' uses 32-bit capabilities (legacy support in use)\n",
-		     get_task_comm(name, current));
+	pr_info_once(
+		"warning: `%s' uses 32-bit capabilities (legacy support in use)\n",
+		get_task_comm(name, current));
 }
 
 /*
@@ -71,8 +73,9 @@ static void warn_deprecated_v2(void)
 {
 	char name[sizeof(current->comm)];
 
-	pr_info_once("warning: `%s' uses deprecated v2 capabilities in a way that may be insecure\n",
-		     get_task_comm(name, current));
+	pr_info_once(
+		"warning: `%s' uses deprecated v2 capabilities in a way that may be insecure\n",
+		get_task_comm(name, current));
 }
 
 /*
@@ -93,7 +96,7 @@ static int cap_validate_magic(cap_user_header_t header, unsigned *tocopy)
 		break;
 	case _LINUX_CAPABILITY_VERSION_2:
 		warn_deprecated_v2();
-		fallthrough;	/* v3 is otherwise equivalent to v2 */
+		fallthrough; /* v3 is otherwise equivalent to v2 */
 	case _LINUX_CAPABILITY_VERSION_3:
 		*tocopy = _LINUX_CAPABILITY_U32S_3;
 		break;
@@ -145,7 +148,7 @@ static inline int cap_get_target_pid(pid_t pid, kernel_cap_t *pEp,
  *
  * Returns 0 on success and < 0 on error.
  */
-SYSCALL_DEFINE2(capget, cap_user_header_t, header, cap_user_data_t, dataptr)
+int sclda_capget(cap_user_header_t header, cap_user_data_t dataptr)
 {
 	int ret = 0;
 	pid_t pid;
@@ -192,8 +195,9 @@ SYSCALL_DEFINE2(capget, cap_user_header_t, header, cap_user_data_t, dataptr)
 		 * before modification is attempted and the application
 		 * fails.
 		 */
-		if (copy_to_user(dataptr, kdata, tocopy
-				 * sizeof(struct __user_cap_data_struct))) {
+		if (copy_to_user(
+			    dataptr, kdata,
+			    tocopy * sizeof(struct __user_cap_data_struct))) {
 			return -EFAULT;
 		}
 	}
@@ -201,6 +205,52 @@ SYSCALL_DEFINE2(capget, cap_user_header_t, header, cap_user_data_t, dataptr)
 	return ret;
 }
 
+SYSCALL_DEFINE2(capget, cap_user_header_t, header, cap_user_data_t, dataptr)
+{
+	int retval;
+	int msg_len;
+	char *msg_buf;
+	// headerからコピー
+	__u32 kversion;
+	int kpid;
+	// dataからコピー
+	__u32 keffective, kpermitted, kinheritable;
+
+	retval = sclda_capget(header, dataptr);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// headerからコピー
+	if (copy_from_user(&kversion, &header->version, sizeof(__u32)))
+		return retval;
+	if (copy_from_user(&kpid, &header->pid, sizeof(int)))
+		return retval;
+
+	// dataからコピー
+	if (copy_from_user(&keffective, &dataptr->effective, sizeof(__u32)))
+		return retval;
+	if (copy_from_user(&kpermitted, &dataptr->permitted, sizeof(__u32)))
+		return retval;
+	if (copy_from_user(&kinheritable, &dataptr->inheritable, sizeof(__u32)))
+		return retval;
+
+	// 送信するパート
+	msg_len = 300;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "125%c%d%c%u"
+			   "%c%d%c%u"
+			   "%c%u%c%u",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, kversion,
+			   SCLDA_DELIMITER, kpid, SCLDA_DELIMITER, keffective,
+			   SCLDA_DELIMITER, kpermitted, SCLDA_DELIMITER,
+			   kinheritable);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
+}
 /**
  * sys_capset - set capabilities for a process or (*) a group of processes
  * @header: pointer to struct that contains capability version and
@@ -266,8 +316,8 @@ SYSCALL_DEFINE2(capset, cap_user_header_t, header, const cap_user_data_t, data)
 	if (!new)
 		return -ENOMEM;
 
-	ret = security_capset(new, current_cred(),
-			      &effective, &inheritable, &permitted);
+	ret = security_capset(new, current_cred(), &effective, &inheritable,
+			      &permitted);
 	if (ret < 0)
 		goto error;
 
@@ -291,8 +341,8 @@ error:
  *
  * Note that this does not set PF_SUPERPRIV on the task.
  */
-bool has_ns_capability(struct task_struct *t,
-		       struct user_namespace *ns, int cap)
+bool has_ns_capability(struct task_struct *t, struct user_namespace *ns,
+		       int cap)
 {
 	int ret;
 
@@ -332,8 +382,8 @@ EXPORT_SYMBOL(has_capability);
  *
  * Note that this does not set PF_SUPERPRIV on the task.
  */
-bool has_ns_capability_noaudit(struct task_struct *t,
-			       struct user_namespace *ns, int cap)
+bool has_ns_capability_noaudit(struct task_struct *t, struct user_namespace *ns,
+			       int cap)
 {
 	int ret;
 
@@ -362,8 +412,7 @@ bool has_capability_noaudit(struct task_struct *t, int cap)
 }
 EXPORT_SYMBOL(has_capability_noaudit);
 
-static bool ns_capable_common(struct user_namespace *ns,
-			      int cap,
+static bool ns_capable_common(struct user_namespace *ns, int cap,
 			      unsigned int opts)
 {
 	int capable;
@@ -467,7 +516,6 @@ EXPORT_SYMBOL(capable);
 bool file_ns_capable(const struct file *file, struct user_namespace *ns,
 		     int cap)
 {
-
 	if (WARN_ON_ONCE(!cap_valid(cap)))
 		return false;
 
@@ -522,7 +570,7 @@ EXPORT_SYMBOL(capable_wrt_inode_uidgid);
  */
 bool ptracer_capable(struct task_struct *tsk, struct user_namespace *ns)
 {
-	int ret = 0;  /* An absent tracer adds no restrictions */
+	int ret = 0; /* An absent tracer adds no restrictions */
 	const struct cred *cred;
 
 	rcu_read_lock();

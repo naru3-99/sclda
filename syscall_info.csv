@@ -117,6 +117,7 @@ getgroups,115,retval,gidsetsize,group_id_list
 setgroups,116,retval,gidsetsize,group_id_list
 setresuid,117,retval,ruid,euid,suid
 getresuid,118,retval,ruid,euid,suid
+capget,125,retval,kversion,kpid,keffective,kpermitted,kinheritable
 prctl,157,retval,option,arg2,arg3,arg4,arg5
 arch_prctl,158,retval,option,arg2
 gettid,186,retval
