@@ -2,8 +2,6 @@
 ## for langMorphDA
 
 
-epoll_ctl	233
-inotify_rm_watch	255
 readlinkat	267
 fadvise64	221
 ppoll	271
