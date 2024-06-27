@@ -38,6 +38,7 @@
 #include <linux/compat.h>
 #include <linux/rculist.h>
 #include <net/busy_poll.h>
+#include <net/sclda.h>
 
 /*
  * LOCKING:
@@ -92,15 +93,16 @@
 
 #define EPOLLINOUT_BITS (EPOLLIN | EPOLLOUT)
 
-#define EPOLLEXCLUSIVE_OK_BITS (EPOLLINOUT_BITS | EPOLLERR | EPOLLHUP | \
-				EPOLLWAKEUP | EPOLLET | EPOLLEXCLUSIVE)
+#define EPOLLEXCLUSIVE_OK_BITS                                           \
+	(EPOLLINOUT_BITS | EPOLLERR | EPOLLHUP | EPOLLWAKEUP | EPOLLET | \
+	 EPOLLEXCLUSIVE)
 
 /* Maximum number of nesting allowed inside epoll sets */
 #define EP_MAX_NESTS 4
 
 #define EP_MAX_EVENTS (INT_MAX / sizeof(struct epoll_event))
 
-#define EP_UNACTIVE_PTR ((void *) -1L)
+#define EP_UNACTIVE_PTR ((void *)-1L)
 
 #define EP_ITEM_COST (sizeof(struct epitem) + sizeof(struct eppoll_entry))
 
@@ -290,7 +292,7 @@ static void unlist_file(struct epitems_head *head)
 	struct epitems_head *to_free = head;
 	struct hlist_node *p = rcu_dereference(hlist_first_rcu(&head->epitems));
 	if (p) {
-		struct epitem *epi= container_of(p, struct epitem, fllink);
+		struct epitem *epi = container_of(p, struct epitem, fllink);
 		spin_lock(&epi->ffd.file->f_lock);
 		if (!hlist_empty(&head->epitems))
 			to_free = NULL;
@@ -309,15 +311,15 @@ static long long_max = LONG_MAX;
 
 static struct ctl_table epoll_table[] = {
 	{
-		.procname	= "max_user_watches",
-		.data		= &max_user_watches,
-		.maxlen		= sizeof(max_user_watches),
-		.mode		= 0644,
-		.proc_handler	= proc_doulongvec_minmax,
-		.extra1		= &long_zero,
-		.extra2		= &long_max,
+		.procname = "max_user_watches",
+		.data = &max_user_watches,
+		.maxlen = sizeof(max_user_watches),
+		.mode = 0644,
+		.proc_handler = proc_doulongvec_minmax,
+		.extra1 = &long_zero,
+		.extra2 = &long_max,
 	},
-	{ }
+	{}
 };
 
 static void __init epoll_sysctls_init(void)
@@ -325,7 +327,9 @@ static void __init epoll_sysctls_init(void)
 	register_sysctl("fs/epoll", epoll_table);
 }
 #else
-#define epoll_sysctls_init() do { } while (0)
+#define epoll_sysctls_init() \
+	do {                 \
+	} while (0)
 #endif /* CONFIG_SYSCTL */
 
 static const struct file_operations eventpoll_fops;
@@ -336,19 +340,19 @@ static inline int is_file_epoll(struct file *f)
 }
 
 /* Setup the structure that is used as key for the RB tree */
-static inline void ep_set_ffd(struct epoll_filefd *ffd,
-			      struct file *file, int fd)
+static inline void ep_set_ffd(struct epoll_filefd *ffd, struct file *file,
+			      int fd)
 {
 	ffd->file = file;
 	ffd->fd = fd;
 }
 
 /* Compare RB tree keys */
-static inline int ep_cmp_ffd(struct epoll_filefd *p1,
-			     struct epoll_filefd *p2)
+static inline int ep_cmp_ffd(struct epoll_filefd *p1, struct epoll_filefd *p2)
 {
-	return (p1->file > p2->file ? +1:
-	        (p1->file < p2->file ? -1 : p1->fd - p2->fd));
+	return (p1->file > p2->file ?
+			+1 :
+			(p1->file < p2->file ? -1 : p1->fd - p2->fd));
 }
 
 /* Tells us if the item is currently linked */
@@ -379,7 +383,7 @@ static inline struct epitem *ep_item_from_wait(wait_queue_entry_t *p)
 static inline int ep_events_available(struct eventpoll *ep)
 {
 	return !list_empty_careful(&ep->rdllist) ||
-		READ_ONCE(ep->ovflist) != EP_UNACTIVE_PTR;
+	       READ_ONCE(ep->ovflist) != EP_UNACTIVE_PTR;
 }
 
 #ifdef CONFIG_NET_RX_BUSY_POLL
@@ -401,8 +405,8 @@ static bool ep_busy_loop(struct eventpoll *ep, int nonblock)
 	unsigned int napi_id = READ_ONCE(ep->napi_id);
 
 	if ((napi_id >= MIN_NAPI_ID) && net_busy_loop_on()) {
-		napi_busy_loop(napi_id, nonblock ? NULL : ep_busy_loop_end, ep, false,
-			       BUSY_POLL_BUDGET);
+		napi_busy_loop(napi_id, nonblock ? NULL : ep_busy_loop_end, ep,
+			       false, BUSY_POLL_BUDGET);
 		if (ep_events_available(ep))
 			return true;
 		/*
@@ -604,7 +608,6 @@ static inline void ep_pm_stay_awake_rcu(struct epitem *epi)
 	rcu_read_unlock();
 }
 
-
 /*
  * ep->mutex needs to be held because we could be hit by
  * eventpoll_release_file() and epoll_ctl().
@@ -626,8 +629,7 @@ static void ep_start_scan(struct eventpoll *ep, struct list_head *txlist)
 	write_unlock_irq(&ep->lock);
 }
 
-static void ep_done_scan(struct eventpoll *ep,
-			 struct list_head *txlist)
+static void ep_done_scan(struct eventpoll *ep, struct list_head *txlist)
 {
 	struct epitem *epi, *nepi;
 
@@ -799,9 +801,11 @@ static int ep_eventpoll_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-static __poll_t ep_item_poll(const struct epitem *epi, poll_table *pt, int depth);
+static __poll_t ep_item_poll(const struct epitem *epi, poll_table *pt,
+			     int depth);
 
-static __poll_t __ep_eventpoll_poll(struct file *file, poll_table *wait, int depth)
+static __poll_t __ep_eventpoll_poll(struct file *file, poll_table *wait,
+				    int depth)
 {
 	struct eventpoll *ep = file->private_data;
 	LIST_HEAD(txlist);
@@ -845,7 +849,7 @@ static __poll_t __ep_eventpoll_poll(struct file *file, poll_table *wait, int dep
  * is correctly annotated.
  */
 static __poll_t ep_item_poll(const struct epitem *epi, poll_table *pt,
-				 int depth)
+			     int depth)
 {
 	struct file *file = epi->ffd.file;
 	__poll_t res;
@@ -874,12 +878,13 @@ static void ep_show_fdinfo(struct seq_file *m, struct file *f)
 		struct epitem *epi = rb_entry(rbp, struct epitem, rbn);
 		struct inode *inode = file_inode(epi->ffd.file);
 
-		seq_printf(m, "tfd: %8d events: %8x data: %16llx "
+		seq_printf(m,
+			   "tfd: %8d events: %8x data: %16llx "
 			   " pos:%lli ino:%lx sdev:%x\n",
 			   epi->ffd.fd, epi->event.events,
 			   (long long)epi->event.data,
-			   (long long)epi->ffd.file->f_pos,
-			   inode->i_ino, inode->i_sb->s_dev);
+			   (long long)epi->ffd.file->f_pos, inode->i_ino,
+			   inode->i_sb->s_dev);
 		if (seq_has_overflowed(m))
 			break;
 	}
@@ -890,11 +895,11 @@ static void ep_show_fdinfo(struct seq_file *m, struct file *f)
 /* File callbacks that implement the eventpoll file behaviour */
 static const struct file_operations eventpoll_fops = {
 #ifdef CONFIG_PROC_FS
-	.show_fdinfo	= ep_show_fdinfo,
+	.show_fdinfo = ep_show_fdinfo,
 #endif
-	.release	= ep_eventpoll_release,
-	.poll		= ep_eventpoll_poll,
-	.llseek		= noop_llseek,
+	.release = ep_eventpoll_release,
+	.poll = ep_eventpoll_poll,
+	.llseek = noop_llseek,
 };
 
 /*
@@ -978,7 +983,7 @@ static struct epitem *ep_find(struct eventpoll *ep, struct file *file, int fd)
 	struct epoll_filefd ffd;
 
 	ep_set_ffd(&ffd, file, fd);
-	for (rbp = ep->rbr.rb_root.rb_node; rbp; ) {
+	for (rbp = ep->rbr.rb_root.rb_node; rbp;) {
 		epi = rb_entry(rbp, struct epitem, rbn);
 		kcmp = ep_cmp_ffd(&ffd, &epi->ffd);
 		if (kcmp > 0)
@@ -995,7 +1000,8 @@ static struct epitem *ep_find(struct eventpoll *ep, struct file *file, int fd)
 }
 
 #ifdef CONFIG_KCMP
-static struct epitem *ep_find_tfd(struct eventpoll *ep, int tfd, unsigned long toff)
+static struct epitem *ep_find_tfd(struct eventpoll *ep, int tfd,
+				  unsigned long toff)
 {
 	struct rb_node *rbp;
 	struct epitem *epi;
@@ -1133,7 +1139,8 @@ static inline bool chain_epi_lockless(struct epitem *epi)
  * queues are used should be detected accordingly.  This is detected using
  * cmpxchg() operation.
  */
-static int ep_poll_callback(wait_queue_entry_t *wait, unsigned mode, int sync, void *key)
+static int ep_poll_callback(wait_queue_entry_t *wait, unsigned mode, int sync,
+			    void *key)
 {
 	int pwake = 0;
 	struct epitem *epi = ep_item_from_wait(wait);
@@ -1185,7 +1192,7 @@ static int ep_poll_callback(wait_queue_entry_t *wait, unsigned mode, int sync, v
 	 */
 	if (waitqueue_active(&ep->wq)) {
 		if ((epi->event.events & EPOLLEXCLUSIVE) &&
-					!(pollflags & POLLFREE)) {
+		    !(pollflags & POLLFREE)) {
 			switch (pollflags & EPOLLINOUT_BITS) {
 			case EPOLLIN:
 				if (epi->event.events & EPOLLIN)
@@ -1245,7 +1252,7 @@ static void ep_ptable_queue_proc(struct file *file, wait_queue_head_t *whead,
 	struct epitem *epi = epq->epi;
 	struct eppoll_entry *pwq;
 
-	if (unlikely(!epi))	// an earlier allocation has failed
+	if (unlikely(!epi)) // an earlier allocation has failed
 		return;
 
 	pwq = kmem_cache_alloc(pwq_cache, GFP_KERNEL);
@@ -1285,8 +1292,6 @@ static void ep_rbtree_insert(struct eventpoll *ep, struct epitem *epi)
 	rb_link_node(&epi->rbn, parent, p);
 	rb_insert_color_cached(&epi->rbn, &ep->rbr, leftmost);
 }
-
-
 
 #define PATH_ARR_SIZE 5
 /*
@@ -1936,10 +1941,12 @@ static int ep_loop_check_proc(struct eventpoll *ep, int depth)
 			ep_tovisit = epi->ffd.file->private_data;
 			if (ep_tovisit->gen == loop_check_gen)
 				continue;
-			if (ep_tovisit == inserting_into || depth > EP_MAX_NESTS)
+			if (ep_tovisit == inserting_into ||
+			    depth > EP_MAX_NESTS)
 				error = -1;
 			else
-				error = ep_loop_check_proc(ep_tovisit, depth + 1);
+				error = ep_loop_check_proc(ep_tovisit,
+							   depth + 1);
 			if (error != 0)
 				break;
 		} else {
@@ -2017,7 +2024,7 @@ static int do_epoll_create(int flags)
 		goto out_free_ep;
 	}
 	file = anon_inode_getfile("[eventpoll]", &eventpoll_fops, ep,
-				 O_RDWR | (flags & O_CLOEXEC));
+				  O_RDWR | (flags & O_CLOEXEC));
 	if (IS_ERR(file)) {
 		error = PTR_ERR(file);
 		goto out_free_fd;
@@ -2035,14 +2042,30 @@ out_free_ep:
 
 SYSCALL_DEFINE1(epoll_create1, int, flags)
 {
-	return do_epoll_create(flags);
+	int retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = do_epoll_create(flags);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "291%c%d%c%d", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, flags);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 SYSCALL_DEFINE1(epoll_create, int, size)
 {
 	if (size <= 0)
 		return -EINVAL;
-
 	return do_epoll_create(0);
 }
 
@@ -2104,8 +2127,9 @@ int do_epoll_ctl(int epfd, int op, int fd, struct epoll_event *epds,
 	if (ep_op_has_event(op) && (epds->events & EPOLLEXCLUSIVE)) {
 		if (op == EPOLL_CTL_MOD)
 			goto error_tgt_fput;
-		if (op == EPOLL_CTL_ADD && (is_file_epoll(tf.file) ||
-				(epds->events & ~EPOLLEXCLUSIVE_OK_BITS)))
+		if (op == EPOLL_CTL_ADD &&
+		    (is_file_epoll(tf.file) ||
+		     (epds->events & ~EPOLLEXCLUSIVE_OK_BITS)))
 			goto error_tgt_fput;
 	}
 
@@ -2266,8 +2290,8 @@ error_fput:
 	return error;
 }
 
-SYSCALL_DEFINE4(epoll_wait, int, epfd, struct epoll_event __user *, events,
-		int, maxevents, int, timeout)
+SYSCALL_DEFINE4(epoll_wait, int, epfd, struct epoll_event __user *, events, int,
+		maxevents, int, timeout)
 {
 	struct timespec64 to;
 
@@ -2307,13 +2331,13 @@ SYSCALL_DEFINE6(epoll_pwait, int, epfd, struct epoll_event __user *, events,
 	struct timespec64 to;
 
 	return do_epoll_pwait(epfd, events, maxevents,
-			      ep_timeout_to_timespec(&to, timeout),
-			      sigmask, sigsetsize);
+			      ep_timeout_to_timespec(&to, timeout), sigmask,
+			      sigsetsize);
 }
 
 SYSCALL_DEFINE6(epoll_pwait2, int, epfd, struct epoll_event __user *, events,
-		int, maxevents, const struct __kernel_timespec __user *, timeout,
-		const sigset_t __user *, sigmask, size_t, sigsetsize)
+		int, maxevents, const struct __kernel_timespec __user *,
+		timeout, const sigset_t __user *, sigmask, size_t, sigsetsize)
 {
 	struct timespec64 ts, *to = NULL;
 
@@ -2325,8 +2349,7 @@ SYSCALL_DEFINE6(epoll_pwait2, int, epfd, struct epoll_event __user *, events,
 			return -EINVAL;
 	}
 
-	return do_epoll_pwait(epfd, events, maxevents, to,
-			      sigmask, sigsetsize);
+	return do_epoll_pwait(epfd, events, maxevents, to, sigmask, sigsetsize);
 }
 
 #ifdef CONFIG_COMPAT
@@ -2352,11 +2375,10 @@ static int do_compat_epoll_pwait(int epfd, struct epoll_event __user *events,
 	return err;
 }
 
-COMPAT_SYSCALL_DEFINE6(epoll_pwait, int, epfd,
-		       struct epoll_event __user *, events,
-		       int, maxevents, int, timeout,
-		       const compat_sigset_t __user *, sigmask,
-		       compat_size_t, sigsetsize)
+COMPAT_SYSCALL_DEFINE6(epoll_pwait, int, epfd, struct epoll_event __user *,
+		       events, int, maxevents, int, timeout,
+		       const compat_sigset_t __user *, sigmask, compat_size_t,
+		       sigsetsize)
 {
 	struct timespec64 to;
 
@@ -2365,12 +2387,11 @@ COMPAT_SYSCALL_DEFINE6(epoll_pwait, int, epfd,
 				     sigmask, sigsetsize);
 }
 
-COMPAT_SYSCALL_DEFINE6(epoll_pwait2, int, epfd,
-		       struct epoll_event __user *, events,
-		       int, maxevents,
+COMPAT_SYSCALL_DEFINE6(epoll_pwait2, int, epfd, struct epoll_event __user *,
+		       events, int, maxevents,
 		       const struct __kernel_timespec __user *, timeout,
-		       const compat_sigset_t __user *, sigmask,
-		       compat_size_t, sigsetsize)
+		       const compat_sigset_t __user *, sigmask, compat_size_t,
+		       sigsetsize)
 {
 	struct timespec64 ts, *to = NULL;
 
@@ -2382,8 +2403,8 @@ COMPAT_SYSCALL_DEFINE6(epoll_pwait2, int, epfd,
 			return -EINVAL;
 	}
 
-	return do_compat_epoll_pwait(epfd, events, maxevents, to,
-				     sigmask, sigsetsize);
+	return do_compat_epoll_pwait(epfd, events, maxevents, to, sigmask,
+				     sigsetsize);
 }
 
 #endif
@@ -2397,7 +2418,7 @@ static int __init eventpoll_init(void)
 	 * Allows top 4% of lomem to be allocated for epoll watches (per user).
 	 */
 	max_user_watches = (((si.totalram - si.totalhigh) / 25) << PAGE_SHIFT) /
-		EP_ITEM_COST;
+			   EP_ITEM_COST;
 	BUG_ON(max_user_watches < 0);
 
 	/*
@@ -2407,16 +2428,18 @@ static int __init eventpoll_init(void)
 	BUILD_BUG_ON(sizeof(void *) <= 8 && sizeof(struct epitem) > 128);
 
 	/* Allocates slab cache used to allocate "struct epitem" items */
-	epi_cache = kmem_cache_create("eventpoll_epi", sizeof(struct epitem),
-			0, SLAB_HWCACHE_ALIGN|SLAB_PANIC|SLAB_ACCOUNT, NULL);
+	epi_cache = kmem_cache_create(
+		"eventpoll_epi", sizeof(struct epitem), 0,
+		SLAB_HWCACHE_ALIGN | SLAB_PANIC | SLAB_ACCOUNT, NULL);
 
 	/* Allocates slab cache used to allocate "struct eppoll_entry" */
 	pwq_cache = kmem_cache_create("eventpoll_pwq",
-		sizeof(struct eppoll_entry), 0, SLAB_PANIC|SLAB_ACCOUNT, NULL);
+				      sizeof(struct eppoll_entry), 0,
+				      SLAB_PANIC | SLAB_ACCOUNT, NULL);
 	epoll_sysctls_init();
 
-	ephead_cache = kmem_cache_create("ep_head",
-		sizeof(struct epitems_head), 0, SLAB_PANIC|SLAB_ACCOUNT, NULL);
+	ephead_cache = kmem_cache_create("ep_head", sizeof(struct epitems_head),
+					 0, SLAB_PANIC | SLAB_ACCOUNT, NULL);
 
 	return 0;
 }
