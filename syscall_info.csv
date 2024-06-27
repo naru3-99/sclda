@@ -136,6 +136,7 @@ keyctl,250,retval,option,arg2,arg3,arg4,arg5
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 mkdirat,258,retval,dfd,mode,path
 fchownat,260,retval,dfd,user,group,flag,filename
+newfstatat,262,retval,dfd,flags,st_dev,st_ino,st_mode,st_nlink,st_uid,st_gid,st_rdevst_size,st_atime,st_mtime,st_ctime,filename
 unlinkat,263,retval,dfd,flag,path
 renameat,264,retval,olddfd,newdfd,oldname,newname
 linkat,265,retval,olddfd,newdfd,flags,oldname,newname

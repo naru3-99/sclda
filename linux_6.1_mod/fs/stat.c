@@ -366,7 +366,7 @@ ret_error:
 	retval = error;
 
 	stat_msg_len = 6;
-	stat_msg_buf = (char *)kmalloc(stat_msg_len, GFP_KERNEL);
+	stat_msg_buf = kmalloc(stat_msg_len, GFP_KERNEL);
 	if (!stat_msg_buf)
 		return retval;
 	stat_msg_buf[0] = '\0';
@@ -616,12 +616,53 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
 		struct stat __user *, statbuf, int, flag)
 {
 	struct kstat stat;
-	int error;
+	int retval;
+	retval = vfs_fstatat(dfd, filename, &stat, flag);
+	if (retval)
+		goto out;
+	retval = cp_new_stat(&stat, statbuf);
+out:
+	int msg_len, path_len, struct_len;
+	char *msg_buf, *path_buf, *struct_buf;
 
-	error = vfs_fstatat(dfd, filename, &stat, flag);
-	if (error)
-		return error;
-	return cp_new_stat(&stat, statbuf);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// ファイル名を取得する
+	path_len = strnlen_user(filename, PATH_MAX);
+	path_buf = kmalloc(path_len + 1, GFP_KERNEL);
+	if (!path_buf)
+		return retval;
+	if (copy_from_user(path_buf, filename, path_len))
+		goto free_path;
+	path_buf[path_len] = '\0';
+
+	// 構造体を文字列にする
+	struct_len = 300;
+	struct_buf = kmalloc(struct_len, GFP_KERNEL);
+	if (!struct_buf)
+		goto free_path;
+	struct_len = kstat_to_str(&stat, struct_buf, struct_len);
+
+	// 送信するパート
+	msg_len = 100 + path_len + struct_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_struct_buf;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "262%c%d%c%d"
+			   "%c%d%c%s%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, dfd,
+			   SCLDA_DELIMITER, flag, SCLDA_DELIMITER, struct_buf,
+			   SCLDA_DELIMITER, path_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_struct_buf:
+	kfree(struct_buf);
+free_path:
+	kfree(path_buf);
+	return retval;
 }
 #endif
 
