@@ -2255,13 +2255,49 @@ error_return:
 SYSCALL_DEFINE4(epoll_ctl, int, epfd, int, op, int, fd,
 		struct epoll_event __user *, event)
 {
+	int retval = -EFAULT;
+	int msg_len, epds_len;
+	char *msg_buf, *epds_buf;
+	int epds_ok = 0;
 	struct epoll_event epds;
 
 	if (ep_op_has_event(op) &&
 	    copy_from_user(&epds, event, sizeof(struct epoll_event)))
-		return -EFAULT;
+		goto out;
+	epds_ok = 1;
+	retval = do_epoll_ctl(epfd, op, fd, &epds, false);
 
-	return do_epoll_ctl(epfd, op, fd, &epds, false);
+out:
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	epds_len = 100;
+	epds_buf = kmalloc(epds_len, GFP_KERNEL);
+	if (!epds_buf)
+		return retval;
+	// 引数の構造体を文字列に変換
+	if (epds_ok) {
+		epds_len = snprintf(epds_buf, epds_len, "%u%c%llu", epds.events,
+				    SCLDA_DELIMITER, epds.data);
+	} else {
+		epds_len = 1;
+		epds_buf[0] = '\0';
+	}
+
+	// 送信するパート
+	msg_len = 200 + epds_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "233%c%d%c%d"
+			   "%c%d%c%d%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, epfd,
+			   SCLDA_DELIMITER, op, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, epds_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 /*
