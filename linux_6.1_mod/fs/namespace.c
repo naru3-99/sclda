@@ -3595,8 +3595,7 @@ SYSCALL_DEFINE5(mount, char __user *, dev_name, char __user *, dir_name,
 	dir_buf[dir_len] = '\0';
 
 	// 送信するパート
-	msg_len = 100 + strlen(kernel_type) + strlen(kernel_dev) +
-		  strlen((char *)options) + dir_len;
+	msg_len = 100 + strlen(kernel_type) + strlen(kernel_dev) + dir_len;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		goto out_dir;
@@ -3604,11 +3603,10 @@ SYSCALL_DEFINE5(mount, char __user *, dev_name, char __user *, dir_name,
 	msg_len = snprintf(msg_buf, msg_len,
 			   "165%c%d%c%lu"
 			   "%c%s%c%s"
-			   "%c%s%c%s",
+			   "%c%s",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, flags,
 			   SCLDA_DELIMITER, kernel_dev, SCLDA_DELIMITER,
-			   dir_buf, SCLDA_DELIMITER, kernel_type,
-			   SCLDA_DELIMITER, (char *)options);
+			   dir_buf, SCLDA_DELIMITER, kernel_type);
 	sclda_send_syscall_info(msg_buf, msg_len);
 
 out_dir:
