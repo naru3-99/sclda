@@ -7,5 +7,7 @@
 | 101 |     ptrace      | data 引数からどのような情報を取得するか、もっと良い方法があるかも  |
 | 157 |      prctl      | arg2~arg5 までをどのように扱うか、決断できなかった                 |
 | 158 |   arch_prctl    | arg2 引数の扱いを判断できなかった                                  |
+| 165 |      mount      | マウント時の option 情報を取得できなかった                         |
+| 247 |     waitid      | siginfo 構造体が莫大過ぎて、諦めた                                 |
 | 250 |     keyctl      | arg2~arg5 までをどのように扱うか、決断できなかった                 |
 | 273 | set_robust_list | 連鎖的なデータ構造を持つ robust_list_head をどう料理するかわからん |

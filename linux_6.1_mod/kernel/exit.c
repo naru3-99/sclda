@@ -95,6 +95,18 @@ int rusage_to_str(const struct rusage *usage, char *buf, size_t buf_size)
 			usage->ru_nvcsw, SCLDA_DELIMITER, usage->ru_nivcsw);
 }
 
+int siginfo_to_str(const siginfo_t __user *u_siginfo, char *buf, size_t buflen)
+{
+	siginfo_t k_siginfo;
+	// ユーザ空間からカーネル空間に構造体をコピー
+	if (copy_from_user(&k_siginfo, u_siginfo, sizeof(siginfo_t)))
+		return -EFAULT;
+	return snprintf(buf, buflen, "%d%c%d%c%d", k_siginfo.si_signo,
+			SCLDA_DELIMITER, k_siginfo.si_errno, SCLDA_DELIMITER,
+			k_siginfo.si_code);
+	// 本当はもっと取得するべき情報があるが、ここいらでおいとま
+}
+
 /*
  * The default value should be high enough to not crash a system that randomly
  * crashes its kernel from time to time, but low enough to at least not permit
@@ -1760,8 +1772,8 @@ static long kernel_waitid(int which, pid_t upid, struct waitid_info *infop,
 	return ret;
 }
 
-SYSCALL_DEFINE5(waitid, int, which, pid_t, upid, struct siginfo __user *, infop,
-		int, options, struct rusage __user *, ru)
+long sclda_waitid(int which, pid_t upid, struct siginfo __user *infop,
+		  int options, struct rusage __user *ru)
 {
 	struct rusage r;
 	struct waitid_info info = { .status = 0 };
@@ -1791,6 +1803,63 @@ SYSCALL_DEFINE5(waitid, int, which, pid_t, upid, struct siginfo __user *, infop,
 Efault:
 	user_write_access_end();
 	return -EFAULT;
+}
+
+SYSCALL_DEFINE5(waitid, int, which, pid_t, upid, struct siginfo __user *, infop,
+		int, options, struct rusage __user *, ru)
+{
+	long retval;
+	int msg_len, ru_len, si_len;
+	char *msg_buf, *ru_buf, *si_buf;
+	struct rusage r;
+
+	retval = sclda_waitid(which, upid, infop, options, ru);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// rusageの情報を取得
+	ru_len = 200;
+	ru_buf = kmalloc(ru_len, GFP_KERNEL);
+	if (!ru_buf)
+		return retval;
+	if (copy_from_user(&r, ru, sizeof(struct rusage))) {
+		ru_len = 1;
+		ru_buf[0] = "\0";
+	} else {
+		ru_len = rusage_to_str(&r, ru_buf, ru_len);
+	}
+
+	// siginfoの情報を取得
+	si_len = 200;
+	si_buf = kmalloc(si_len, GFP_KERNEL);
+	if (!si_buf)
+		goto free_ru_buf;
+	si_len = siginfo_to_str(infop, si_buf, si_len);
+	if (si_len < 0) {
+		si_len = 1;
+		si_buf[0] = '\0';
+	}
+
+	// 送信するパート
+	msg_len = 100 + si_len + ru_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_si_buf;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "247%c%ld%c%d"
+			   "%c%d%c%d"
+			   "%c%s%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, which,
+			   SCLDA_DELIMITER, (int)upid, SCLDA_DELIMITER, options,
+			   SCLDA_DELIMITER, ru_buf, SCLDA_DELIMITER, si_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_si_buf:
+	kfree(si_buf);
+free_ru_buf:
+	kfree(ru_buf);
+	return retval;
 }
 
 long kernel_wait4(pid_t upid, int __user *stat_addr, int options,

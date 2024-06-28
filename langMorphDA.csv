@@ -1,9 +1,6 @@
 ## undefined syscall name
 ## for langMorphDA
 
-
-mount	165
-waitid	247
 getrandom	318
 mbind	237
 getpriority	140
