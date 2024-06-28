@@ -1361,7 +1361,7 @@ SYSCALL_DEFINE4(clock_nanosleep, const clockid_t, which_clock, int, flags,
 		goto free_rmtp_buf;
 
 	msg_len = snprintf(msg_buf, msg_len,
-			   "230%c%ld%c%d"
+			   "230%c%d%c%d"
 			   "%c%d%c%s%c%s",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
 			   (int)which_clock, SCLDA_DELIMITER, flags,

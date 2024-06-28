@@ -381,7 +381,7 @@ int is_sclda_allsend_fin(void)
 	return sclda_allsend_fin;
 }
 
-int kernel_timespec_to_str(struct __kernel_timespec __user *uptr,
+int kernel_timespec_to_str(const struct __kernel_timespec __user *uptr,
 			     char *msg_buf, int msg_len)
 {
 	// NULLだった場合は即返
