@@ -2349,10 +2349,45 @@ error_fput:
 SYSCALL_DEFINE4(epoll_wait, int, epfd, struct epoll_event __user *, events, int,
 		maxevents, int, timeout)
 {
+	int retval;
+	int msg_len, epe_len;
+	char *msg_buf, *epe_buf;
 	struct timespec64 to;
+	struct epoll_event kepe;
 
-	return do_epoll_wait(epfd, events, maxevents,
-			     ep_timeout_to_timespec(&to, timeout));
+	retval = do_epoll_wait(epfd, events, maxevents,
+			       ep_timeout_to_timespec(&to, timeout));
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// epoll_event構造体を文字列に変換
+	epe_len = 100;
+	epe_buf = kmalloc(epe_len, GFP_KERNEL);
+	if (!epe_buf)
+		return retval;
+
+	if (!copy_from_user(&kepe, events, sizeof(struct epoll_event))) {
+		epe_len = snprintf(epe_buf, epe_len, "%llu%d%u", kepe.data,
+				   SCLDA_DELIMITER, kepe.events);
+	} else {
+		epe_len = 1;
+		epe_buf[0] = '\0';
+	}
+
+	// 送信するパート
+	msg_len = 200 + epe_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "232%c%d%c%d"
+			   "%c%d%c%d%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, epfd,
+			   SCLDA_DELIMITER, maxevents, SCLDA_DELIMITER, timeout,
+			   SCLDA_DELIMITER, epe_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 /*

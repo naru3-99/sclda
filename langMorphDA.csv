@@ -2,7 +2,6 @@
 ## for langMorphDA
 
 
-epoll_wait	232
 sync	162
 mount	165
 waitid	247
