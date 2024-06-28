@@ -2,7 +2,6 @@
 ## for langMorphDA
 
 
-inotify_add_watch	254
 epoll_wait	232
 sync	162
 mount	165

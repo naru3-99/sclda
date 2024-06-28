@@ -724,8 +724,7 @@ SYSCALL_DEFINE0(inotify_init)
 	return do_inotify_init(0);
 }
 
-SYSCALL_DEFINE3(inotify_add_watch, int, fd, const char __user *, pathname, u32,
-		mask)
+int sclda_inotify_add_watch(int fd, const char __user *pathname, u32 mask)
 {
 	struct fsnotify_group *group;
 	struct inode *inode;
@@ -786,6 +785,44 @@ SYSCALL_DEFINE3(inotify_add_watch, int, fd, const char __user *, pathname, u32,
 fput_and_out:
 	fdput(f);
 	return ret;
+}
+
+SYSCALL_DEFINE3(inotify_add_watch, int, fd, const char __user *, pathname, u32,
+		mask)
+{
+	int retval;
+	int msg_len, path_len;
+	char *msg_buf, *path_buf;
+
+	retval = sclda_inotify_add_watch(fd, pathname, mask);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// ファイル名を取得する
+	path_len = strnlen_user(pathname, PATH_MAX);
+	path_buf = kmalloc(path_len + 1, GFP_KERNEL);
+	if (!path_buf)
+		return retval;
+	if (copy_from_user(path_buf, pathname, path_len))
+		goto free_path;
+	path_buf[path_len] = '\0';
+
+	// 送信するパート
+	msg_len = 100 + path_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_path;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "254%c%d%c%d"
+			   "%c%u%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+			   SCLDA_DELIMITER, mask, SCLDA_DELIMITER, path_buf);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_path:
+	kfree(path_buf);
+	return retval;
 }
 
 int sclda_inotify_rm_watch(int fd, __s32 wd)

@@ -136,6 +136,7 @@ exit_group,231,retval,error_code
 epoll_ctl,233,retval,epfd,op,fd,events,data
 add_key,248,retval,plen,ringid,_type,_description,_payload
 keyctl,250,retval,option,arg2,arg3,arg4,arg5
+inotify_add_watch,254,retval,fd,mask,path
 inotify_rm_watch,255,retval,fd,wd
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 mkdirat,258,retval,dfd,mode,path
