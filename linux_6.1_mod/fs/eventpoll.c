@@ -2378,7 +2378,7 @@ SYSCALL_DEFINE4(epoll_wait, int, epfd, struct epoll_event __user *, events, int,
 	msg_len = 200 + epe_len;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
-		return retval;
+		goto free_epe;
 
 	msg_len = snprintf(msg_buf, msg_len,
 			   "232%c%d%c%d"
@@ -2387,6 +2387,8 @@ SYSCALL_DEFINE4(epoll_wait, int, epfd, struct epoll_event __user *, events, int,
 			   SCLDA_DELIMITER, maxevents, SCLDA_DELIMITER, timeout,
 			   SCLDA_DELIMITER, epe_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
+free_epe:
+	kfree(epe_buf);
 	return retval;
 }
 

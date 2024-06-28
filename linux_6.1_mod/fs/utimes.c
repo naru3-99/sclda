@@ -199,7 +199,7 @@ SYSCALL_DEFINE4(utimensat, int, dfd, const char __user *, filename,
 	msg_len = 100 + path_len + ktsp_len;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
-		goto free_path;
+		goto free_ktsp;
 
 	msg_len = snprintf(msg_buf, msg_len,
 			   "280%c%ld%c%d"
@@ -209,6 +209,8 @@ SYSCALL_DEFINE4(utimensat, int, dfd, const char __user *, filename,
 			   SCLDA_DELIMITER, ktsp_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
 
+free_ktsp:
+	kfree(ktsp_buf);
 free_path:
 	kfree(path_buf);
 	return retval;
