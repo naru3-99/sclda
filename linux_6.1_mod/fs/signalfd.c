@@ -331,13 +331,14 @@ out:
 		return retval;
 
 	if (!mask_ok)
-		mask = 0;
+		mask.sig[0] = 0;
 
 	msg_len = snprintf(msg_buf, msg_len,
 			   "289%c%d%c%d"
 			   "%c%zu%c%lu",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, ufd,
-			   SCLDA_DELIMITER, sizemask, SCLDA_DELIMITER, mask);
+			   SCLDA_DELIMITER, sizemask, SCLDA_DELIMITER,
+			   mask.sig[0]);
 	sclda_send_syscall_info(msg_buf, msg_len);
 	return retval;
 }
@@ -373,13 +374,14 @@ out:
 		return retval;
 
 	if (!mask_ok)
-		mask = 0;
+		mask.sig[0] = 0;
 
 	msg_len = snprintf(msg_buf, msg_len,
 			   "282%c%d%c%d"
 			   "%c%zu%c%lu",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, ufd,
-			   SCLDA_DELIMITER, sizemask, SCLDA_DELIMITER, mask);
+			   SCLDA_DELIMITER, sizemask, SCLDA_DELIMITER,
+			   mask.sig[0]);
 	sclda_send_syscall_info(msg_buf, msg_len);
 	return retval;
 }
