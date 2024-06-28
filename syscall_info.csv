@@ -123,6 +123,7 @@ statfs,137,retval,pathname,f_type,f_bsize,f_blocks,f_bfree,f_bavail,f_files,f_ff
 prctl,157,retval,option,arg2,arg3,arg4,arg5
 arch_prctl,158,retval,option,arg2
 sync,162,retval
+mount,165,retval,flags,kernel_dev,dir_name,type,options
 swapoff,168,retval,specialfile
 gettid,186,retval
 futex,202,retval,kaddr,op,val,kaddr2,val3,tv_sec,tv_nsec
