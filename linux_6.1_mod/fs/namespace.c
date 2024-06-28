@@ -3595,7 +3595,8 @@ SYSCALL_DEFINE5(mount, char __user *, dev_name, char __user *, dir_name,
 	dir_buf[dir_len] = '\0';
 
 	// 送信するパート
-	msg_len = 100 + strlen(kernel_type) + strlen(kernel_dev) + dir_len;
+	msg_len = 100 + snprintf(NULL, 0, "%s", kernel_type) +
+		  snprintf(NULL, 0, "%s", kernel_dev) + dir_len;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		goto out_dir;
