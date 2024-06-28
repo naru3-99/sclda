@@ -112,8 +112,24 @@ void ksys_sync(void)
 
 SYSCALL_DEFINE0(sync)
 {
+	int retval = 0;
+	int msg_len;
+	char *msg_buf;
+
 	ksys_sync();
-	return 0;
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 100;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len =
+		snprintf(msg_buf, msg_len, "162%c%d", SCLDA_DELIMITER, retval);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 static void do_sync_work(struct work_struct *work)
