@@ -47,27 +47,28 @@ struct sclda_client_struct {
 	struct iov_iter iov_it;
 };
 
-// 文字列を保持するためのノードを定義
-struct sclda_pidinfo_ls {
+// 文字列の情報を保持するための構造体
+struct sclda_iov {
 	int len;
 	char *str;
+};
+
+// PID情報を保持するためのノードを定義
+struct sclda_pidinfo_ls {
 	struct sclda_pidinfo_ls *next;
+	struct sclda_iov pid_info;
 };
 
-// システムコールを送信するための情報を保持するための実装
-struct sclda_syscallinfo_struct {
-	// PIDとutimeに関連する情報
-	int pid_cputime_len;
-	char pid_cputime_msg[SCLDA_PID_CLOCK_SIZE];
-	// システムコールに関連する情報
-	int syscall_msg_len;
-	char *syscall_msg;
-};
-
-// システムコールの情報を保持しておくためのリスト
+// システムコール情報を保持するための構造体
 struct sclda_syscallinfo_ls {
-	struct sclda_syscallinfo_struct *s;
+	// 次の構造体へのポインタ
 	struct sclda_syscallinfo_ls *next;
+	// PIDとcputimeに関連する情報
+	struct sclda_iov pid_time;
+	// システムコールに関連する情報
+	// 大規模バッファに対応するため、配列として扱う
+	int sc_iov_len;
+	struct sclda_iov *syscall;
 };
 
 // sclda_client_structをすべて初期化する関数
@@ -78,14 +79,6 @@ int sclda_send_mutex(char *, int, struct sclda_client_struct *);
 
 // pidを取得する
 int sclda_get_current_pid(void);
-
-// system callを送信するための構造体を初期化する
-int sclda_syscallinfo_init(struct sclda_syscallinfo_struct **ptr, char *msg,
-			   int len);
-// システムコール情報を保持するためのリストに追加
-int sclda_add_syscallinfo(struct sclda_syscallinfo_struct *ptr);
-// システムコールの情報を送信する
-int sclda_sendall_syscallinfo(void *data);
 
 // システムコール情報が大きな文字列だった場合、分割して送信
 int sclda_send_syscall_info(char *msg_buf, int msg_len);
