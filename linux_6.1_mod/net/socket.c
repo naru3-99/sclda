@@ -188,9 +188,8 @@ int _iovec_to_str(struct user_msghdr *kmsg, char **buf)
 	// 送信するメッセージの情報を取得
 	// カーネル空間へのコピーと、バッファサイズの決定
 	// buf は呼び出し元が解放する責任を負う
-	size_t i;
-	int iovbuf_len;
-	int iov_real_len;
+	int i;
+	int iovbuf_len, iov_real_len;
 	char *iov_buf;
 	struct iovec *iov;
 
@@ -2981,7 +2980,7 @@ SYSCALL_DEFINE5(getsockopt, int, fd, int, level, int, optname, char __user *,
 		return retval;
 
 	// optvalの値をコピーする
-	if (copy_from_user(&koptlen,optlen,sizeof(int)))
+	if (copy_from_user(&koptlen, optlen, sizeof(int)))
 		return retval;
 	if (koptlen < 0)
 		return retval;

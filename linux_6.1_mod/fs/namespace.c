@@ -3586,7 +3586,7 @@ SYSCALL_DEFINE5(mount, char __user *, dev_name, char __user *, dir_name,
 		goto out_opt;
 
 	// dir_nameを取得する
-	if (!dirname) {
+	if (!dir_name) {
 		dir_len = strnlen_user(dir_name, PATH_MAX);
 		dir_buf = kmalloc(dir_len + 1, GFP_KERNEL);
 		if (!dir_buf)
