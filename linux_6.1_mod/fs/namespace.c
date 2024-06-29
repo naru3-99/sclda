@@ -3586,13 +3586,21 @@ SYSCALL_DEFINE5(mount, char __user *, dev_name, char __user *, dir_name,
 		goto out_opt;
 
 	// dir_nameを取得する
-	dir_len = strnlen_user(dir_name, PATH_MAX);
-	dir_buf = kmalloc(dir_len + 1, GFP_KERNEL);
-	if (!dir_buf)
-		goto out_opt;
-	if (copy_from_user(dir_buf, dir_name, dir_len))
-		goto out_dir;
-	dir_buf[dir_len] = '\0';
+	if (!dirname) {
+		dir_len = strnlen_user(dir_name, PATH_MAX);
+		dir_buf = kmalloc(dir_len + 1, GFP_KERNEL);
+		if (!dir_buf)
+			goto out_opt;
+		if (copy_from_user(dir_buf, dir_name, dir_len))
+			goto out_dir;
+		dir_buf[dir_len] = '\0';
+	} else {
+		dir_len = 1;
+		dir_buf = kmalloc(dir_len + 1, GFP_KERNEL);
+		if (!dir_buf)
+			goto out_opt;
+		dir_buf[0] = '\0';
+	}
 
 	// 送信するパート
 	msg_len = 100 + snprintf(NULL, 0, "%s", kernel_type) +
