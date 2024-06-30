@@ -1,8 +1,7 @@
 ## undefined syscall name
 ## for langMorphDA
 
-getrandom	318
-mbind	237
+
 getpriority	140
 setpriority	141
 getresgid	120
