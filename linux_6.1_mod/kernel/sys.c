@@ -237,7 +237,7 @@ out:
 	return error;
 }
 
-SYSCALL_DEFINE3(setpriority, int, which, int, who, int, niceval)
+int sclda_setpriority(int which, int who, int niceval)
 {
 	struct task_struct *g, *p;
 	struct user_struct *user;
@@ -270,18 +270,10 @@ SYSCALL_DEFINE3(setpriority, int, which, int, who, int, niceval)
 		if (who)
 			pgrp = find_vpid(who);
 		else
-			pgrp = task_pgrp(current);
-		read_lock(&tasklist_lock);
-		do_each_pid_thread(pgrp, PIDTYPE_PGID, p)
-		{
-			error = set_one_prio(p, niceval, error);
-		}
-		while_each_pid_thread(pgrp, PIDTYPE_PGID, p);
-		read_unlock(&tasklist_lock);
-		break;
-	case PRIO_USER:
-		uid = make_kuid(cred->user_ns, who);
-		user = cred->user;
+		pgrp = tSYSCALL_DEFINE3(setpriority, int, which, int, who, int,
+					niceval) case PRIO_USER:
+			uid = make_kuid(cred->user_ns, who);
+			user = cred->user;
 		if (!who)
 			uid = cred->uid;
 		else if (!uid_eq(uid, cred->uid)) {
@@ -303,6 +295,30 @@ out:
 	return error;
 }
 
+SYSCALL_DEFINE3(setpriority, int, which, int, who, int, niceval)
+{
+	int retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = sclda_setpriority(which, who, niceval);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "141%c%d%c%d"
+			   "%c%d%c%d",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, which,
+			   SCLDA_DELIMITER, who, SCLDA_DELIMITER, niceval);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
+}
 /*
  * Ugh. To avoid negative return values, "getpriority()" will
  * not return the normal nice-value, but a negated value that
@@ -995,8 +1011,10 @@ SYSCALL_DEFINE3(setresgid, gid_t, rgid, gid_t, egid, gid_t, sgid)
 SYSCALL_DEFINE3(getresgid, gid_t __user *, rgidp, gid_t __user *, egidp,
 		gid_t __user *, sgidp)
 {
-	const struct cred *cred = current_cred();
 	int retval;
+	int msg_len;
+	char *msg_buf;
+	const struct cred *cred = current_cred();
 	gid_t rgid, egid, sgid;
 
 	rgid = from_kgid_munged(cred->user_ns, cred->gid);
@@ -1009,6 +1027,22 @@ SYSCALL_DEFINE3(getresgid, gid_t __user *, rgidp, gid_t __user *, egidp,
 		if (!retval)
 			retval = put_user(sgid, sgidp);
 	}
+
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "120%c%d%c%u%c%u%c%u",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
+			   (unsigned int)rgid, SCLDA_DELIMITER,
+			   (unsigned int)egid, SCLDA_DELIMITER,
+			   (unsigned int)sgid);
+	sclda_send_syscall_info(msg_buf, msg_len);
 
 	return retval;
 }
