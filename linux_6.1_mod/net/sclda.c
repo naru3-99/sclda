@@ -150,7 +150,7 @@ int __sclda_send_split(struct sclda_syscallinfo_ls *ptr, int which_port)
 	for (i = 0; i < ptr->sc_iov_len; i++) {
 		offset = 0;
 		len = 0;
-		while (offset < ptr->syscall_msg_len) {
+		while (offset < ptr->syscall[i].len) {
 			// chunksizeごとに文字列を分割
 			len = min(SCLDA_CHUNKSIZE,
 				  (size_t)(ptr->syscall[i].len - offset));
@@ -177,6 +177,63 @@ free_chunkbuf:
 	kfree(chunkbuf);
 out:
 	return retval;
+}
+
+int sclda_sendall_syscallinfo(void *data)
+{
+	int target_index, cnt, send_ret, failed_cnt, i;
+	// while文でイテレーションを回すためのポインタ
+	struct sclda_syscallinfo_ls *curptr, *next;
+	// 失敗したときに退避するための頭・尻
+	struct sclda_syscallinfo_ls temp_head, *temp_tail;
+
+	// ターゲットになるindexを特定
+	target_index = *(int *)data;
+	kfree(data);
+
+	// 順次送信を開始
+	mutex_lock(&syscall_mutex[target_index]);
+	// curptrを初期化し、全リストのデータを送信する
+	curptr = sclda_syscall_heads[target_index].next;
+	cnt = 0;
+	failed_cnt = 0;
+	// ダミ頭・尻の初期化
+	temp_head.next = NULL;
+	temp_tail = &temp_head;
+
+	while (curptr != NULL) {
+		send_ret = __sclda_send_split(curptr, cnt % SCLDA_PORT_NUMBER);
+		next = curptr->next;
+		if (send_ret < 0) {
+			// 送信できていないため、tempに退避する
+			failed_cnt++;
+			temp_tail->next = curptr;
+			temp_tail = temp_tail->next;
+		} else {
+			// 送信できたので解放する
+			kfree(curptr->pid_time.str);
+			for (i = 0; i < curptr->sc_iov_len; i++) {
+				kfree(curptr->syscall[i].str);
+			}
+			kfree(curptr->syscall);
+		}
+		curptr = next;
+		cnt = cnt + 1;
+	}
+	// 頭・尻の再初期化
+	sclda_syscall_heads[target_index].next = temp_head.next;
+	if (temp_tail == &temp_head) {
+		// 全て送信できた場合は、tailも初期化
+		sclda_syscall_tails[target_index] =
+			&sclda_syscall_heads[target_index];
+	} else {
+		sclda_syscall_tails[target_index] = temp_tail;
+		sclda_syscall_tails[target_index]->next = NULL;
+	}
+	sclda_syscallinfo_exist[target_index] = failed_cnt;
+
+	mutex_unlock(&syscall_mutex[target_index]);
+	return 0;
 }
 
 int sclda_syscallinfo_init(struct sclda_syscallinfo_ls **ptr, int num)
@@ -282,64 +339,6 @@ int sclda_send_syscall_info(char *msg_buf, int msg_len)
 out:
 	mutex_unlock(&send_by_kthread);
 	return retval;
-}
-
-int sclda_sendall_syscallinfo(void *data)
-{
-	int target_index, cnt, send_ret, failed_cnt, i;
-	// while文でイテレーションを回すためのポインタ
-	struct sclda_syscallinfo_ls *curptr, *next;
-	// 失敗したときに退避するための頭・尻
-	struct sclda_syscallinfo_ls temp_head, *temp_tail;
-
-	// ターゲットになるindexを特定
-	target_index = *(int *)data;
-	kfree(data);
-
-	// 順次送信を開始
-	mutex_lock(&syscall_mutex[target_index]);
-	// curptrを初期化し、全リストのデータを送信する
-	curptr = sclda_syscall_heads[target_index].next;
-	cnt = 0;
-	failed_cnt = 0;
-	// ダミ頭・尻の初期化
-	temp_head.s = NULL;
-	temp_head.next = NULL;
-	temp_tail = &temp_head;
-
-	while (curptr != NULL) {
-		send_ret = __sclda_send_split(curptr, cnt % SCLDA_PORT_NUMBER);
-		next = curptr->next;
-		if (send_ret < 0) {
-			// 送信できていないため、tempに退避する
-			failed_cnt++;
-			temp_tail->next = curptr;
-			temp_tail = temp_tail->next;
-		} else {
-			// 送信できたので解放する
-			kfree(curptr->pid_time.str);
-			for (i = 0; i < curptr->sc_iov_len; i++) {
-				kfree(curptr->syscall[i]->str);
-				kfree(curptr->syscall[i]);
-			}
-		}
-		curptr = next;
-		cnt = cnt + 1;
-	}
-	// 頭・尻の再初期化
-	sclda_syscall_heads[target_index].next = temp_head.next;
-	if (temp_tail == &temp_head) {
-		// 全て送信できた場合は、tailも初期化
-		sclda_syscall_tails[target_index] =
-			&sclda_syscall_heads[target_index];
-	} else {
-		sclda_syscall_tails[target_index] = temp_tail;
-		sclda_syscall_tails[target_index]->next = NULL;
-	}
-	sclda_syscallinfo_exist[target_index] = failed_cnt;
-
-	mutex_unlock(&syscall_mutex[target_index]);
-	return 0;
 }
 
 struct sclda_client_struct *sclda_get_pidppid_struct(void)
