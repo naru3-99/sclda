@@ -309,7 +309,7 @@ out:
  * has been offset by 20 (ie it returns 40..1 instead of -20..19)
  * to stay compatible.
  */
-SYSCALL_DEFINE2(getpriority, int, which, int, who)
+long sclda_getpriority(int which, int who)
 {
 	struct task_struct *g, *p;
 	struct user_struct *user;
@@ -373,6 +373,28 @@ SYSCALL_DEFINE2(getpriority, int, which, int, who)
 out_unlock:
 	rcu_read_unlock();
 
+	return retval;
+}
+SYSCALL_DEFINE2(getpriority, int, which, int, who)
+{
+	long retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = sclda_getpriority(which, who);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "140%c%ld%c%d%c%d",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, which,
+			   SCLDA_DELIMITER, who);
+	sclda_send_syscall_info(msg_buf, msg_len);
 	return retval;
 }
 
