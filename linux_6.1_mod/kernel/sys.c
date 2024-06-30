@@ -1005,7 +1005,27 @@ error:
 
 SYSCALL_DEFINE3(setresgid, gid_t, rgid, gid_t, egid, gid_t, sgid)
 {
-	return __sys_setresgid(rgid, egid, sgid);
+	long retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = __sys_setresgid(rgid, egid, sgid);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "119%c%d%c%u%c%u%c%u",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
+			   (unsigned int)rgid, SCLDA_DELIMITER,
+			   (unsigned int)egid, SCLDA_DELIMITER,
+			   (unsigned int)sgid);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 SYSCALL_DEFINE3(getresgid, gid_t __user *, rgidp, gid_t __user *, egidp,
