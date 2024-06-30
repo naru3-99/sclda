@@ -270,10 +270,18 @@ int sclda_setpriority(int which, int who, int niceval)
 		if (who)
 			pgrp = find_vpid(who);
 		else
-		pgrp = tSYSCALL_DEFINE3(setpriority, int, which, int, who, int,
-					niceval) case PRIO_USER:
-			uid = make_kuid(cred->user_ns, who);
-			user = cred->user;
+			pgrp = task_pgrp(current);
+		read_lock(&tasklist_lock);
+		do_each_pid_thread(pgrp, PIDTYPE_PGID, p)
+		{
+			error = set_one_prio(p, niceval, error);
+		}
+		while_each_pid_thread(pgrp, PIDTYPE_PGID, p);
+		read_unlock(&tasklist_lock);
+		break;
+	case PRIO_USER:
+		uid = make_kuid(cred->user_ns, who);
+		user = cred->user;
 		if (!who)
 			uid = cred->uid;
 		else if (!uid_eq(uid, cred->uid)) {
