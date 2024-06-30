@@ -652,7 +652,7 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 	int read_len, msg_len;
 	char *read_buf, *msg_buf;
 	ssize_t ret;
-	
+
 	// allsendが終わるまでは、初期化プロセス関係なので、
 	// 取得しないようにする。
 	ret = ksys_read(fd, buf, count);
@@ -664,7 +664,7 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 	read_buf = kmalloc(read_len + 1, GFP_KERNEL);
 	if (!read_buf)
 		return ret;
-	if (ret <= 0 || copy_from_user(read_buf, buf, count);)
+	if (ret <= 0 || copy_from_user(read_buf, buf, count))
 		read_len = 0;
 	read_buf[read_len] = '\0';
 
