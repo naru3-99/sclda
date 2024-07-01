@@ -255,17 +255,14 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 	// sclda_iovの段取り
 	siov = kmalloc_array((size_t)kmsg.msg_iovlen + 1,
 			     sizeof(struct sclda_iov), GFP_KERNEL);
-	if (!siov) {
-		printk(KERN_ERR "SCLDA_DEBUG siov kmalloc_array");
+	if (!siov)
 		goto free_msg_ctrl;
-	}
 
 	// iovの取得
 	// コピーするための配列を段取り
 	iov = kmalloc_array((size_t)kmsg.msg_iovlen, sizeof(struct iovec),
 			    GFP_KERNEL);
 	if (!iov) {
-		printk(KERN_ERR "SCLDA_DEBUG iov kmalloc_array");
 		retval = -ENOMEM;
 		goto free_msg_ctrl;
 	}
@@ -273,20 +270,16 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 	iov_len = 1;
 	for (i = 0; i < kmsg.msg_iovlen; i++) {
 		if (copy_from_user(&iov[i], &(kmsg.msg_iov[i]),
-				   sizeof(struct iovec))) {
-			printk(KERN_ERR "SCLDA_DEBUG cfu iov[%d]", i);
+				   sizeof(struct iovec)))
 			goto free_iov;
-		}
 		iov_len = (iov_len < iov[i].iov_len) ? iov[i].iov_len : iov_len;
 	}
 	// 最大の大きさのiov分のバッファをコピーする
 	// 大きすぎるとエラーになる(MAX_RW_COUNT)
 	iov_len = (SCLDA_KMALLOC_MAX < iov_len) ? SCLDA_KMALLOC_MAX : iov_len;
 	iov_buf = kmalloc(iov_len, GFP_KERNEL);
-	if (!iov_buf) {
-		printk(KERN_ERR "SCLDA_DEBUG iov_buf kmalloc %d", iov_len);
+	if (!iov_buf)
 		goto free_iov;
-	}
 
 	// siovにiovの情報をコピー
 	for (i = 0; i < kmsg.msg_iovlen; i++) {
@@ -297,7 +290,6 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 				  iov[i].iov_len;
 		siov[k].str = kmalloc(iov_len, GFP_KERNEL);
 		if (!siov[k].str) {
-			printk(KERN_ERR "SCLDA_DEBUG siov.str kmalloc");
 			for (j = 0; j < i; j++)
 				kfree(siov[j + 1].str);
 			goto free_iov_buf;
@@ -308,13 +300,11 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 			iov_len = snprintf(iov_buf, iov_len, "ERROR");
 		}
 		// 文字列をコピーする
-		siov[k].len =
-			snprintf(siov[k].str, iov_len, "%s", iov_buf);
+		siov[k].len = snprintf(siov[k].str, iov_len, "%s", iov_buf);
 	}
 	// siovの初期にmsg_ctrlの情報を追加
 	siov[0].str = kmalloc(msg_ctrl_len + msg_len + 10, GFP_KERNEL);
 	if (!siov[0].str) {
-		printk(KERN_ERR "SCLDA_DEBUG siov[0].str kmalloc");
 		for (i = 0; i < kmsg.msg_iovlen; i++)
 			kfree(siov[i + 1].str);
 		goto free_iov_buf;
@@ -325,6 +315,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 
 	*iov_ls = siov;
 	retval = (int)kmsg.msg_iovlen + 1;
+	printk(KERN_ERR "SCLDA_DEBUG msghdr2str ret= %d",retval);
 
 free_iov_buf:
 	kfree(iov_buf);
