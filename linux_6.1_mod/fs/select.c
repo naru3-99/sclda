@@ -1279,7 +1279,7 @@ SYSCALL_DEFINE5(ppoll, struct pollfd __user *, ufds, unsigned int, nfds,
 	}
 	if (!copy_from_user(&ksm, sigmask, sizeof(sigset_t))) {
 		real_slen += snprintf(struct_buf + real_slen,
-				      struct_len - real_slen, "%lu", ksm);
+				      struct_len - real_slen, "%lu", ksm[0]);
 	}
 
 	// 送信するパート
