@@ -248,18 +248,21 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 	msg_ctrl_len = snprintf(msg_ctrl_buf, msg_ctrl_len, "%u%c%s%c%s",
 				kmsg.msg_flags, SCLDA_DELIMITER, control_buf,
 				SCLDA_DELIMITER, msgname_buf);
-	printk(KERN_ERR "SCLDA_DEBUG %s", msg_ctrl_buf);
 
 	// sclda_iovの段取り
-	siov = kmalloc_array(kmsg.msg_iovlen + 1, sizeof(struct sclda_iov),
-			     GFP_KERNEL);
-	if (!siov)
+	siov = kmalloc_array((size_t)kmsg.msg_iovlen + 1,
+			     sizeof(struct sclda_iov), GFP_KERNEL);
+	if (!siov) {
+		printk(KERN_ERR "SCLDA_DEBUG siov kmalloc_array");
 		goto free_msg_ctrl;
+	}
 
 	// iovの取得
 	// コピーするための配列を段取り
-	iov = kmalloc_array(kmsg.msg_iovlen, sizeof(struct iovec), GFP_KERNEL);
+	iov = kmalloc_array((size_t)kmsg.msg_iovlen, sizeof(struct iovec),
+			    GFP_KERNEL);
 	if (!iov) {
+		printk(KERN_ERR "SCLDA_DEBUG iov kmalloc_array");
 		retval = -ENOMEM;
 		goto free_msg_ctrl;
 	}
@@ -267,16 +270,20 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 	iov_len = -1;
 	for (i = 0; i < kmsg.msg_iovlen; i++) {
 		if (copy_from_user(&iov[i], &(kmsg.msg_iov[i]),
-				   sizeof(struct iovec)))
+				   sizeof(struct iovec))) {
+			printk(KERN_ERR "SCLDA_DEBUG cfu iov[%d]", i);
 			goto free_iov;
+		}
 		iov_len = (iov_len < iov[i].iov_len) ? iov[i].iov_len : iov_len;
 	}
 	// 最大の大きさのiov分のバッファをコピーする
 	// 大きすぎるとエラーになる(MAX_RW_COUNT)
 	iov_len = (8000 < iov_len) ? 8000 : iov_len;
 	iov_buf = kmalloc(iov_len, GFP_KERNEL);
-	if (!iov_buf)
+	if (!iov_buf) {
+		printk(KERN_ERR "SCLDA_DEBUG iov_buf kmalloc");
 		goto free_iov;
+	}
 
 	// siovにiovの情報をコピー
 	for (i = 0; i < kmsg.msg_iovlen; i++) {
@@ -284,6 +291,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 		// strをmallocする
 		siov[k].str = kmalloc(iov[i].iov_len, GFP_KERNEL);
 		if (!siov[k].str) {
+			printk(KERN_ERR "SCLDA_DEBUG siov.str kmalloc");
 			for (j = 0; j < i; j++)
 				kfree(siov[j + 1].str);
 			goto free_iov_buf;
@@ -301,6 +309,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 	// siovの初期にmsg_ctrlの情報を追加
 	siov[0].str = kmalloc(msg_ctrl_len + msg_len + 10, GFP_KERNEL);
 	if (!siov[0].str) {
+		printk(KERN_ERR "SCLDA_DEBUG siov[0].str kmalloc");
 		for (i = 0; i < kmsg.msg_iovlen; i++)
 			kfree(siov[i + 1].str);
 		goto free_iov_buf;
@@ -310,7 +319,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 			       msg_ctrl_buf);
 
 	*iov_ls = siov;
-	retval = kmsg.msg_iovlen + 1;
+	retval = (int)kmsg.msg_iovlen + 1;
 
 free_iov_buf:
 	kfree(iov_buf);
