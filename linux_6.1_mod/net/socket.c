@@ -218,7 +218,8 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 	// msgname, iov, controlを取得する
 	int retval = -EFAULT;
 	char *msgname_buf, *control_buf, *msg_ctrl_buf, *iov_buf;
-	int msgname_len, control_len, msg_ctrl_len, iov_len;
+	int msgname_len, control_len, msg_ctrl_len;
+	size_t iov_len;
 	int i, j, k;
 	struct iovec *iov;
 	struct sclda_iov *siov;
@@ -269,16 +270,14 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 		goto free_msg_ctrl;
 	}
 	// カーネル空間にiovをコピー・最大サイズを計る
-	iov_len = 0;
+	iov_len = 1;
 	for (i = 0; i < kmsg.msg_iovlen; i++) {
 		if (copy_from_user(&iov[i], &(kmsg.msg_iov[i]),
 				   sizeof(struct iovec))) {
 			printk(KERN_ERR "SCLDA_DEBUG cfu iov[%d]", i);
 			goto free_iov;
 		}
-		iov_len = (iov_len < (int)iov[i].iov_len) ?
-				  (int)iov[i].iov_len :
-				  iov_len;
+		iov_len = (iov_len < iov[i].iov_len) ? iov[i].iov_len : iov_len;
 	}
 	// 最大の大きさのiov分のバッファをコピーする
 	// 大きすぎるとエラーになる(MAX_RW_COUNT)
@@ -304,16 +303,13 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 			goto free_iov_buf;
 		}
 		// iov_baseをカーネルにコピー
-		iov_len = (SCLDA_KMALLOC_MAX < iov[i].iov_len) ?
-				  SCLDA_KMALLOC_MAX :
-				  iov[i].iov_len;
-		if (copy_from_user(iov_buf, iov[i].iov_base, iov[i].iov_len)) {
+		if (copy_from_user(iov_buf, iov[i].iov_base, iov_len)) {
 			// 失敗した場合は、エラーメッセージを入れとく
 			iov_len = snprintf(iov_buf, iov_len, "ERROR");
 		}
 		// 文字列をコピーする
 		siov[k].len =
-			snprintf(siov[k].str, iov[i].iov_len, "%s", iov_buf);
+			snprintf(siov[k].str, iov_len, "%s", iov_buf);
 	}
 	// siovの初期にmsg_ctrlの情報を追加
 	siov[0].str = kmalloc(msg_ctrl_len + msg_len + 10, GFP_KERNEL);
