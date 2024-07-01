@@ -250,22 +250,22 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 				SCLDA_DELIMITER, msgname_buf);
 
 	// sclda_iovの段取り
-	siov = kmalloc_array(kmsg->msg_iovlen + 1, sizeof(struct sclda_iov),
+	siov = kmalloc_array(kmsg.msg_iovlen + 1, sizeof(struct sclda_iov),
 			     GFP_KERNEL);
 	if (!siov)
 		goto free_msg_ctrl;
 
 	// iovの取得
 	// コピーするための配列を段取り
-	iov = kmalloc_array(kmsg->msg_iovlen, sizeof(struct iovec), GFP_KERNEL);
+	iov = kmalloc_array(kmsg.msg_iovlen, sizeof(struct iovec), GFP_KERNEL);
 	if (!iov) {
 		retval = -ENOMEM;
 		goto free_msg_ctrl;
 	}
 	// カーネル空間にiovをコピー・最大サイズを計る
 	iov_len = -1;
-	for (i = 0; i < kmsg->msg_iovlen; i++) {
-		if (copy_from_user(&iov[i], &(kmsg->msg_iov[i]),
+	for (i = 0; i < kmsg.msg_iovlen; i++) {
+		if (copy_from_user(&iov[i], &(kmsg.msg_iov[i]),
 				   sizeof(struct iovec)))
 			goto free_iov;
 		iov_len = (iov_len < iov[i].iov_len) ? iov[i].iov_len : iov_len;
@@ -278,7 +278,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 		goto free_iov;
 
 	// siovにiovの情報をコピー
-	for (i = 0; i < kmsg->msg_iovlen; i++) {
+	for (i = 0; i < kmsg.msg_iovlen; i++) {
 		k = i + 1;
 		// strをmallocする
 		siov[k].str = kmalloc(iov[k].iov_len, GFP_KERNEL);
@@ -300,7 +300,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 	// siovの初期にmsg_ctrlの情報を追加
 	siov[0].str = kmalloc(msg_ctrl_len + msg_len + 10, GFP_KERNEL);
 	if (!siov[0].str) {
-		for (i = 0; i < kmsg->msg_iovlen; i++)
+		for (i = 0; i < kmsg.msg_iovlen; i++)
 			kfree(siov[i + 1].str);
 		goto free_iov_buf;
 	}
@@ -308,7 +308,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 			       "%s%c%s", msg_buf, SCLDA_DELIMITER msg_ctrl_buf);
 
 	*iov_ls = siov;
-	retval = kmsg->msg_iovlen + 1;
+	retval = kmsg.msg_iovlen + 1;
 
 free_iov_buf:
 	kfree(iov_buf);
@@ -2070,7 +2070,7 @@ SYSCALL_DEFINE3(bind, int, fd, struct sockaddr __user *, umyaddr, int, addrlen)
 		return retval;
 
 	// sockaddrを文字列にする
-	sa_len = SCLDA_INFOBUF_LEN + 100;
+	sa_len = 200;
 	sa_buf = kmalloc(sa_len, GFP_KERNEL);
 	if (!sa_buf)
 		return retval;
@@ -2279,7 +2279,7 @@ SYSCALL_DEFINE4(accept4, int, fd, struct sockaddr __user *, upeer_sockaddr,
 		return retval;
 
 	// sockaddrを文字列に変換
-	int struct_len = SCLDA_INFOBUF_LEN + 100;
+	int struct_len = 200;
 	char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
 	if (!struct_buf)
 		return retval;
@@ -2323,7 +2323,7 @@ SYSCALL_DEFINE3(accept, int, fd, struct sockaddr __user *, upeer_sockaddr,
 		return retval;
 
 	// sockaddrを文字列に変換
-	int struct_len = SCLDA_INFOBUF_LEN + 100;
+	int struct_len = 200;
 	char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
 	if (!struct_buf)
 		return retval;
@@ -2416,7 +2416,7 @@ SYSCALL_DEFINE3(connect, int, fd, struct sockaddr __user *, uservaddr, int,
 		return retval;
 
 	// sockaddrを文字列に変換
-	int struct_len = SCLDA_INFOBUF_LEN + 100;
+	int struct_len = 200;
 	char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
 	if (!struct_buf)
 		return retval;
@@ -2499,7 +2499,7 @@ SYSCALL_DEFINE3(getsockname, int, fd, struct sockaddr __user *, usockaddr,
 		return retval;
 
 	// sockaddrを文字列に変換
-	struct_len = SCLDA_INFOBUF_LEN + 100;
+	struct_len = 200;
 	struct_buf = kmalloc(struct_len, GFP_KERNEL);
 	if (!struct_buf)
 		return retval;
@@ -2577,7 +2577,7 @@ SYSCALL_DEFINE3(getpeername, int, fd, struct sockaddr __user *, usockaddr,
 		return retval;
 
 	// sockaddrを文字列に変換
-	struct_len = SCLDA_INFOBUF_LEN + 100;
+	struct_len = 200;
 	struct_buf = kmalloc(struct_len, GFP_KERNEL);
 	if (!struct_buf)
 		return retval;
@@ -2662,7 +2662,7 @@ SYSCALL_DEFINE6(sendto, int, fd, void __user *, buff, size_t, len, unsigned int,
 		return retval;
 
 	// sockaddrを文字列に変換
-	int struct_len = SCLDA_INFOBUF_LEN + 100;
+	int struct_len = 200;
 	char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
 	if (!struct_buf)
 		return retval;
@@ -2803,7 +2803,7 @@ SYSCALL_DEFINE6(recvfrom, int, fd, void __user *, ubuf, size_t, size,
 		return ret;
 
 	// sockaddrを文字列に変換
-	int struct_len = SCLDA_INFOBUF_LEN + 100;
+	int struct_len = 200;
 	char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
 	if (!struct_buf) {
 		kfree(recv_buf);
@@ -3326,7 +3326,7 @@ SYSCALL_DEFINE3(sendmsg, int, fd, struct user_msghdr __user *, msg,
 		sclda_send_syscall_info(msg_buf, msg_len);
 		return retval;
 	}
-	sclda_send_syscall_info2(sclda_iov, ret);
+	sclda_send_syscall_info2(iov_ls, ret);
 	kfree(msg_buf);
 	return retval;
 }
@@ -3562,7 +3562,7 @@ SYSCALL_DEFINE3(recvmsg, int, fd, struct user_msghdr __user *, msg,
 		sclda_send_syscall_info(msg_buf, msg_len);
 		return retval;
 	}
-	sclda_send_syscall_info2(sclda_iov, ret);
+	sclda_send_syscall_info2(iov_ls, ret);
 
 	kfree(msg_buf);
 	return retval;
