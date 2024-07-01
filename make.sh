@@ -29,7 +29,9 @@ rm -rf ./temp1
 mv ./temp2 ./.config
 
 make localmodconfig
-make -j$(nproc)
+echo start
+make -j$(nproc) > out.txt
+echo finish
 sudo make modules_install
 sudo make install
 sudo systemctl set-default multi-user.target
