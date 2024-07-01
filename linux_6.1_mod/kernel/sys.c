@@ -1027,7 +1027,7 @@ SYSCALL_DEFINE3(setresgid, gid_t, rgid, gid_t, egid, gid_t, sgid)
 	if (!msg_buf)
 		return retval;
 
-	msg_len = snprintf(msg_buf, msg_len, "119%c%d%c%u%c%u%c%u",
+	msg_len = snprintf(msg_buf, msg_len, "119%c%ld%c%u%c%u%c%u",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
 			   (unsigned int)rgid, SCLDA_DELIMITER,
 			   (unsigned int)egid, SCLDA_DELIMITER,
