@@ -283,7 +283,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 	iov_len = (SCLDA_KMALLOC_MAX < iov_len) ? SCLDA_KMALLOC_MAX : iov_len;
 	iov_buf = kmalloc(iov_len, GFP_KERNEL);
 	if (!iov_buf) {
-		printk(KERN_ERR "SCLDA_DEBUG iov_buf kmalloc");
+		printk(KERN_ERR "SCLDA_DEBUG iov_buf kmalloc %d",iov_len);
 		goto free_iov;
 	}
 
@@ -291,7 +291,10 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 	for (i = 0; i < kmsg.msg_iovlen; i++) {
 		k = i + 1;
 		// strをmallocする
-		siov[k].str = kmalloc(iov[i].iov_len, GFP_KERNEL);
+		iov_len = (SCLDA_KMALLOC_MAX < iov[i].iov_len) ?
+				  SCLDA_KMALLOC_MAX :
+				  iov[i].iov_len;
+		siov[k].str = kmalloc(iov_len, GFP_KERNEL);
 		if (!siov[k].str) {
 			printk(KERN_ERR "SCLDA_DEBUG siov.str kmalloc");
 			for (j = 0; j < i; j++)
