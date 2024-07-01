@@ -892,7 +892,7 @@ sclda:
 	if (!msg_buf)
 		return retval;
 
-	msg_len = snprintf(msg_buf, msg_len, "15%c%d%c%u%c%u%c%lu",
+	msg_len = snprintf(msg_buf, msg_len, "16%c%d%c%u%c%u%c%lu",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
 			   SCLDA_DELIMITER, cmd, SCLDA_DELIMITER, arg);
 	sclda_send_syscall_info(msg_buf, msg_len);

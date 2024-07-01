@@ -355,9 +355,11 @@ int sclda_send_syscall_info(char *msg_buf, int msg_len)
 	if (sclda_syscallinfo_exist[sclda_sci_index] < SCLDA_NUM_TO_SEND_SINFO)
 		goto out;
 	sclda_start_to_send();
+
 out:
 	mutex_unlock(&send_by_kthread);
 	return retval;
+
 free_syscallinfo:
 	kfree(s->pid_time.str);
 	kfree(s);
