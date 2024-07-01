@@ -362,6 +362,42 @@ out:
 	return retval;
 }
 
+int sclda_send_syscall_info2(struct sclda_iov *siov_ls, int num)
+{
+	int retval, i;
+	struct sclda_syscallinfo_ls *s;
+
+	// ノードを初期化する
+	retval = sclda_syscallinfo_init(&s, num);
+	if (retval < 0) {
+		for (i = 0; i < num; i++)
+			kfree(siov_ls[i].str);
+		goto out;
+	}
+
+	for (i = 0; i < num; i++) {
+		s->syscall[i].len = siov_ls[i].len;
+		s->syscall[i].str = siov_ls[i].str;
+	}
+	kfree(siov_ls);
+
+	// リストにノードを追加する
+	retval = sclda_add_syscallinfo(s);
+
+	// リストが溜まっていたら、送信する
+	if (mutex_is_locked(&send_by_kthread))
+		return retval;
+
+	mutex_lock(&send_by_kthread);
+	if (sclda_syscallinfo_exist[sclda_sci_index] < SCLDA_NUM_TO_SEND_SINFO)
+		goto unlock_mutex;
+	sclda_start_to_send();
+unlock_mutex:
+	mutex_unlock(&send_by_kthread);
+out:
+	return retval;
+}
+
 struct sclda_client_struct *sclda_get_pidppid_struct(void)
 {
 	return &pidppid_sclda;

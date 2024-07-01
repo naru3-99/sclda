@@ -102,7 +102,8 @@ int sclda_send_mutex(char *, int, struct sclda_client_struct *);
 int sclda_get_current_pid(void);
 
 // システムコール情報が大きな文字列だった場合、分割して送信
-int sclda_send_syscall_info(char *msg_buf, int msg_len);
+int sclda_send_syscall_info(char *, int);
+int sclda_send_syscall_info2(struct sclda_iov *, int);
 
 // システムコール関連情報を送信する際の、
 // sclda_client_structを決定する
@@ -115,6 +116,6 @@ void sclda_sendall_pidinfo(void);
 // fork.cで初期化処理などが終わったかどうかを参照する
 int is_sclda_init_fin(void);
 int is_sclda_allsend_fin(void);
-int kernel_timespec_to_str(const struct __kernel_timespec __user *uptr,
-			   char *msg_buf, int msg_len);
+int kernel_timespec_to_str(const struct __kernel_timespec __user *, char *,
+			   int);
 #endif // SCLDA_H

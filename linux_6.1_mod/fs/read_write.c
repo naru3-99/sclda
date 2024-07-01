@@ -660,7 +660,7 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 		return ret;
 
 	// システムコールで読み込んだ情報を取得
-	read_len = (count > MAX_RW_COUNT) ? MAX_RW_COUNT : (int)count;
+	read_len = (count > MAX_RW_COUNT) ? MAX_RW_COUNT - 100 : (int)count;
 	read_buf = kmalloc(read_len + 1, GFP_KERNEL);
 	if (!read_buf)
 		return ret;
@@ -718,7 +718,7 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
 
 	// writeで書き込むデータが格納されているメモリに
 	// アクセスし、データを読み込む
-	write_len = (count > MAX_RW_COUNT) ? MAX_RW_COUNT : (int)count;
+	write_len = (count > MAX_RW_COUNT) ? MAX_RW_COUNT - 100 : (int)count;
 	write_buf = kmalloc(write_len + 1, GFP_KERNEL);
 	if (!write_buf)
 		return retval;
@@ -727,7 +727,7 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
 	write_buf[write_len] = '\0';
 
 	// 送信するデータをひとまとめにする
-	msg_len = write_len + 200;
+	msg_len = write_len + 100;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		goto free_write;
