@@ -248,6 +248,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 	msg_ctrl_len = snprintf(msg_ctrl_buf, msg_ctrl_len, "%u%c%s%c%s",
 				kmsg.msg_flags, SCLDA_DELIMITER, control_buf,
 				SCLDA_DELIMITER, msgname_buf);
+	printk(KERN_ERR "SCLDA_DEBUG %s", msg_ctrl_buf);
 
 	// sclda_iovの段取り
 	siov = kmalloc_array(kmsg.msg_iovlen + 1, sizeof(struct sclda_iov),
@@ -281,21 +282,21 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 	for (i = 0; i < kmsg.msg_iovlen; i++) {
 		k = i + 1;
 		// strをmallocする
-		siov[k].str = kmalloc(iov[k].iov_len, GFP_KERNEL);
+		siov[k].str = kmalloc(iov[i].iov_len, GFP_KERNEL);
 		if (!siov[k].str) {
 			for (j = 0; j < i; j++)
 				kfree(siov[j + 1].str);
 			goto free_iov_buf;
 		}
 		// iov_baseをカーネルにコピー
-		iov_len = (8000 < iov[k].iov_len) ? 8000 : iov[k].iov_len;
-		if (copy_from_user(iov_buf, iov[k].iov_base, iov[k].iov_len)) {
+		iov_len = (8000 < iov[i].iov_len) ? 8000 : iov[i].iov_len;
+		if (copy_from_user(iov_buf, iov[i].iov_base, iov[i].iov_len)) {
 			// 失敗した場合は、エラーメッセージを入れとく
 			iov_len = snprintf(iov_buf, iov_len, "ERROR");
 		}
 		// 文字列をコピーする
 		siov[k].len =
-			snprintf(siov[k].str, iov[k].iov_len, "%s", iov_buf);
+			snprintf(siov[k].str, iov[i].iov_len, "%s", iov_buf);
 	}
 	// siovの初期にmsg_ctrlの情報を追加
 	siov[0].str = kmalloc(msg_ctrl_len + msg_len + 10, GFP_KERNEL);
