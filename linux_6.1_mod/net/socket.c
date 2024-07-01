@@ -305,7 +305,8 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 		goto free_iov_buf;
 	}
 	siov[0].len = snprintf(siov[0].str, msg_ctrl_len + msg_len + 10,
-			       "%s%c%s", msg_buf, SCLDA_DELIMITER msg_ctrl_buf);
+			       "%s%c%s", msg_buf, SCLDA_DELIMITER,
+			       msg_ctrl_buf);
 
 	*iov_ls = siov;
 	retval = kmsg.msg_iovlen + 1;
