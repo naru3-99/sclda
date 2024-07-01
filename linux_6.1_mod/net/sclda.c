@@ -257,7 +257,7 @@ int sclda_sendall_syscallinfo(void *data)
 	return 0;
 }
 
-int sclda_syscallinfo_init(struct sclda_syscallinfo_ls **ptr, int num)
+int sclda_syscallinfo_init(struct sclda_syscallinfo_ls **ptr)
 {
 	// メモリ割り当て
 	struct sclda_syscallinfo_ls *s;
@@ -268,10 +268,6 @@ int sclda_syscallinfo_init(struct sclda_syscallinfo_ls **ptr, int num)
 	s->pid_time.str = kmalloc(SCLDA_PID_CLOCK_SIZE, GFP_KERNEL);
 	if (!(s->pid_time.str))
 		goto free_scinfo;
-
-	s->syscall = kmalloc_array(num, sizeof(struct sclda_iov), GFP_KERNEL);
-	if (!(s->syscall))
-		goto free_pidstr;
 
 	// メモリ割り当てが成功したら、情報を初期化する
 	s->next = NULL;
@@ -284,8 +280,6 @@ int sclda_syscallinfo_init(struct sclda_syscallinfo_ls **ptr, int num)
 	*ptr = s;
 	return 0;
 
-free_pidstr:
-	kfree(s->pid_time.str);
 free_scinfo:
 	kfree(s);
 out:
@@ -338,11 +332,16 @@ int sclda_send_syscall_info(char *msg_buf, int msg_len)
 	struct sclda_syscallinfo_ls *s;
 
 	// ノードを初期化する
-	retval = sclda_syscallinfo_init(&s, 1);
+	retval = sclda_syscallinfo_init(&s);
 	if (retval < 0) {
 		kfree(msg_buf);
 		return retval;
 	}
+
+	s->syscall = kmalloc_array(1, sizeof(struct sclda_iov), GFP_KERNEL);
+	if (!(s->syscall))
+		goto free_syscallinfo;
+	s->sc_iov_len = 1;
 	s->syscall[0].len = msg_len;
 	s->syscall[0].str = msg_buf;
 
@@ -360,33 +359,31 @@ int sclda_send_syscall_info(char *msg_buf, int msg_len)
 out:
 	mutex_unlock(&send_by_kthread);
 	return retval;
+free_syscallinfo:
+	kfree(s->pid_time.str);
+	kfree(s);
+	kfree(msg_buf);
+	return -ENOMEM;
 }
 
 int sclda_send_syscall_info2(struct sclda_iov *siov_ls, int num)
 {
-	int retval, i;
+	int retval;
 	struct sclda_syscallinfo_ls *s;
 
 	// ノードを初期化する
-	retval = sclda_syscallinfo_init(&s, num);
-	if (retval < 0) {
-		for (i = 0; i < num; i++)
-			kfree(siov_ls[i].str);
+	retval = sclda_syscallinfo_init(&s);
+	if (retval < 0)
 		goto out;
-	}
-
-	for (i = 0; i < num; i++) {
-		s->syscall[i].len = siov_ls[i].len;
-		s->syscall[i].str = siov_ls[i].str;
-	}
-	kfree(siov_ls);
+	s->syscall = siov_ls;
+	s->sc_iov_len = num;
 
 	// リストにノードを追加する
 	retval = sclda_add_syscallinfo(s);
 
 	// リストが溜まっていたら、送信する
 	if (mutex_is_locked(&send_by_kthread))
-		return retval;
+		goto out;
 
 	mutex_lock(&send_by_kthread);
 	if (sclda_syscallinfo_exist[sclda_sci_index] < SCLDA_NUM_TO_SEND_SINFO)

@@ -315,7 +315,6 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 
 	*iov_ls = siov;
 	retval = (int)kmsg.msg_iovlen + 1;
-	printk(KERN_ERR "SCLDA_DEBUG msghdr2str ret= %d",retval);
 
 free_iov_buf:
 	kfree(iov_buf);
