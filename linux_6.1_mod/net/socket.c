@@ -110,6 +110,8 @@
 #include <linux/ptp_clock_kernel.h>
 #include <linux/un.h>
 
+#define SCLDA_KMALLOC_MAX 2000
+
 int sockaddr_to_str(struct sockaddr_storage *ss, char *buf, int len)
 {
 	// sockaddr構造体から
@@ -278,7 +280,7 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 	}
 	// 最大の大きさのiov分のバッファをコピーする
 	// 大きすぎるとエラーになる(MAX_RW_COUNT)
-	iov_len = (8000 < iov_len) ? 8000 : iov_len;
+	iov_len = (SCLDA_KMALLOC_MAX < iov_len) ? SCLDA_KMALLOC_MAX : iov_len;
 	iov_buf = kmalloc(iov_len, GFP_KERNEL);
 	if (!iov_buf) {
 		printk(KERN_ERR "SCLDA_DEBUG iov_buf kmalloc");
@@ -297,7 +299,9 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 			goto free_iov_buf;
 		}
 		// iov_baseをカーネルにコピー
-		iov_len = (8000 < iov[i].iov_len) ? 8000 : iov[i].iov_len;
+		iov_len = (SCLDA_KMALLOC_MAX < iov[i].iov_len) ?
+				  SCLDA_KMALLOC_MAX :
+				  iov[i].iov_len;
 		if (copy_from_user(iov_buf, iov[i].iov_base, iov[i].iov_len)) {
 			// 失敗した場合は、エラーメッセージを入れとく
 			iov_len = snprintf(iov_buf, iov_len, "ERROR");
