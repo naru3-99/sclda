@@ -275,7 +275,6 @@ int sclda_syscallinfo_init(struct sclda_syscallinfo_ls **ptr)
 				   "%d%c%llu%c", sclda_get_current_pid(),
 				   SCLDA_DELIMITER, sched_clock(),
 				   SCLDA_DELIMITER);
-	s->sc_iov_len = num;
 
 	*ptr = s;
 	return 0;
