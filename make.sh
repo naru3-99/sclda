@@ -32,4 +32,5 @@ make localmodconfig
 make -j$(nproc)
 sudo make modules_install
 sudo make install
+sudo systemctl set-default multi-user.target
 # sudo reboot
