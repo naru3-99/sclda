@@ -110,7 +110,7 @@
 #include <linux/ptp_clock_kernel.h>
 #include <linux/un.h>
 
-#define SCLDA_KMALLOC_MAX 2000
+#define SCLDA_KMALLOC_MAX 8000
 
 int sockaddr_to_str(struct sockaddr_storage *ss, char *buf, int len)
 {
@@ -269,21 +269,23 @@ int user_msghdr_to_str(const struct user_msghdr __user *umsg,
 		goto free_msg_ctrl;
 	}
 	// カーネル空間にiovをコピー・最大サイズを計る
-	iov_len = -1;
+	iov_len = 0;
 	for (i = 0; i < kmsg.msg_iovlen; i++) {
 		if (copy_from_user(&iov[i], &(kmsg.msg_iov[i]),
 				   sizeof(struct iovec))) {
 			printk(KERN_ERR "SCLDA_DEBUG cfu iov[%d]", i);
 			goto free_iov;
 		}
-		iov_len = (iov_len < iov[i].iov_len) ? iov[i].iov_len : iov_len;
+		iov_len = (iov_len < (int)iov[i].iov_len) ?
+				  (int)iov[i].iov_len :
+				  iov_len;
 	}
 	// 最大の大きさのiov分のバッファをコピーする
 	// 大きすぎるとエラーになる(MAX_RW_COUNT)
 	iov_len = (SCLDA_KMALLOC_MAX < iov_len) ? SCLDA_KMALLOC_MAX : iov_len;
 	iov_buf = kmalloc(iov_len, GFP_KERNEL);
 	if (!iov_buf) {
-		printk(KERN_ERR "SCLDA_DEBUG iov_buf kmalloc %d",iov_len);
+		printk(KERN_ERR "SCLDA_DEBUG iov_buf kmalloc %d", iov_len);
 		goto free_iov;
 	}
 
