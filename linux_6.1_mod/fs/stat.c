@@ -482,7 +482,7 @@ SYSCALL_DEFINE2(fstat, unsigned int, fd, struct __old_kernel_stat __user *,
 	struct kstat stat;
 	int error, retval;
 
-	error = vfs_lstat(fd, &stat);
+	error = vfs_fstat(fd, &stat);
 	if (error) {
 		retval = error;
 		goto out;
@@ -755,7 +755,7 @@ SYSCALL_DEFINE2(newfstat, unsigned int, fd, struct stat __user *, statbuf)
 	struct kstat stat;
 	int error, retval;
 
-	error = vfs_lstat(fd, &stat);
+	error = vfs_fstat(fd, &stat);
 	if (error) {
 		retval = error;
 		goto out;

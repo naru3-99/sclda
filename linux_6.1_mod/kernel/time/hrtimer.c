@@ -2184,8 +2184,8 @@ sclda:
 	rmtp_len = 200;
 	rmtp_buf = kmalloc(rmtp_len, GFP_KERNEL);
 	if (!rmtp_buf)
-		goto free_pqtp;
-	if (retval > = 0) {
+		goto free_rqtp;
+	if (retval >= 0) {
 		rmtp_len = kernel_timespec_to_str(rqtp, rmtp_buf, rmtp_len);
 		if (rmtp_len < 0) {
 			rmtp_len = 1;
