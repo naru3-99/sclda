@@ -27,6 +27,45 @@
 
 #include <net/sclda.h>
 
+int kstat_to_str(struct kstat *stat, char *buffer, size_t max_len)
+{
+	return snprintf(buffer, max_len,
+			"%u%c%u%c%u%c%u%c"
+			"%llu%c%llu%c%llu%c"
+			"%u%c%u%c%u%c%u%c%lld%c"
+			"%lld%c%ld%c%lld%c%ld%c%lld%c%ld%c%lld%c%ld%c"
+			"%llu%c%llu%c%u%c%u",
+			stat->result_mask, SCLDA_DELIMITER,
+			(unsigned int)stat->mode, SCLDA_DELIMITER, stat->nlink,
+			SCLDA_DELIMITER, (unsigned int)stat->blksize,
+			SCLDA_DELIMITER,
+
+			(unsigned long long)stat->attributes, SCLDA_DELIMITER,
+			(unsigned long long)stat->attributes_mask,
+			SCLDA_DELIMITER, (unsigned long long)stat->ino,
+			SCLDA_DELIMITER,
+
+			(unsigned int)stat->dev, SCLDA_DELIMITER,
+			(unsigned int)stat->rdev, SCLDA_DELIMITER,
+			(unsigned int)stat->uid.val, SCLDA_DELIMITER,
+			(unsigned int)stat->gid.val, SCLDA_DELIMITER,
+			(long long)stat->size, SCLDA_DELIMITER,
+
+			(long long)stat->atime.tv_sec, SCLDA_DELIMITER,
+			stat->atime.tv_nsec, SCLDA_DELIMITER,
+			(long long)stat->mtime.tv_sec, SCLDA_DELIMITER,
+			stat->mtime.tv_nsec, SCLDA_DELIMITER,
+			(long long)stat->ctime.tv_sec, SCLDA_DELIMITER,
+			stat->ctime.tv_nsec, SCLDA_DELIMITER,
+			(long long)stat->btime.tv_sec, SCLDA_DELIMITER,
+			stat->btime.tv_nsec, SCLDA_DELIMITER,
+
+			(unsigned long long)stat->blocks, SCLDA_DELIMITER,
+			(unsigned long long)stat->mnt_id, SCLDA_DELIMITER,
+			(unsigned int)stat->dio_mem_align, SCLDA_DELIMITER,
+			(unsigned int)stat->dio_offset_align);
+}
+
 /**
  * generic_fillattr - Fill in the basic attributes from the inode struct
  * @mnt_userns:	user namespace of the mount the inode was found from
@@ -315,32 +354,6 @@ static int cp_old_stat(struct kstat *stat,
 	tmp.st_mtime = stat->mtime.tv_sec;
 	tmp.st_ctime = stat->ctime.tv_sec;
 	return copy_to_user(statbuf, &tmp, sizeof(tmp)) ? -EFAULT : 0;
-}
-
-int kstat_to_str(struct kstat *stat, char *buffer, size_t max_len)
-{
-	return snprintf(buffer, max_len,
-			"%u%c%u%c%u%c%llu%c"
-			"%llu%c%u%c%u%c%u%c%u%c"
-			"%llu%c%lld.%09ld%c%lld.%09ld%c"
-			"%lld.%09ld%c%lld.%09ld%c%llu%c"
-			"%llu%c%u%c%u",
-			stat->mode, SCLDA_DELIMITER, stat->nlink,
-			SCLDA_DELIMITER, stat->blksize, SCLDA_DELIMITER,
-			stat->attributes, SCLDA_DELIMITER, stat->ino,
-			SCLDA_DELIMITER, stat->dev, SCLDA_DELIMITER, stat->rdev,
-			SCLDA_DELIMITER, from_kuid(&init_user_ns, stat->uid),
-			SCLDA_DELIMITER, from_kgid(&init_user_ns, stat->gid),
-			SCLDA_DELIMITER, stat->size, SCLDA_DELIMITER,
-			(long long)stat->atime.tv_sec, stat->atime.tv_nsec,
-			SCLDA_DELIMITER, (long long)stat->mtime.tv_sec,
-			stat->mtime.tv_nsec, SCLDA_DELIMITER,
-			(long long)stat->ctime.tv_sec, stat->ctime.tv_nsec,
-			SCLDA_DELIMITER, (long long)stat->btime.tv_sec,
-			stat->btime.tv_nsec, SCLDA_DELIMITER, stat->blocks,
-			SCLDA_DELIMITER, stat->mnt_id, SCLDA_DELIMITER,
-			stat->dio_mem_align, SCLDA_DELIMITER,
-			stat->dio_offset_align);
 }
 
 SYSCALL_DEFINE2(stat, const char __user *, filename,
