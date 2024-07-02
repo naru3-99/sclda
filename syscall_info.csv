@@ -165,6 +165,7 @@ accept4,288,retval,fd,addrlen,flags,sa_family,sockaddr_info
 signalfd4,289,retval,ufd,sizemask,user_mask
 epoll_create1,291,retval,flags
 dup3,292,retval,old_fd,new_fd,flags,,,,,,,,,,,,,,
+pipe,293,retval,fildes,flags
 prlimit64,302,retval,pid,resource,old_rlim_cur,old_rlim_max,new_rlim_cur,new_rlim_max
 renameat2,316,retval,olddfd,newdfd,flags,oldname,newname
 getrandom,318,retval,len,flags,ubuf
