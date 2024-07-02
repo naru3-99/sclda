@@ -1758,29 +1758,32 @@ SYSCALL_DEFINE1(uname, struct old_utsname __user *, name)
 {
 	int retval;
 	struct old_utsname tmp;
-	if (!name) {
-		retval = -EFAULT;
-		goto out;
-	}
 
 	down_read(&uts_sem);
 	memcpy(&tmp, utsname(), sizeof(tmp));
 	up_read(&uts_sem);
 
+	if (!name) {
+		retval = -EFAULT;
+		goto out;
+	}
+
 	if (copy_to_user(name, &tmp, sizeof(tmp))) {
 		retval = -EFAULT;
 		goto out;
 	}
+
 	if (override_release(name->release, sizeof(name->release))) {
 		retval = -EFAULT;
 		goto out;
 	}
+
 	if (override_architecture(name)) {
 		retval = -EFAULT;
 		goto out;
 	}
+
 	retval = 0;
-	goto out;
 
 out:
 	int msg_len, uts_len;
@@ -1799,15 +1802,15 @@ out:
 	// 送信するパート
 	msg_len = 80 + uts_len;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf) {
-		kfree(uts_buf);
-		return retval;
-	}
+	if (!msg_buf)
+		goto free_uts;
 
 	msg_len = snprintf(msg_buf, msg_len, "63%c%d%c%s", SCLDA_DELIMITER,
 			   retval, SCLDA_DELIMITER, uts_buf);
-	kfree(uts_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_uts:
+	kfree(uts_buf);
 	return retval;
 }
 
