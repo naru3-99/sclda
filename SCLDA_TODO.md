@@ -11,3 +11,7 @@
 | 247 |     waitid      | siginfo 構造体が莫大過ぎて、諦めた                                 |
 | 250 |     keyctl      | arg2~arg5 までをどのように扱うか、決断できなかった                 |
 | 273 | set_robust_list | 連鎖的なデータ構造を持つ robust_list_head をどう料理するかわからん |
+
+
+その他：
+- iovecに対応したので、readv,writevの実装を直す
