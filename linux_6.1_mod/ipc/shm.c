@@ -1937,30 +1937,21 @@ long ksys_shmdt(char __user *shmaddr)
 SYSCALL_DEFINE1(shmdt, char __user *, shmaddr)
 {
 	long retval;
-	int msg_len, shmaddr_len;
-	char *msg_buf, *shmaddr_buf;
+	int msg_len;
+	char *msg_buf;
 
 	retval = ksys_shmdt(shmaddr);
 	if (!is_sclda_allsend_fin())
 		return retval;
 
-	// shmaddrを文字列として取得
-	shmaddr_len = strnlen_user(shmaddr, PATH_MAX);
-	shmaddr_buf = kmalloc(shmaddr_len + 1, GFP_KERNEL);
-	if (!shmaddr_buf)
-		return retval;
-	if (copy_from_user(shmaddr_buf, shmaddr, shmaddr_len))
-		return retval;
-	shmaddr_buf[shmaddr_len] = '\0';
-
 	// 送信するパート
-	msg_len = 100 + shmaddr_len;
+	msg_len = 150;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		return retval;
 
-	msg_len = snprintf(msg_buf, msg_len, "67%c%ld%c%s", SCLDA_DELIMITER,
-			   retval, SCLDA_DELIMITER, shmaddr_buf);
+	msg_len = snprintf(msg_buf, msg_len, "67%c%ld%c%lu", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, (unsigned long)shmaddr);
 	sclda_send_syscall_info(msg_buf, msg_len);
 	return retval;
 }

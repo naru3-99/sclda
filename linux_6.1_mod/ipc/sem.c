@@ -2373,14 +2373,14 @@ SYSCALL_DEFINE3(semop, int, semid, struct sembuf __user *, tsops, unsigned,
 	// 送信するパート
 	msg_len = 150 + struct_len;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf) {
-		kfree(struct_buf);
-		return retval;
-	}
+	if (!msg_buf)
+		goto free_struct;
 	msg_len = snprintf(msg_buf, msg_len, "65%c%ld%c%d%c%u%c%s",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, semid,
 			   SCLDA_DELIMITER, nsops, SCLDA_DELIMITER, struct_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_struct:
 	kfree(struct_buf);
 	return retval;
 }
