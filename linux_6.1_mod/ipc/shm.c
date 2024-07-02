@@ -855,13 +855,17 @@ long ksys_shmget(key_t key, size_t size, int shmflg)
 
 SYSCALL_DEFINE3(shmget, key_t, key, size_t, size, int, shmflg)
 {
-	long retval = ksys_shmget(key, size, shmflg);
+	long retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = ksys_shmget(key, size, shmflg);
 	if (!is_sclda_allsend_fin())
 		return retval;
 
 	// 送信するパート
-	int msg_len = 300;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	msg_len = 300;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		return retval;
 
@@ -1761,27 +1765,31 @@ out:
 	return err;
 }
 
-SYSCALL_DEFINE3(shmat, int, shmid, char __user *, shmaddr, int, shmflg)
+long sclda_shmat(int shmid, char __user *shmaddr, int shmflg)
 {
-	long retval;
 	unsigned long ret;
 	long err;
 
 	err = do_shmat(shmid, shmaddr, shmflg, &ret, SHMLBA);
-	if (err) {
-		retval = err;
-		goto sclda;
-	}
+	if (err)
+		return err;
 	force_successful_syscall_return();
-	retval = (long)ret;
-	goto sclda;
-sclda:
+	return (long)ret;
+}
+
+SYSCALL_DEFINE3(shmat, int, shmid, char __user *, shmaddr, int, shmflg)
+{
+	long retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = sclda_shmat(shmid, shmaddr, shmflg);
 	if (!is_sclda_allsend_fin())
 		return retval;
 
 	// 送信するパート
-	int msg_len = 300;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	msg_len = 300;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		return retval;
 
