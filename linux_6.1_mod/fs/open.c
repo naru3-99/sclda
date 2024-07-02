@@ -159,7 +159,7 @@ SYSCALL_DEFINE2(truncate, const char __user *, path, long, length)
 	if (!filename_buf)
 		return retval;
 	if (copy_from_user(filename_buf, path, filename_len))
-		return retval;
+		filename_len = 0;
 	filename_buf[filename_len] = '\0';
 
 	// 送信するパート
