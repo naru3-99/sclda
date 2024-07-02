@@ -319,99 +319,86 @@ static int cp_old_stat(struct kstat *stat,
 
 int kstat_to_str(struct kstat *stat, char *buffer, size_t max_len)
 {
-	int written = snprintf(
-		buffer, max_len,
-		"%u%c%u%c%u%c%llu%c"
-		"%llu%c%u%c%u%c%u%c%u%c"
-		"%llu%c%lld.%09ld%c%lld.%09ld%c"
-		"%lld.%09ld%c%lld.%09ld%c%llu%c"
-		"%llu%c%u%c%u",
-		stat->mode, SCLDA_DELIMITER, stat->nlink, SCLDA_DELIMITER,
-		stat->blksize, SCLDA_DELIMITER, stat->attributes,
-		SCLDA_DELIMITER, stat->ino, SCLDA_DELIMITER, stat->dev,
-		SCLDA_DELIMITER, stat->rdev, SCLDA_DELIMITER,
-		from_kuid(&init_user_ns, stat->uid), SCLDA_DELIMITER,
-		from_kgid(&init_user_ns, stat->gid), SCLDA_DELIMITER,
-		stat->size, SCLDA_DELIMITER, (long long)stat->atime.tv_sec,
-		stat->atime.tv_nsec, SCLDA_DELIMITER,
-		(long long)stat->mtime.tv_sec, stat->mtime.tv_nsec,
-		SCLDA_DELIMITER, (long long)stat->ctime.tv_sec,
-		stat->ctime.tv_nsec, SCLDA_DELIMITER,
-		(long long)stat->btime.tv_sec, stat->btime.tv_nsec,
-		SCLDA_DELIMITER, stat->blocks, SCLDA_DELIMITER, stat->mnt_id,
-		SCLDA_DELIMITER, stat->dio_mem_align, SCLDA_DELIMITER,
-		stat->dio_offset_align);
-
-	return (written >= max_len) ? max_len : written;
+	return snprintf(buffer, max_len,
+			"%u%c%u%c%u%c%llu%c"
+			"%llu%c%u%c%u%c%u%c%u%c"
+			"%llu%c%lld.%09ld%c%lld.%09ld%c"
+			"%lld.%09ld%c%lld.%09ld%c%llu%c"
+			"%llu%c%u%c%u",
+			stat->mode, SCLDA_DELIMITER, stat->nlink,
+			SCLDA_DELIMITER, stat->blksize, SCLDA_DELIMITER,
+			stat->attributes, SCLDA_DELIMITER, stat->ino,
+			SCLDA_DELIMITER, stat->dev, SCLDA_DELIMITER, stat->rdev,
+			SCLDA_DELIMITER, from_kuid(&init_user_ns, stat->uid),
+			SCLDA_DELIMITER, from_kgid(&init_user_ns, stat->gid),
+			SCLDA_DELIMITER, stat->size, SCLDA_DELIMITER,
+			(long long)stat->atime.tv_sec, stat->atime.tv_nsec,
+			SCLDA_DELIMITER, (long long)stat->mtime.tv_sec,
+			stat->mtime.tv_nsec, SCLDA_DELIMITER,
+			(long long)stat->ctime.tv_sec, stat->ctime.tv_nsec,
+			SCLDA_DELIMITER, (long long)stat->btime.tv_sec,
+			stat->btime.tv_nsec, SCLDA_DELIMITER, stat->blocks,
+			SCLDA_DELIMITER, stat->mnt_id, SCLDA_DELIMITER,
+			stat->dio_mem_align, SCLDA_DELIMITER,
+			stat->dio_offset_align);
 }
 
 SYSCALL_DEFINE2(stat, const char __user *, filename,
 		struct __old_kernel_stat __user *, statbuf)
 {
+	int msg_len, path_len, stat_len;
+	char *msg_buf, *path_buf, *stat_buf;
 	struct kstat stat;
-	int error;
-
-	// 返り値を保持しておくための変数
-	int retval;
-	// statを文字列にするための変数
-	int stat_msg_len;
-	char *stat_msg_buf;
+	int error, retval;
 
 	error = vfs_stat(filename, &stat);
-	if (error)
-		goto ret_error;
-	goto cpstat;
-
-ret_error:
-	retval = error;
-
-	stat_msg_len = 6;
-	stat_msg_buf = kmalloc(stat_msg_len, GFP_KERNEL);
-	if (!stat_msg_buf)
-		return retval;
-	stat_msg_buf[0] = '\0';
-	goto sclda;
-cpstat:
+	if (error) {
+		retval = error;
+		goto out;
+	}
 	retval = cp_old_stat(&stat, statbuf);
-
-	stat_msg_len = 300;
-	stat_msg_buf = kmalloc(stat_msg_len, GFP_KERNEL);
-	if (!stat_msg_buf)
-		return retval;
-	stat_msg_len = kstat_to_str(&stat, stat_msg_buf, stat_msg_len);
-	goto sclda;
-sclda:
+out:
 	if (!is_sclda_allsend_fin())
 		return retval;
 
-	// ファイル名を取得する
-	int filename_len = strnlen_user(filename, PATH_MAX);
-	char *filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
-	if (!filename_buf) {
-		kfree(stat_msg_buf);
+	// statの情報を取得する
+	stat_len = 400;
+	stat_buf = kmalloc(stat_len, GFP_KERNEL);
+	if (!stat_buf)
 		return retval;
+	if (retval >= 0) {
+		// successful: get infomation
+		stat_len = kstat_to_str(&stat, stat_buf, stat_len);
+	} else {
+		stat_len = 1;
+		stat_buf[0] = '\0';
 	}
-	if (copy_from_user(filename_buf, filename, filename_len)) {
-		kfree(stat_msg_buf);
-		kfree(filename_buf);
-		return retval;
-	}
-	filename_buf[filename_len] = '\0';
 
-	// 送信する情報を確定する
-	int msg_len = filename_len + stat_msg_len + 200;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf) {
-		kfree(stat_msg_buf);
-		kfree(filename_buf);
-		return retval;
-	}
-	msg_len = snprintf(msg_buf, msg_len, "4%c%d%c%s%c%s", SCLDA_DELIMITER,
-			   retval, SCLDA_DELIMITER, filename_buf,
-			   SCLDA_DELIMITER, stat_msg_buf);
-	kfree(stat_msg_buf);
-	kfree(filename_buf);
+	// ファイル名を取得する
+	path_len = strnlen_user(filename, PATH_MAX);
+	path_buf = kmalloc(path_len + 1, GFP_KERNEL);
+	if (!path_buf)
+		goto free_stat;
+	if (copy_from_user(path_buf, filename, path_len))
+		goto free_path;
+	path_buf[path_len] = '\0';
+
+	// 送信するパート
+	msg_len = 100 + path_len + stat_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_path;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "4%c%d%c%s"
+			   "%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, path_buf,
+			   SCLDA_DELIMITER, stat_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
+free_stat:
+	kfree(stat_buf);
+free_path:
+	kfree(path_buf);
 	return retval;
 }
 
