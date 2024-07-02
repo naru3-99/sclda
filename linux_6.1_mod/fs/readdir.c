@@ -318,11 +318,9 @@ efault:
 	return false;
 }
 
-SYSCALL_DEFINE3(getdents, unsigned int, fd, struct linux_dirent __user *,
-		dirent, unsigned int, count)
+int sclda_getdents(unsigned int fd, struct linux_dirent __user *dirent,
+		   unsigned int count)
 {
-	int retval;
-
 	struct fd f;
 	struct getdents_callback buf = { .ctx.actor = filldir,
 					 .count = count,
@@ -330,10 +328,8 @@ SYSCALL_DEFINE3(getdents, unsigned int, fd, struct linux_dirent __user *,
 	int error;
 
 	f = fdget_pos(fd);
-	if (!f.file) {
-		retval = -EBADF;
-		goto sclda;
-	}
+	if (!f.file)
+		return -EBADF;
 
 	error = iterate_dir(f.file, &buf.ctx);
 	if (error >= 0)
@@ -348,28 +344,41 @@ SYSCALL_DEFINE3(getdents, unsigned int, fd, struct linux_dirent __user *,
 			error = count - buf.count;
 	}
 	fdput_pos(f);
-	retval = error;
+	return error;
+}
 
-sclda:
+SYSCALL_DEFINE3(getdents, unsigned int, fd, struct linux_dirent __user *,
+		dirent, unsigned int, count)
+{
+	int retval;
 	int msg_len, dirent_len;
 	char *msg_buf, *dirent_buf;
+
+	retval = sclda_getdents(fd, dirent, count);
 	if (!is_sclda_allsend_fin())
 		return retval;
 
 	// linux_direntの状態を取得
 	dirent_len = linux_dirent_to_str(dirent, &dirent_buf);
-	if (dirent_len <= 0)
-		return retval;
+	if (dirent_len <= 0) {
+		dirent_len = 1;
+		dirent_buf = kmalloc(dirent_len, GFP_KERNEL);
+		if (!dirent_buf)
+			return retval;
+		dirent_buf[0] = '\0';
+	}
+
 	// 送信するパート
 	msg_len = 200 + dirent_len;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
-		return retval;
+		goto free_dirent;
 
 	msg_len = snprintf(msg_buf, msg_len, "78%c%d%c%u%c%u%c%s",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
 			   SCLDA_DELIMITER, count, SCLDA_DELIMITER, dirent_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
+free_dirent:
 	kfree(dirent_buf);
 	return retval;
 }
