@@ -1724,9 +1724,13 @@ long do_sys_open(int dfd, const char __user *filename, int flags, umode_t mode)
 
 SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
 {
+	long ret;
+	int filename_len, msg_len;
+	char *filename_buf, *msg_buf;
 	if (force_o_largefile())
 		flags |= O_LARGEFILE;
-	long ret = do_sys_open(AT_FDCWD, filename, flags, mode);
+	ret = do_sys_open(AT_FDCWD, filename, flags, mode);
+
 	// allsendが終わるまでは、初期化プロセス関係なので、
 	// 取得しないようにする。
 	if (!is_sclda_allsend_fin())
@@ -1734,27 +1738,28 @@ SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
 
 	// ファイル名を取得する
 	// ファイル名を取得する
-	int filename_len = strnlen_user(filename, 1000);
-	char *filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
+	filename_len = strnlen_user(filename, PATH_MAX);
+	filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
 	if (!filename_buf)
 		return ret;
-	filename_len -= copy_from_user(filename_buf, filename, filename_len);
+	if (copy_from_user(filename_buf, filename, filename_len)) {
+		filename_len = 0;
+	}
 	filename_buf[filename_len] = '\0';
 
 	// 送信するパート
-	int msg_len = filename_len + 200;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf) {
-		kfree(filename_buf);
-		return ret;
-	}
+	msg_len = filename_len + 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_filename;
 	msg_len = snprintf(msg_buf, msg_len, "2%c%ld%c%d%c%u%c%s",
 			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, flags,
 			   SCLDA_DELIMITER, (unsigned int)mode, SCLDA_DELIMITER,
 			   filename_buf);
-	kfree(filename_buf);
-
 	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_filename:
+	kfree(filename_buf);
 	return ret;
 }
 
