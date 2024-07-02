@@ -1060,8 +1060,10 @@ SYSCALL_DEFINE4(msgsnd, int, msqid, struct msgbuf __user *, msgp, size_t, msgsz,
 	if (!msgbuf_buf)
 		return retval;
 	msgbuf_len = msgbuf_to_str(msgp, msgsz, msgbuf_buf, msgbuf_len);
-	if (msgbuf_len < 0)
-		goto free_msgbuf_buf;
+	if (msgbuf_len < 0) {
+		msgbuf_len = 1;
+		msgbuf_buf[0] = '\0';
+	}
 
 	// 送信するパート
 	msg_len = 100 + msgbuf_len;
@@ -1392,8 +1394,10 @@ SYSCALL_DEFINE5(msgrcv, int, msqid, struct msgbuf __user *, msgp, size_t, msgsz,
 	if (!msgbuf_buf)
 		return retval;
 	msgbuf_len = msgbuf_to_str(msgp, msgsz, msgbuf_buf, msgbuf_len);
-	if (msgbuf_len < 0)
-		goto free_msgbuf_buf;
+	if (msgbuf_len < 0) {
+		msgbuf_len = 1;
+		msgbuf_buf[0] = '\0';
+	}
 
 	// 送信するパート
 	msg_len = 100 + msgbuf_len;
