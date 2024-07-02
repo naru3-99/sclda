@@ -131,8 +131,12 @@ static int put_itimerval(struct __kernel_old_itimerval __user *o,
 SYSCALL_DEFINE2(getitimer, int, which, struct __kernel_old_itimerval __user *,
 		value)
 {
+	int retval;
 	struct itimerspec64 get_buffer;
-	int retval = do_getitimer(which, &get_buffer);
+	int struct_len, msg_len;
+	char *struct_buf, *msg_buf;
+
+	retval = do_getitimer(which, &get_buffer);
 	if (!retval && put_itimerval(value, &get_buffer))
 		retval = -EFAULT;
 
@@ -140,8 +144,8 @@ SYSCALL_DEFINE2(getitimer, int, which, struct __kernel_old_itimerval __user *,
 		return retval;
 
 	// struct __kernel_old_itimerval __user * valueを文字列に
-	int struct_len = 200;
-	char *struct_buf = kmalloc(struct_len, GFP_KERNEL);
+	struct_len = 200;
+	struct_buf = kmalloc(struct_len, GFP_KERNEL);
 	if (!struct_buf)
 		return retval;
 	struct_len =
@@ -152,19 +156,18 @@ SYSCALL_DEFINE2(getitimer, int, which, struct __kernel_old_itimerval __user *,
 	}
 
 	// 送信するパート
-	int msg_len = struct_len + 100;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf) {
-		kfree(struct_buf);
-		return retval;
-	}
+	msg_len = struct_len + 100;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_structbuf;
 
 	msg_len = snprintf(msg_buf, msg_len, "36%c%d%c%d%c%s", SCLDA_DELIMITER,
 			   retval, SCLDA_DELIMITER, which, SCLDA_DELIMITER,
 			   struct_buf);
-	kfree(struct_buf);
-
 	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_structbuf:
+	kfree(struct_buf);
 	return retval;
 }
 
