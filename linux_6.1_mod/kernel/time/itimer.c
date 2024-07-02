@@ -395,19 +395,16 @@ static int get_itimerval(struct itimerspec64 *o,
 	return 0;
 }
 
-SYSCALL_DEFINE3(setitimer, int, which, struct __kernel_old_itimerval __user *,
-		value, struct __kernel_old_itimerval __user *, ovalue)
+int sclda_setitimer(int which, struct __kernel_old_itimerval __user *value,
+		    struct __kernel_old_itimerval __user *ovalue)
 {
-	int retval;
 	struct itimerspec64 set_buffer, get_buffer;
 	int error;
 
 	if (value) {
 		error = get_itimerval(&set_buffer, value);
-		if (error) {
-			retval = error;
-			goto sclda;
-		}
+		if (error)
+			return error;
 	} else {
 		memset(&set_buffer, 0, sizeof(set_buffer));
 		printk_once(KERN_WARNING
@@ -417,22 +414,27 @@ SYSCALL_DEFINE3(setitimer, int, which, struct __kernel_old_itimerval __user *,
 	}
 
 	error = do_setitimer(which, &set_buffer, ovalue ? &get_buffer : NULL);
-	if (error || !ovalue) {
-		retval = error;
-		goto sclda;
-	}
-	if (put_itimerval(ovalue, &get_buffer)) {
-		retval = -EFAULT;
-		goto sclda;
-	}
-	retval = 0;
-	goto sclda;
-sclda:
+	if (error || !ovalue)
+		return error;
+
+	if (put_itimerval(ovalue, &get_buffer))
+		return -EFAULT;
+	return 0;
+}
+
+SYSCALL_DEFINE3(setitimer, int, which, struct __kernel_old_itimerval __user *,
+		value, struct __kernel_old_itimerval __user *, ovalue)
+{
+	int retval;
+	int value_len, ovalue_len, msg_len;
+	char *value_buf, *ovalue_buf, *msg_buf;
+
+	retval = sclda_setitimer(which, value, ovalue);
 	if (!is_sclda_allsend_fin())
 		return retval;
 
-	int value_len = 200;
-	char *value_buf = kmalloc(value_len, GFP_KERNEL);
+	value_len = 200;
+	value_buf = kmalloc(value_len, GFP_KERNEL);
 	if (!value_buf)
 		return retval;
 	value_len = __kernel_old_itimerval_to_str(value, value_buf, value_len);
@@ -441,12 +443,10 @@ sclda:
 		value_buf[0] = '\0';
 	}
 
-	int ovalue_len = 200;
-	char *ovalue_buf = kmalloc(ovalue_len, GFP_KERNEL);
-	if (!ovalue_buf) {
-		kfree(value_buf);
-		return retval;
-	}
+	ovalue_len = 200;
+	ovalue_buf = kmalloc(ovalue_len, GFP_KERNEL);
+	if (!ovalue_buf)
+		goto free_value;
 	ovalue_len =
 		__kernel_old_itimerval_to_str(ovalue, ovalue_buf, ovalue_len);
 	if (ovalue_len < 0) {
@@ -455,21 +455,20 @@ sclda:
 	}
 
 	// 送信するパート
-	int msg_len = value_len + ovalue_len + 200;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf) {
-		kfree(value_buf);
-		kfree(ovalue_buf);
-		return retval;
-	}
+	msg_len = value_len + ovalue_len + 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_ovalue;
 
 	msg_len = snprintf(msg_buf, msg_len, "38%c%d%c%d%c%s%c%s",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, which,
 			   SCLDA_DELIMITER, value_buf, SCLDA_DELIMITER,
 			   ovalue_buf);
-	kfree(value_buf);
-	kfree(ovalue_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
+free_ovalue:
+	kfree(ovalue_buf);
+free_value:
+	kfree(value_buf);
 	return retval;
 }
 
