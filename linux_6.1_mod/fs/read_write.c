@@ -1553,46 +1553,53 @@ out:
 	return retval;
 }
 
-SYSCALL_DEFINE4(sendfile, int, out_fd, int, in_fd, off_t __user *, offset,
-		size_t, count)
+ssize_t sclda_sendfile(int out_fd, int in_fd, off_t __user *offset,
+		       size_t count)
 {
 	loff_t pos;
 	off_t off;
 	ssize_t ret;
-	ssize_t retval;
 
 	if (offset) {
-		if (unlikely(get_user(off, offset))) {
-			retval = -EFAULT;
-			goto sclda;
-		}
+		if (unlikely(get_user(off, offset)))
+			return -EFAULT;
 		pos = off;
 		ret = do_sendfile(out_fd, in_fd, &pos, count, MAX_NON_LFS);
-		if (unlikely(put_user(pos, offset))) {
-			retval = -EFAULT;
-			goto sclda;
-		}
-		retval = ret;
-		goto sclda;
+		if (unlikely(put_user(pos, offset)))
+			return -EFAULT;
+		return ret;
 	}
 
-	retval = do_sendfile(out_fd, in_fd, NULL, count, 0);
-	goto sclda;
-sclda:
+	return do_sendfile(out_fd, in_fd, NULL, count, 0);
+}
+
+SYSCALL_DEFINE4(sendfile, int, out_fd, int, in_fd, off_t __user *, offset,
+		size_t, count)
+{
+	ssize_t retval;
+	int msg_len;
+	char *msg_buf;
+	off_t koff;
+
+	retval = sclda_sendfile(out_fd, in_fd, offset, count);
 	if (!is_sclda_allsend_fin())
 		return retval;
 
-	// efaultの場合、offをコピーできていない。
-	long o = (retval == -EFAULT) ? -1 : (long)off;
+	// offsetを取得
+	if (copy_from_user(&koff, offset, sizeof(off_t)))
+		koff = 1;
+
 	// 送信するパート
-	int msg_len = 300;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		return retval;
 
-	msg_len = snprintf(msg_buf, msg_len, "40%c%zd%c%d%c%d%c%ld%c%zu",
+	msg_len = snprintf(msg_buf, msg_len,
+			   "40%c%zd%c%d"
+			   "%c%d%c%ld%c%zu",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, out_fd,
-			   SCLDA_DELIMITER, in_fd, SCLDA_DELIMITER, off,
+			   SCLDA_DELIMITER, in_fd, SCLDA_DELIMITER, koff,
 			   SCLDA_DELIMITER, count);
 	sclda_send_syscall_info(msg_buf, msg_len);
 	return retval;
