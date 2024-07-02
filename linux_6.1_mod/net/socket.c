@@ -326,7 +326,6 @@ free_control:
 	kfree(control_buf);
 free_msgname:
 	kfree(msgname_buf);
-out:
 	return retval;
 }
 
@@ -866,6 +865,7 @@ static void __sock_release(struct socket *sock, struct inode *inode)
 {
 	if (sock->ops) {
 		struct module *owner = sock->ops->owner;
+out:
 
 		if (inode)
 			inode_lock(inode);
@@ -2098,7 +2098,7 @@ sclda:
 	msg_len = 200 + sa_len;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
-		free_sa;
+		goto free_sa;
 	msg_len = snprintf(msg_buf, msg_len, "49%c%d%c%d%c%d%c%s",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
 			   SCLDA_DELIMITER, addrlen, SCLDA_DELIMITER, sa_buf);
@@ -2365,7 +2365,7 @@ sclda:
 	msg_len = struct_len + 100;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
-		goto free_sclda;
+		goto free_struct;
 
 	msg_len = snprintf(msg_buf, msg_len, "43%c%d%c%d%c%d%c%s",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
@@ -2437,7 +2437,6 @@ SYSCALL_DEFINE3(connect, int, fd, struct sockaddr __user *, uservaddr, int,
 	int retval;
 	int struct_len, msg_len;
 	char *struct_buf, *msg_buf;
-	int addrlen;
 	struct sockaddr_storage ss;
 
 	retval = __sys_connect(fd, uservaddr, addrlen);
@@ -2708,11 +2707,11 @@ SYSCALL_DEFINE6(sendto, int, fd, void __user *, buff, size_t, len, unsigned int,
 	if (!struct_buf)
 		return retval;
 
-	if (copy_from_user(&addrlen, upeer_addrlen, sizeof(int)))
+	if (copy_from_user(&addrlen, addr_len, sizeof(int)))
 		goto failed;
 	if (addrlen < 0 || addrlen > sizeof(struct sockaddr_storage))
 		goto failed;
-	if (copy_from_user(&ss, uservaddr, addrlen))
+	if (copy_from_user(&ss, addr, addrlen))
 		goto failed;
 	struct_len = sockaddr_to_str(&ss, struct_buf, struct_len);
 	if (struct_len < 0)
@@ -2886,7 +2885,7 @@ failed:
 
 get_buff:
 	// buffを参照するが、エラーの場合は何もしない
-	buff_len = (retval < 0) ? 1 : len;
+	buff_len = (retval < 0) ? 1 : size;
 	buff_buf = kmalloc(buff_len, GFP_KERNEL);
 	if (!buff_buf)
 		goto free_struct;
@@ -2895,7 +2894,7 @@ get_buff:
 		buff_buf[0] = '\0';
 	} else {
 		// 成功しているため、buffを読み込む
-		if (copy_from_user(buff_buf, buff, len))
+		if (copy_from_user(buff_buf, ubuf, buff_len))
 			buff_buf[0] = '\0';
 	}
 
@@ -2919,7 +2918,7 @@ free_buff:
 	kfree(buff_buf);
 free_struct:
 	kfree(struct_buf);
-	return ret;
+	return retval;
 }
 
 /*
@@ -2995,36 +2994,47 @@ SYSCALL_DEFINE5(setsockopt, int, fd, int, level, int, optname, char __user *,
 		optval, int, optlen)
 {
 	int retval;
-	int msg_len;
-	char *msg_buf;
-	char *opt_buf;
+	int msg_len, opt_len;
+	char *msg_buf, *opt_buf;
 
 	retval = __sys_setsockopt(fd, level, optname, optval, optlen);
 	if (!is_sclda_allsend_fin())
 		return retval;
 
 	// optvalの値をコピーする
-	if (optlen < 0)
-		return retval;
-	opt_buf = kmalloc(optlen, GFP_KERNEL);
+	opt_len = (optlen < 0) ? 1 : optlen;
+	opt_buf = kmalloc(opt_len, GFP_KERNEL);
 	if (!opt_buf)
 		return retval;
-	if (copy_from_user(opt_buf, optval, optlen))
-		return retval;
 
+	if (optlen < 0)
+		goto failed;
+	if (copy_from_user(opt_buf, optval, opt_len))
+		goto failed;
+	goto sclda;
+
+failed:
+	opt_len = 1;
+	opt_buf[0] = '\0';
+
+sclda:
 	// 送信するパート
-	msg_len = 200 + optlen;
+	msg_len = 200 + opt_len;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
-		return retval;
+		goto free_opt;
 
-	msg_len = snprintf(msg_buf, msg_len, "54%c%d%c%d%c%d%c%d%c%d%c%s",
+	msg_len = snprintf(msg_buf, msg_len,
+			   "54%c%d%c%d"
+			   "%c%d%c%d"
+			   "%c%d%c%s",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
 			   SCLDA_DELIMITER, level, SCLDA_DELIMITER, optname,
 			   SCLDA_DELIMITER, optlen, SCLDA_DELIMITER, opt_buf);
-
-	kfree(opt_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_opt:
+	kfree(opt_buf);
 	return retval;
 }
 
