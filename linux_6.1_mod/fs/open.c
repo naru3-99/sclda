@@ -1871,8 +1871,9 @@ SYSCALL_DEFINE2(creat, const char __user *, pathname, umode_t, mode)
 	path_buf = kmalloc(path_len + 1, GFP_KERNEL);
 	if (!path_buf)
 		return retval;
-	if (copy_from_user(path_buf, pathname, path_len))
-		goto free_path;
+	if (copy_from_user(path_buf, pathname, path_len)) {
+		path_len = 0;
+	}
 	path_buf[path_len] = '\0';
 
 	// 送信するパート
