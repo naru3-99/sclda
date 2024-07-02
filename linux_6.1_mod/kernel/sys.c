@@ -2220,6 +2220,7 @@ SYSCALL_DEFINE4(prlimit64, pid_t, pid, unsigned int, resource,
 
 	ret = do_prlimit(tsk, resource, new_rlim ? &new : NULL,
 			 old_rlim ? &old : NULL);
+	retval = ret;
 
 	if (!ret && old_rlim) {
 		rlim_to_rlim64(&old, &old64);
