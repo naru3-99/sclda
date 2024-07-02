@@ -493,20 +493,18 @@ free_dname:
 	return retval;
 }
 
-SYSCALL_DEFINE3(getdents64, unsigned int, fd, struct linux_dirent64 __user *,
-		dirent, unsigned int, count)
+int sclda_getdents64(unsigned int fd, struct linux_dirent64 __user *dirent,
+		     unsigned int count)
 {
-	int retval, error;
 	struct fd f;
 	struct getdents_callback64 buf = { .ctx.actor = filldir64,
 					   .count = count,
 					   .current_dir = dirent };
+	int error;
 
 	f = fdget_pos(fd);
-	if (!f.file) {
-		retval = -EBADF;
-		goto sclda;
-	}
+	if (!f.file)
+		return -EBADF;
 
 	error = iterate_dir(f.file, &buf.ctx);
 	if (error >= 0)
@@ -522,18 +520,27 @@ SYSCALL_DEFINE3(getdents64, unsigned int, fd, struct linux_dirent64 __user *,
 			error = count - buf.count;
 	}
 	fdput_pos(f);
-	retval = error;
-sclda:
+	return error;
+}
+
+SYSCALL_DEFINE3(getdents64, unsigned int, fd, struct linux_dirent64 __user *,
+		dirent, unsigned int, count)
+{
+	int retval;
 	int msg_len, ld_len;
 	char *msg_buf, *ld_buf;
 
+	retval = sclda_getdents64(fd, dirent, count);
 	if (!is_sclda_allsend_fin())
 		return retval;
 
 	// linux_derent64構造体を文字列に起こす
 	ld_len = linux_dirent64_to_str(dirent, &ld_buf);
 	if (ld_len < 0) {
-		ld_len = 0;
+		ld_len = 1;
+		ld_buf = kmalloc(ld_len, GFP_KERNEL);
+		if (!ld_buf)
+			return retval;
 		ld_buf[0] = '\0';
 	}
 
