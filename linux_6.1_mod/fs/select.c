@@ -812,7 +812,7 @@ SYSCALL_DEFINE5(select, int, n, fd_set __user *, inp, fd_set __user *, outp,
 		tvp_len = 1;
 		tvp_buf[0] = '\0';
 	} else {
-		tvp_len = snprintf(tvp_buf, tvp_len, "%ld%c%ls", ktvp.tv_sec,
+		tvp_len = snprintf(tvp_buf, tvp_len, "%ld%c%ld", ktvp.tv_sec,
 				   SCLDA_DELIMITER, ktvp.tv_usec);
 	}
 
