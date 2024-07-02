@@ -233,13 +233,9 @@ static long do_mincore(unsigned long addr, unsigned long pages,
  *		mapped
  *  -EAGAIN - A kernel resource was temporarily unavailable.
  */
-SYSCALL_DEFINE3(mincore, unsigned long, start, size_t, len,
-		unsigned char __user *, vec)
-{
-	long sclda_ret;
-	long vec_len = 0;
-	char *vec_buf;
 
+long sclda_mincore(unsigned long start, size_t len, unsigned char __user *vec)
+{
 	long retval;
 	unsigned long pages;
 	unsigned char *tmp;
@@ -247,31 +243,23 @@ SYSCALL_DEFINE3(mincore, unsigned long, start, size_t, len,
 	start = untagged_addr(start);
 
 	/* Check the start address: needs to be page-aligned.. */
-	if (start & ~PAGE_MASK) {
-		sclda_ret = -EINVAL;
-		goto sclda_err;
-	}
+	if (start & ~PAGE_MASK)
+		return -EINVAL;
 
 	/* ..and we need to be passed a valid user-space range */
-	if (!access_ok((void __user *)start, len)) {
-		sclda_ret = -ENOMEM;
-		goto sclda_err;
-	}
+	if (!access_ok((void __user *)start, len))
+		return -ENOMEM;
 
 	/* This also avoids any overflows on PAGE_ALIGN */
 	pages = len >> PAGE_SHIFT;
 	pages += (offset_in_page(len)) != 0;
 
-	if (!access_ok(vec, pages)) {
-		sclda_ret = -EFAULT;
-		goto sclda_err;
-	}
+	if (!access_ok(vec, pages))
+		return -EFAULT;
 
 	tmp = (void *)__get_free_page(GFP_USER);
-	if (!tmp) {
-		sclda_ret = -EAGAIN;
-		goto sclda_err;
-	}
+	if (!tmp)
+		return -EAGAIN;
 
 	retval = 0;
 	while (pages) {
@@ -291,47 +279,58 @@ SYSCALL_DEFINE3(mincore, unsigned long, start, size_t, len,
 		}
 		pages -= retval;
 		vec += retval;
-		vec_len += retval;
 		start += retval << PAGE_SHIFT;
 		retval = 0;
 	}
 	free_page((unsigned long)tmp);
-	sclda_ret = retval;
-	goto sclda_success;
-sclda_err:
-	// うまく行かなかった時
-	// vecは参照できない
-	vec_len = 1;
-	vec_buf = kmalloc(vec_len, GFP_KERNEL);
-	if (!vec_buf)
-		return sclda_ret;
-	vec_buf[0] = '\0';
-	goto sclda;
-sclda_success:
-	// うまく行ったときはvecの中身を参照する
-	vec_buf = kmalloc(vec_len, GFP_KERNEL);
-	if (!vec_buf) {
-		return sclda_ret;
-	}
-	if (copy_from_user(vec_buf, vec, vec_len)) {
-		kfree(vec_buf);
-		goto sclda_err;
-	}
-	goto sclda;
-sclda:
-	if (!is_sclda_allsend_fin())
-		return sclda_ret;
+	return retval;
+}
 
-	// 送信するパート
-	int msg_len = vec_len + 200;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf) {
-		kfree(vec_buf);
-		return sclda_ret;
+SYSCALL_DEFINE3(mincore, unsigned long, start, size_t, len,
+		unsigned char __user *, vec)
+{
+	long retval;
+	size_t msg_len, vec_len;
+	char *msg_buf, *vec_buf;
+
+	retval = sclda_mincore(start, len, vec);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// vecを取得する
+	if (retval < 0) {
+		// 失敗しているため、何も取得しない
+		vec_len = 1;
+		vec_buf = kmalloc(vec_len, GFP_KERNEL);
+		if (!vec_buf)
+			return retval;
+		vec_buf[0] = '\0';
+		goto sclda;
 	}
-	msg_len = snprintf(msg_buf, msg_len, "27%c%ld%c%lu%c%zu%c%s",
-			   SCLDA_DELIMITER, sclda_ret, SCLDA_DELIMITER, start,
+	// 成功している場合は内容を取得
+	vec_len = len;
+	vec_buf = kmalloc(len + 1, GFP_KERNEL);
+	if (!vec_buf)
+		return retval;
+	if (copy_from_user(vec_buf, vec, len))
+		vec_len = 0;
+	vec_buf[vec_len] = '\0';
+
+sclda:
+	// 送信するパート
+	msg_len = 150 + vec_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_vec;
+
+	msg_len = snprintf(msg_buf, msg_len,
+			   "27%c%ld%c%lu"
+			   "%c%zu%c%s",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, start,
 			   SCLDA_DELIMITER, len, SCLDA_DELIMITER, vec_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
-	return sclda_ret;
+
+free_vec:
+	kfree(vec_buf);
+	return retval;
 }
