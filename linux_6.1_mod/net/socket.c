@@ -2707,8 +2707,7 @@ SYSCALL_DEFINE6(sendto, int, fd, void __user *, buff, size_t, len, unsigned int,
 	if (!struct_buf)
 		return retval;
 
-	if (copy_from_user(&addrlen, addr_len, sizeof(int)))
-		goto failed;
+	addrlen = addr_len;
 	if (addrlen < 0 || addrlen > sizeof(struct sockaddr_storage))
 		goto failed;
 	if (copy_from_user(&ss, addr, addrlen))
