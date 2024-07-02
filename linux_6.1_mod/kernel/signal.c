@@ -4715,23 +4715,28 @@ SYSCALL_DEFINE2(signal, int, sig, __sighandler_t, handler)
 
 SYSCALL_DEFINE0(pause)
 {
+	int retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = -ERESTARTNOHAND;
+	if (!is_sclda_allsend_fin())
+		goto do_pause;
+
+	// 送信するパート
+	msg_len = 100;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto do_pause;
+
+	msg_len = snprintf(msg_buf, msg_len, "34%c%d", SCLDA_DELIMITER, retval);
+	sclda_send_syscall_info(msg_buf, msg_len);
+
+do_pause:
 	while (!signal_pending(current)) {
 		__set_current_state(TASK_INTERRUPTIBLE);
 		schedule();
 	}
-
-	int retval = -ERESTARTNOHAND;
-	if (!is_sclda_allsend_fin())
-		return retval;
-
-	// 送信するパート
-	int msg_len = 100;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		return retval;
-
-	msg_len = snprintf(msg_buf, msg_len, "34%c%d", SCLDA_DELIMITER, retval);
-	sclda_send_syscall_info(msg_buf, msg_len);
 	return retval;
 }
 
