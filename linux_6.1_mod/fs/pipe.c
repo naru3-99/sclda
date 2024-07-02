@@ -1035,7 +1035,29 @@ static int do_pipe2(int __user *fildes, int flags)
 
 SYSCALL_DEFINE2(pipe2, int __user *, fildes, int, flags)
 {
-	return do_pipe2(fildes, flags);
+	int retval, value;
+	int msg_len;
+	char *msg_buf;
+
+	retval = do_pipe2(fildes, flags);
+
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	if (get_user(value, fildes))
+		value = -1;
+
+	// 送信するパート
+	msg_len = 100;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "293%c%d%c%d%c%d", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, value, SCLDA_DELIMITER,
+			   flags);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 SYSCALL_DEFINE1(pipe, int __user *, fildes)
