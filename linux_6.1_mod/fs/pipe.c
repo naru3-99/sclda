@@ -1040,18 +1040,21 @@ SYSCALL_DEFINE2(pipe2, int __user *, fildes, int, flags)
 
 SYSCALL_DEFINE1(pipe, int __user *, fildes)
 {
-	int retval = do_pipe2(fildes, 0);
+	int retval, value;
+	int msg_len;
+	char *msg_buf;
+
+	retval = do_pipe2(fildes, 0);
 
 	if (!is_sclda_allsend_fin())
 		return retval;
 
-	int value;
 	if (get_user(value, fildes))
-		return retval;
+		value = -1;
 
 	// 送信するパート
-	int msg_len = 200;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	msg_len = 100;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		return retval;
 
