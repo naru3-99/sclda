@@ -2186,16 +2186,15 @@ SYSCALL_DEFINE4(prlimit64, pid_t, pid, unsigned int, resource,
 	struct rlimit old, new;
 	struct task_struct *tsk;
 	unsigned int checkflags = 0;
-	int ret;
-	int old_ok = 0;
-	int new_ok = 0;
+	int ret, retval;
+	int old_ok = 0, new_ok = 0;
 
 	if (old_rlim)
 		checkflags |= LSM_PRLIMIT_READ;
 
 	if (new_rlim) {
 		if (copy_from_user(&new64, new_rlim, sizeof(new64))) {
-			ret = -EFAULT;
+			retval = -EFAULT;
 			goto out;
 		}
 		new_ok = 1;
@@ -2207,12 +2206,13 @@ SYSCALL_DEFINE4(prlimit64, pid_t, pid, unsigned int, resource,
 	tsk = pid ? find_task_by_vpid(pid) : current;
 	if (!tsk) {
 		rcu_read_unlock();
-		ret = -ESRCH;
+		retval = -ESRCH;
 		goto out;
 	}
 	ret = check_prlimit_permission(tsk, checkflags);
 	if (ret) {
 		rcu_read_unlock();
+		retval = ret;
 		goto out;
 	}
 	get_task_struct(tsk);
@@ -2225,7 +2225,7 @@ SYSCALL_DEFINE4(prlimit64, pid_t, pid, unsigned int, resource,
 		rlim_to_rlim64(&old, &old64);
 		old_ok = 1;
 		if (copy_to_user(old_rlim, &old64, sizeof(old64)))
-			ret = -EFAULT;
+			retval = -EFAULT;
 	}
 
 	put_task_struct(tsk);
@@ -2234,12 +2234,12 @@ out:
 	char *msg_buf, *old_buf, *new_buf;
 
 	if (!is_sclda_allsend_fin())
-		return ret;
+		return retval;
 
 	old_len = 60;
 	old_buf = kmalloc(old_len, GFP_KERNEL);
-	if (old_buf)
-		return ret;
+	if (!old_buf)
+		return retval;
 	if (old_ok) {
 		old_len = rlimit64_to_str(&old64, old_buf, old_len);
 	} else {
@@ -2249,7 +2249,7 @@ out:
 
 	new_len = 60;
 	new_buf = kmalloc(new_len, GFP_KERNEL);
-	if (new_buf)
+	if (!new_buf)
 		goto free_old_buf;
 	if (new_ok) {
 		new_len = rlimit64_to_str(&new64, new_buf, new_len);
@@ -2268,7 +2268,7 @@ out:
 			   "302%c%d%c%d"
 			   "%c%u%c%s"
 			   "%c%s",
-			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, (int)pid,
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, (int)pid,
 			   SCLDA_DELIMITER, resource, SCLDA_DELIMITER, old_buf,
 			   SCLDA_DELIMITER, new_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
@@ -2277,7 +2277,7 @@ free_new_buf:
 	kfree(new_buf);
 free_old_buf:
 	kfree(old_buf);
-	return ret;
+	return retval;
 }
 
 SYSCALL_DEFINE2(setrlimit, unsigned int, resource, struct rlimit __user *, rlim)
