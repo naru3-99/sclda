@@ -136,8 +136,7 @@ int sockaddr_to_str(struct sockaddr_storage *ss, char *buf, int len)
 			 "ip= %u:%u:%u:%u"
 			 " port= %u",
 			 (ip >> 24) & 0xFF, (ip >> 16) & 0xFF, (ip >> 8) & 0xFF,
-			 ip & 0xFF,
-			 (unsigned int)ntohs(addr_in->sin_addr.s_addr));
+			 ip & 0xFF, (unsigned int)ntohs(addr_in->sin_port));
 
 	} else if (ss->ss_family == AF_INET6) {
 		// IPv6 socket address
@@ -147,17 +146,19 @@ int sockaddr_to_str(struct sockaddr_storage *ss, char *buf, int len)
 		// ipアドレスを取得する
 		addr_in6 = (struct sockaddr_in6 *)ss;
 		offset = snprintf(info_buf, info_len, "ip= %02x",
-				  addr_in6->sin6_addr.s6_addr[0]);
+				  addr_in6->sin6_addr.in6_u.u6_addr8[0]);
 		for (i = 1; i < 16; i++) {
-			offset += snprintf(info_buf + offset, info_len - offset,
-					   ":%02x",
-					   addr_in6->sin6_addr.s6_addr[i]);
+			offset += snprintf(
+				info_buf + offset, info_len - offset, ":%02x",
+				addr_in6->sin6_addr.in6_u.u6_addr8[i]);
 		}
 
 		// ipアドレスとport番号を書き込む
 		offset += snprintf(info_buf + offset, info_len - offset,
-				   "port= %u",
-				   (unsigned int)ntohs(addr_in6->sin6_port));
+				   "port= %u flowinfo= %u scopeid= %u",
+				   (unsigned int)ntohs(addr_in6->sin6_port),
+				   (unsigned int)addr_in6->sin6_flowinfo,
+				   (unsigned int)addr_in6->sin6_scope_id);
 		info_len = offset;
 
 	} else if (ss->ss_family == PF_UNSPEC) {
