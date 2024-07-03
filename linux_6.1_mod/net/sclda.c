@@ -71,18 +71,6 @@ DEFINE_SCLDA_SEND_FUNC(13)
 DEFINE_SCLDA_SEND_FUNC(14)
 DEFINE_SCLDA_SEND_FUNC(15)
 
-// 関数を関数ポインタ配列に格納する
-static send_func_t sclda_send_funcs[SCLDA_PORT_NUMBER] = {
-	SCLDA_SEND_FUNC_NAME(0),  SCLDA_SEND_FUNC_NAME(1),
-	SCLDA_SEND_FUNC_NAME(2),  SCLDA_SEND_FUNC_NAME(3),
-	SCLDA_SEND_FUNC_NAME(4),  SCLDA_SEND_FUNC_NAME(5),
-	SCLDA_SEND_FUNC_NAME(6),  SCLDA_SEND_FUNC_NAME(7),
-	SCLDA_SEND_FUNC_NAME(8),  SCLDA_SEND_FUNC_NAME(9),
-	SCLDA_SEND_FUNC_NAME(10), SCLDA_SEND_FUNC_NAME(11),
-	SCLDA_SEND_FUNC_NAME(12), SCLDA_SEND_FUNC_NAME(13),
-	SCLDA_SEND_FUNC_NAME(14), SCLDA_SEND_FUNC_NAME(15)
-};
-
 int __sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
 {
 	return sock_create_kern(&init_net, PF_INET, SOCK_DGRAM, IPPROTO_UDP,
@@ -102,6 +90,17 @@ int __sclda_connect_socket(struct sclda_client_struct *sclda_cs_ptr, int port)
 
 int __init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
 {
+	// 関数を関数ポインタ配列に格納する
+	static send_func_t sclda_send_funcs[SCLDA_PORT_NUMBER] = {
+		SCLDA_SEND_FUNC_NAME(0),  SCLDA_SEND_FUNC_NAME(1),
+		SCLDA_SEND_FUNC_NAME(2),  SCLDA_SEND_FUNC_NAME(3),
+		SCLDA_SEND_FUNC_NAME(4),  SCLDA_SEND_FUNC_NAME(5),
+		SCLDA_SEND_FUNC_NAME(6),  SCLDA_SEND_FUNC_NAME(7),
+		SCLDA_SEND_FUNC_NAME(8),  SCLDA_SEND_FUNC_NAME(9),
+		SCLDA_SEND_FUNC_NAME(10), SCLDA_SEND_FUNC_NAME(11),
+		SCLDA_SEND_FUNC_NAME(12), SCLDA_SEND_FUNC_NAME(13),
+		SCLDA_SEND_FUNC_NAME(14), SCLDA_SEND_FUNC_NAME(15)
+	};
 	if (__sclda_create_socket(sclda_cs_ptr) < 0) {
 		printk(KERN_INFO "SCLDA_ERROR socket create error: %d", port);
 		return -1;
