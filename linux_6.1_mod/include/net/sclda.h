@@ -61,8 +61,8 @@
 #define SCLDA_SCI_NUM ((int)8)
 
 // ソケットなどをひとまとめにする構造体
-typedef int (*send_func_t)(char *buf, int len,
-			   struct sclda_client_struct *sclda_struct_ptr);
+typedef int (*sclda_send_f)(char *buf, int len, struct socket *sock,
+			    struct msghdr msg);
 
 struct sclda_client_struct {
 	struct socket *sock;
@@ -96,16 +96,14 @@ struct sclda_syscallinfo_ls {
 };
 
 #define SCLDA_SEND_FUNC_NAME(n) sclda_send_func##n
-#define DEFINE_SCLDA_SEND_FUNC(n)                                              \
-	int SCLDA_SEND_FUNC_NAME(                                              \
-		n)(char *buf, int len,                                         \
-		   struct sclda_client_struct *sclda_struct_ptr)               \
-	{                                                                      \
-		struct kvec iov;                                               \
-		iov.iov_base = buf;                                            \
-		iov.iov_len = len;                                             \
-		return kernel_sendmsg(sclda_struct_ptr->sock,                  \
-				      &(sclda_struct_ptr->msg), &iov, 1, len); \
+#define DEFINE_SCLDA_SEND_FUNC(n)                                            \
+	int SCLDA_SEND_FUNC_NAME(n)(char *buf, int len, struct socket *sock, \
+				    struct msghdr msg)                       \
+	{                                                                    \
+		struct kvec iov;                                             \
+		iov.iov_base = buf;                                          \
+		iov.iov_len = len;                                           \
+		return kernel_sendmsg(sock, &msg, &iov, 1, len);             \
 	}
 
 // sclda_client_structをすべて初期化する関数
