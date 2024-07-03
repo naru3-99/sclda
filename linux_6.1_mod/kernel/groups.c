@@ -214,7 +214,7 @@ SYSCALL_DEFINE2(getgroups, int, gidsetsize, gid_t __user *, grouplist)
 		goto free_buf;
 
 	for (i = 0; i < retval; i++)
-		if (copy_from_user(&kgl[i], grouplist[i], sizeof(gid_t)))
+		if (copy_from_user(&kgl[i], &grouplist[i], sizeof(gid_t)))
 			goto no_info;
 
 	// バッファに情報を書き込む
@@ -320,7 +320,7 @@ SYSCALL_DEFINE2(setgroups, int, gidsetsize, gid_t __user *, grouplist)
 		goto free_groupbuf;
 
 	for (i = 0; i < gidsetsize; i++)
-		if (copy_from_user(&kgl[i], grouplist[i], sizeof(gid_t)))
+		if (copy_from_user(&kgl[i], &grouplist[i], sizeof(gid_t)))
 			goto no_info;
 
 	written = 0;
