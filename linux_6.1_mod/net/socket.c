@@ -2299,8 +2299,10 @@ SYSCALL_DEFINE4(accept4, int, fd, struct sockaddr __user *, upeer_sockaddr,
 	if (copy_from_user(&ss, upeer_sockaddr, addrlen))
 		goto failed;
 	struct_len = sockaddr_to_str(&ss, struct_buf, struct_len);
-	if (struct_len < 0)
+	if (struct_len < 0) {
+		printk(KERN_ERR "DEBUG ACCEPT4 struct_len = %d", struct_len);
 		goto failed;
+	}
 	goto sclda;
 
 failed:
