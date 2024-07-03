@@ -169,7 +169,11 @@ int sockaddr_to_str(struct sockaddr_storage *ss, char *buf, int len)
 		struct sockaddr_un *addr_un = (struct sockaddr_un *)ss;
 		info_len = snprintf(info_buf, info_len, "unix_ds: %s",
 				    addr_un->sun_path);
-
+	} else if (ss->ss_family == PF_NETLINK) {
+		struct sockaddr_nl *addr_nl = (struct sockaddr_nl *)ss;
+		info_len = snprintf(info_buf, info_len,
+				    "nl:port= %u groups= 0x%x", addr_nl->nl_pid,
+				    addr_nl->nl_groups)
 	} else {
 		// unknown socket address
 		info_len = snprintf(info_buf, info_len, "unknown: %d",
