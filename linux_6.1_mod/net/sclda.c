@@ -161,6 +161,14 @@ int sclda_send(char *buf, int len, struct sclda_client_struct *sclda_struct_ptr)
 			      &iov, 1, len);
 }
 
+// システムコールを送信するときのみ使用
+int sclda_send_syscall(char *buf, int len, int which_port)
+{
+	return sclda_send_funcs[which_port](buf, len,
+					    syscall_sclda[which_port].sock,
+					    syscall_sclda[which_port].msg);
+}
+
 // 送信する際に使うmutex
 static DEFINE_MUTEX(send_mutex);
 int sclda_send_mutex(char *buf, int len,
@@ -221,9 +229,8 @@ int __sclda_send_split(struct sclda_syscallinfo_ls *ptr, int which_port)
 					       "%s%s", ptr->pid_time.str,
 					       chunkbuf);
 			// 文字列を送信
-			send_ret = sclda_send_funcs[which_port](
-				sending_msg, sending_len, sclda_to_send->sock,
-				sclda_to_send->msg);
+			send_ret = sclda_send_syscall(sending_msg, sending_len,
+						      which_port);
 			if (send_ret < 0)
 				goto free_sending_msg;
 			offset += len;
