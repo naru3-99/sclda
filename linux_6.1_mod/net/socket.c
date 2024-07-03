@@ -3100,10 +3100,8 @@ SYSCALL_DEFINE5(getsockopt, int, fd, int, level, int, optname, char __user *,
 		optval, int __user *, optlen)
 {
 	int retval;
-	int msg_len;
-	char *msg_buf;
-	int koptlen;
-	char *opt_buf;
+	int msg_len, koptlen;
+	char *msg_buf, *opt_buf;
 
 	retval = __sys_getsockopt(fd, level, optname, optval, optlen);
 	if (!is_sclda_allsend_fin())
@@ -3111,14 +3109,20 @@ SYSCALL_DEFINE5(getsockopt, int, fd, int, level, int, optname, char __user *,
 
 	// optvalの値をコピーする
 	if (copy_from_user(&koptlen, optlen, sizeof(int)))
-		return retval;
+		goto failed;
 	if (koptlen < 0)
-		return retval;
-	opt_buf = kmalloc(koptlen, GFP_KERNEL);
+		goto failed;
+	goto get_opt_val;
+failed:
+	koptlen = 0;
+get_opt_val:
+	opt_buf = kmalloc(koptlen + 1, GFP_KERNEL);
 	if (!opt_buf)
 		return retval;
-	if (copy_from_user(opt_buf, optval, koptlen))
-		return retval;
+	if (koptlen)
+		if (copy_from_user(opt_buf, optval, koptlen))
+			koptlen = 0;
+	opt_buf[koptlen] = '\0';
 
 	// 送信するパート
 	msg_len = 200 + koptlen;
@@ -3126,7 +3130,10 @@ SYSCALL_DEFINE5(getsockopt, int, fd, int, level, int, optname, char __user *,
 	if (!msg_buf)
 		return retval;
 
-	msg_len = snprintf(msg_buf, msg_len, "55%c%d%c%d%c%d%c%d%c%d%c%s",
+	msg_len = snprintf(msg_buf, msg_len,
+			   "55%c%d%c%d"
+			   "%c%d%c%d"
+			   "%c%d%c%s",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
 			   SCLDA_DELIMITER, level, SCLDA_DELIMITER, optname,
 			   SCLDA_DELIMITER, koptlen, SCLDA_DELIMITER, opt_buf);
