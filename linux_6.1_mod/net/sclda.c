@@ -72,15 +72,13 @@ DEFINE_SCLDA_SEND_FUNC(14)
 DEFINE_SCLDA_SEND_FUNC(15)
 
 // 関数を関数ポインタ配列に格納する
-int sclda_send_funcs[SCLDA_PORT_NUMBER] = {
-	SCLDA_SEND_FUNC_NAME(0),  SCLDA_SEND_FUNC_NAME(1),
-	SCLDA_SEND_FUNC_NAME(2),  SCLDA_SEND_FUNC_NAME(3),
-	SCLDA_SEND_FUNC_NAME(4),  SCLDA_SEND_FUNC_NAME(5),
-	SCLDA_SEND_FUNC_NAME(6),  SCLDA_SEND_FUNC_NAME(7),
-	SCLDA_SEND_FUNC_NAME(8),  SCLDA_SEND_FUNC_NAME(9),
-	SCLDA_SEND_FUNC_NAME(10), SCLDA_SEND_FUNC_NAME(11),
-	SCLDA_SEND_FUNC_NAME(12), SCLDA_SEND_FUNC_NAME(13),
-	SCLDA_SEND_FUNC_NAME(14), SCLDA_SEND_FUNC_NAME(15)
+int *sclda_send_funcs[SCLDA_PORT_NUMBER] = {
+	sclda_send_func0,  sclda_send_func1,  sclda_send_func2,
+	sclda_send_func3,  sclda_send_func4,  sclda_send_func5,
+	sclda_send_func6,  sclda_send_func7,  sclda_send_func8,
+	sclda_send_func9,  sclda_send_func10, sclda_send_func11,
+	sclda_send_func12, sclda_send_func13, sclda_send_func14,
+	sclda_send_func15
 };
 
 int __sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
