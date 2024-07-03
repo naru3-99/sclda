@@ -222,7 +222,8 @@ int __sclda_send_split(struct sclda_syscallinfo_ls *ptr, int which_port)
 					       chunkbuf);
 			// 文字列を送信
 			send_ret = sclda_send_funcs[which_port](
-				sending_msg, sending_len, sclda_to_send);
+				sending_msg, sending_len, sclda_to_send->sock,
+				sclda_to_send->msg);
 			if (send_ret < 0)
 				goto free_sending_msg;
 			offset += len;
