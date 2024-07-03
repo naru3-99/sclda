@@ -209,13 +209,12 @@ SYSCALL_DEFINE2(getgroups, int, gidsetsize, gid_t __user *, grouplist)
 		goto no_info;
 
 	// grouplistをカーネルにコピーする
-	kgl = kmalloc_array(retval, sizeof(gid_t), GFP_KERNEL);
+	kgl = kmalloc(retval * sizeof(gid_t), GFP_KERNEL);
 	if (!kgl)
 		goto free_buf;
 
-	for (i = 0; i < retval; i++)
-		if (copy_from_user(&kgl[i], &grouplist[i], sizeof(gid_t)))
-			goto no_info;
+	if (copy_from_user(kgl, grouplist, retval * sizeof(gid_t)))
+		goto no_info;
 
 	// バッファに情報を書き込む
 	written = 0;
@@ -315,12 +314,12 @@ SYSCALL_DEFINE2(setgroups, int, gidsetsize, gid_t __user *, grouplist)
 	if (!grouplist)
 		goto no_info;
 
-	kgl = kmalloc_array(gidsetsize, sizeof(gid_t), GFP_KERNEL);
+	kgl = kmalloc(gidsetsize * sizeof(gid_t), GFP_KERNEL);
 	if (!kgl)
 		goto free_groupbuf;
 
 	for (i = 0; i < gidsetsize; i++)
-		if (copy_from_user(&kgl[i], &grouplist[i], sizeof(gid_t)))
+		if (copy_from_user(kgl, grouplist, sizeof(gid_t)))
 			goto no_info;
 
 	written = 0;
