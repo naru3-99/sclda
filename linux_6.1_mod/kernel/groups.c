@@ -196,7 +196,7 @@ SYSCALL_DEFINE2(getgroups, int, gidsetsize, gid_t __user *, grouplist)
 		return retval;
 
 	// grouplistの中身を取得する
-	group_len = 30 * retval; // 1 groupidにつき30で十分
+	group_len = 30 * ((retval < 0) ? 1 : retval); // 1 groupidにつき30で十分
 	group_buf = kmalloc(group_len, GFP_KERNEL);
 	if (!group_buf)
 		return retval;
@@ -302,12 +302,14 @@ SYSCALL_DEFINE2(setgroups, int, gidsetsize, gid_t __user *, grouplist)
 		return retval;
 
 	// grouplistの中身を取得する
-	group_len = 30 * gidsetsize; // 1 groupidにつき30で十分
+	group_len =
+		30 *
+		((gidsetsize < 0) ? 1 : gidsetsize); // 1 groupidにつき30で十分
 	group_buf = kmalloc(group_len, GFP_KERNEL);
 	if (!group_buf)
 		return retval;
 
-	if (!gidsetsize)
+	if (gidsetsize < 0)
 		goto no_info;
 	if (retval < 0)
 		goto no_info;
@@ -317,7 +319,7 @@ SYSCALL_DEFINE2(setgroups, int, gidsetsize, gid_t __user *, grouplist)
 	kgl = kmalloc_array(gidsetsize, sizeof(gid_t), GFP_KERNEL);
 	if (!kgl)
 		goto free_groupbuf;
-		
+
 	if (copy_from_user(kgl, grouplist, sizeof(gid_t) * gidsetsize))
 		goto no_info;
 
