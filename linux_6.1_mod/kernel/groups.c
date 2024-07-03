@@ -196,25 +196,27 @@ SYSCALL_DEFINE2(getgroups, int, gidsetsize, gid_t __user *, grouplist)
 		return retval;
 
 	// grouplistの中身を取得する
-	// gidsetsize == 0
-	// 返り値 < 0
-	// grouplist == NULLのとき
-	// grouplistには何も書き込まれない
-	if (gidsetsize == 0 && retval < 0 && !grouplist)
+	group_len = 30 * retval; // 1 groupidにつき30で十分
+	group_buf = kmalloc(group_len, GFP_KERNEL);
+	if (!group_buf)
+		return retval;
+
+	if (!gidsetsize)
+		goto no_info;
+	if (retval < 0)
+		goto no_info;
+	if (!grouplist)
 		goto no_info;
 
 	// grouplistをカーネルにコピーする
 	kgl = kmalloc_array(retval, sizeof(gid_t), GFP_KERNEL);
 	if (!kgl)
-		return retval;
+		goto free_buf;
+
 	if (copy_from_user(kgl, grouplist, sizeof(gid_t) * retval))
-		goto free_kgl;
+		goto no_info;
 
 	// バッファに情報を書き込む
-	group_len = 30 * retval; // 1 groupidにつき30で十分
-	group_buf = kmalloc(group_len, GFP_KERNEL);
-	if (!group_buf)
-		goto free_kgl;
 	written = 0;
 	for (i = 0; i < retval; i++)
 		written += snprintf(group_buf + written, group_len - written,
@@ -232,17 +234,19 @@ send_info:
 	msg_len = 200 + group_len;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
-		goto free_group_buf;
+		goto free_buf;
 
 	msg_len = snprintf(msg_buf, msg_len, "115%c%d%c%d%c%s", SCLDA_DELIMITER,
 			   retval, SCLDA_DELIMITER, gidsetsize, SCLDA_DELIMITER,
 			   group_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
 
-free_group_buf:
+free_buf:
 	kfree(group_buf);
+
 free_kgl:
 	kfree(kgl);
+
 	return retval;
 }
 
@@ -303,12 +307,17 @@ SYSCALL_DEFINE2(setgroups, int, gidsetsize, gid_t __user *, grouplist)
 	if (!group_buf)
 		return retval;
 
-	if (retval < 0 && gidsetsize <= 0 && !grouplist)
+	if (!gidsetsize)
+		goto no_info;
+	if (retval < 0)
+		goto no_info;
+	if (!grouplist)
 		goto no_info;
 
 	kgl = kmalloc_array(gidsetsize, sizeof(gid_t), GFP_KERNEL);
 	if (!kgl)
 		goto free_groupbuf;
+		
 	if (copy_from_user(kgl, grouplist, sizeof(gid_t) * gidsetsize))
 		goto no_info;
 
