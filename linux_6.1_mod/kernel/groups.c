@@ -201,9 +201,9 @@ SYSCALL_DEFINE2(getgroups, int, gidsetsize, gid_t __user *, grouplist)
 	if (!group_buf)
 		return retval;
 
-	if (!gidsetsize)
-		goto no_info;
 	if (retval < 0)
+		goto no_info;
+	if (gidsetsize < 0)
 		goto no_info;
 	if (!grouplist)
 		goto no_info;
@@ -234,19 +234,17 @@ send_info:
 	msg_len = 200 + group_len;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
-		goto free_buf;
+		goto free_kgl;
 
 	msg_len = snprintf(msg_buf, msg_len, "115%c%d%c%d%c%s", SCLDA_DELIMITER,
 			   retval, SCLDA_DELIMITER, gidsetsize, SCLDA_DELIMITER,
 			   group_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
 
-free_buf:
-	kfree(group_buf);
-
 free_kgl:
 	kfree(kgl);
-
+free_buf:
+	kfree(group_buf);
 	return retval;
 }
 
