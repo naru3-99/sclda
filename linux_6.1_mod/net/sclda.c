@@ -88,6 +88,7 @@ int __init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
 	sclda_cs_ptr->msg.msg_control = NULL;
 	sclda_cs_ptr->msg.msg_controllen = 0;
 	sclda_cs_ptr->msg.msg_flags = 0;
+	sclda_cs_ptr->send_func = sclda_send;
 	return 0;
 }
 
@@ -183,8 +184,8 @@ int __sclda_send_split(struct sclda_syscallinfo_ls *ptr, int which_port)
 					       "%s%s", ptr->pid_time.str,
 					       chunkbuf);
 			// 文字列を送信
-			send_ret = sclda_send_mutex(sending_msg, sending_len,
-						    sclda_to_send);
+			send_ret = sclda_to_send->send_func(
+				sending_msg, sending_len, sclda_to_send);
 			if (send_ret < 0)
 				goto free_sending_msg;
 			offset += len;

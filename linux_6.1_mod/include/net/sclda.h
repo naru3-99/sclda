@@ -66,6 +66,8 @@ struct sclda_client_struct {
 	struct sockaddr_in addr;
 	struct msghdr msg;
 	struct iov_iter iov_it;
+	int (*send_func)(char *buf, int len,
+			  struct sclda_client_struct *sclda_struct_ptr);
 };
 
 // 文字列の情報を保持するための構造体
@@ -96,6 +98,7 @@ struct sclda_syscallinfo_ls {
 int sclda_init(void);
 
 // 文字列を送信する最も簡単な関数
+int sclda_send(char *, int, struct sclda_client_struct *);
 int sclda_send_mutex(char *, int, struct sclda_client_struct *);
 
 // pidを取得する
