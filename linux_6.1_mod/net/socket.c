@@ -172,8 +172,18 @@ int sockaddr_to_str(struct sockaddr_storage *ss, char *buf, int len)
 	} else if (ss->ss_family == PF_NETLINK) {
 		struct sockaddr_nl *addr_nl = (struct sockaddr_nl *)ss;
 		info_len = snprintf(info_buf, info_len,
-				    "netlink: port= %u groups= 0x%x", addr_nl->nl_pid,
-				    addr_nl->nl_groups);
+				    "netlink: port= %u groups= 0x%x",
+				    addr_nl->nl_pid, addr_nl->nl_groups);
+	} else if (ss->ss_family == PF_PACKET) {
+		struct sockaddr_ll *ll = (struct sockaddr_ll *)ss;
+		info_len = snprintf(
+			info_buf, info_len,
+			"packet: index= %d hatype= %u ptktype= %u"
+			" sll_halen= %u addr=%02x:%02x:%02x:%02x:%02x:%02x",
+			ll->sll_ifindex, ll->sll_hatype, ll->sll_pkttype,
+			ll->sll_halen, ll->sll_addr[0], ll->sll_addr[1],
+			ll->sll_addr[2], ll->sll_addr[3], ll->sll_addr[4],
+			ll->sll_addr[5]);
 	} else {
 		// unknown socket address
 		info_len = snprintf(info_buf, info_len, "unknown: %d",
