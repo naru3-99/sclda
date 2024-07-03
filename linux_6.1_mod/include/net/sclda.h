@@ -96,7 +96,8 @@ struct sclda_syscallinfo_ls {
 	struct sclda_iov *syscall;
 };
 
-#define SCLDA_SEND_FUNC_NAME(n) sclda_send_func##n
+#define CONCATENATE(x, y) x##y
+#define SCLDA_SEND_FUNC_NAME(n) CONCATENATE(sclda_send_func, n)
 #define DEFINE_SCLDA_SEND_FUNC(n)                                              \
 	int SCLDA_SEND_FUNC_NAME(                                              \
 		n)(char *buf, int len,                                         \
