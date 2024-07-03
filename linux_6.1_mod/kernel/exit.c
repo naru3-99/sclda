@@ -1826,7 +1826,7 @@ SYSCALL_DEFINE5(waitid, int, which, pid_t, upid, struct siginfo __user *, infop,
 		return retval;
 	if (copy_from_user(&r, ru, sizeof(struct rusage))) {
 		ru_len = 1;
-		ru_buf[0] = "\0";
+		ru_buf[0] = '\0';
 	} else {
 		ru_len = rusage_to_str(&r, ru_buf, ru_len);
 	}
