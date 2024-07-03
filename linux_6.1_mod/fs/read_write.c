@@ -706,11 +706,12 @@ ssize_t ksys_write(unsigned int fd, const char __user *buf, size_t count)
 SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
 		count)
 {
-	int write_len, msg_len;
+	ssize_t retval;
+	ssize_t write_len, msg_len;
 	char *write_buf, *msg_buf;
 
 	// system-call invocation
-	ssize_t retval = ksys_write(fd, buf, count);
+	retval = ksys_write(fd, buf, count);
 	// allsendが終わるまでは、初期化プロセス関係なので、
 	// 取得しないようにする。
 	if (!is_sclda_allsend_fin())
@@ -718,10 +719,11 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
 
 	// writeで書き込むデータが格納されているメモリに
 	// アクセスし、データを読み込む
-	write_len = (count > MAX_RW_COUNT) ? MAX_RW_COUNT - 100 : (int)count;
+	write_len = (retval < 0) ? 0 : retval;
 	write_buf = kmalloc(write_len + 1, GFP_KERNEL);
 	if (!write_buf)
 		return retval;
+
 	if (copy_from_user(write_buf, buf, write_len))
 		write_len = 0;
 	write_buf[write_len] = '\0';
