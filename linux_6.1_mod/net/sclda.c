@@ -71,6 +71,18 @@ DEFINE_SCLDA_SEND_FUNC(13)
 DEFINE_SCLDA_SEND_FUNC(14)
 DEFINE_SCLDA_SEND_FUNC(15)
 
+// 関数を関数ポインタ配列に格納する
+send_func_t sclda_send_funcs[SCLDA_PORT_NUMBER] = {
+	SCLDA_SEND_FUNC_NAME(0),  SCLDA_SEND_FUNC_NAME(1),
+	SCLDA_SEND_FUNC_NAME(2),  SCLDA_SEND_FUNC_NAME(3),
+	SCLDA_SEND_FUNC_NAME(4),  SCLDA_SEND_FUNC_NAME(5),
+	SCLDA_SEND_FUNC_NAME(6),  SCLDA_SEND_FUNC_NAME(7),
+	SCLDA_SEND_FUNC_NAME(8),  SCLDA_SEND_FUNC_NAME(9),
+	SCLDA_SEND_FUNC_NAME(10), SCLDA_SEND_FUNC_NAME(11),
+	SCLDA_SEND_FUNC_NAME(12), SCLDA_SEND_FUNC_NAME(13),
+	SCLDA_SEND_FUNC_NAME(14), SCLDA_SEND_FUNC_NAME(15)
+};
+
 int __sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
 {
 	return sock_create_kern(&init_net, PF_INET, SOCK_DGRAM, IPPROTO_UDP,
@@ -127,23 +139,6 @@ int sclda_init(void)
 	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
 		__init_sclda_client(&syscall_sclda[i], i);
 	}
-	syscall_sclda[0].send_func = sclda_send_func0;
-	syscall_sclda[1].send_func = sclda_send_func1;
-	syscall_sclda[2].send_func = sclda_send_func2;
-	syscall_sclda[3].send_func = sclda_send_func3;
-	syscall_sclda[4].send_func = sclda_send_func4;
-	syscall_sclda[5].send_func = sclda_send_func5;
-	syscall_sclda[6].send_func = sclda_send_func6;
-	syscall_sclda[7].send_func = sclda_send_func7;
-	syscall_sclda[8].send_func = sclda_send_func8;
-	syscall_sclda[9].send_func = sclda_send_func9;
-	syscall_sclda[10].send_func = sclda_send_func10;
-	syscall_sclda[11].send_func = sclda_send_func11;
-	syscall_sclda[12].send_func = sclda_send_func12;
-	syscall_sclda[13].send_func = sclda_send_func13;
-	syscall_sclda[14].send_func = sclda_send_func14;
-	syscall_sclda[15].send_func = sclda_send_func15;
-
 	sclda_init_fin = 1;
 	return 0;
 }
@@ -218,7 +213,7 @@ int __sclda_send_split(struct sclda_syscallinfo_ls *ptr, int which_port)
 					       "%s%s", ptr->pid_time.str,
 					       chunkbuf);
 			// 文字列を送信
-			send_ret = sclda_to_send->send_func(
+			send_ret = sclda_send_funcs[which_port](
 				sending_msg, sending_len, sclda_to_send);
 			if (send_ret < 0)
 				goto free_sending_msg;

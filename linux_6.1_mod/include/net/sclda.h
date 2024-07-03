@@ -63,13 +63,12 @@
 // ソケットなどをひとまとめにする構造体
 typedef int (*send_func_t)(char *buf, int len,
 			   struct sclda_client_struct *sclda_struct_ptr);
-
+			   
 struct sclda_client_struct {
 	struct socket *sock;
 	struct sockaddr_in addr;
 	struct msghdr msg;
 	struct iov_iter iov_it;
-	send_func_t send_func;
 };
 
 // 文字列の情報を保持するための構造体
