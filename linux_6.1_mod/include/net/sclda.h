@@ -63,7 +63,7 @@
 // ソケットなどをひとまとめにする構造体
 typedef int (*send_func_t)(char *buf, int len,
 			   struct sclda_client_struct *sclda_struct_ptr);
-			   
+
 struct sclda_client_struct {
 	struct socket *sock;
 	struct sockaddr_in addr;
@@ -95,8 +95,7 @@ struct sclda_syscallinfo_ls {
 	struct sclda_iov *syscall;
 };
 
-#define CONCATENATE(x, y) x##y
-#define SCLDA_SEND_FUNC_NAME(n) CONCATENATE(sclda_send_func, n)
+#define SCLDA_SEND_FUNC_NAME(n) sclda_send_func##n
 #define DEFINE_SCLDA_SEND_FUNC(n)                                              \
 	int SCLDA_SEND_FUNC_NAME(                                              \
 		n)(char *buf, int len,                                         \
