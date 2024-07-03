@@ -67,7 +67,7 @@ struct sclda_client_struct {
 	struct msghdr msg;
 	struct iov_iter iov_it;
 	int (*send_func)(char *buf, int len,
-			  struct sclda_client_struct *sclda_struct_ptr);
+			 struct sclda_client_struct *sclda_struct_ptr);
 };
 
 // 文字列の情報を保持するための構造体
@@ -93,6 +93,18 @@ struct sclda_syscallinfo_ls {
 	int sc_iov_len;
 	struct sclda_iov *syscall;
 };
+
+#define SCLDA_SEND_FUNC_NAME(n) sclda_send_func##n
+#define DEFINE_SCLDA_SEND_FUNC(n)                                              \
+	int SCLDA_SEND_FUNC_NAME(n)(char *buf, int len,                                         \
+		   struct sclda_client_struct *sclda_struct_ptr)               \
+	{                                                                      \
+		struct kvec iov;                                               \
+		iov.iov_base = buf;                                            \
+		iov.iov_len = len;                                             \
+		return kernel_sendmsg(sclda_struct_ptr->sock,                  \
+				      &(sclda_struct_ptr->msg), &iov, 1, len); \
+	}
 
 // sclda_client_structをすべて初期化する関数
 int sclda_init(void);

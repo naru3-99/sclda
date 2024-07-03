@@ -53,6 +53,36 @@ int sclda_init_fin = 0;
 // PIDの情報を送信したかどうか
 int sclda_allsend_fin = 0;
 
+// 各ソケットに関数を一つづつ用意する
+DEFINE_SCLDA_SEND_FUNC(0)
+DEFINE_SCLDA_SEND_FUNC(1)
+DEFINE_SCLDA_SEND_FUNC(2)
+DEFINE_SCLDA_SEND_FUNC(3)
+DEFINE_SCLDA_SEND_FUNC(4)
+DEFINE_SCLDA_SEND_FUNC(5)
+DEFINE_SCLDA_SEND_FUNC(6)
+DEFINE_SCLDA_SEND_FUNC(7)
+DEFINE_SCLDA_SEND_FUNC(8)
+DEFINE_SCLDA_SEND_FUNC(9)
+DEFINE_SCLDA_SEND_FUNC(10)
+DEFINE_SCLDA_SEND_FUNC(11)
+DEFINE_SCLDA_SEND_FUNC(12)
+DEFINE_SCLDA_SEND_FUNC(13)
+DEFINE_SCLDA_SEND_FUNC(14)
+DEFINE_SCLDA_SEND_FUNC(15)
+
+// 関数を関数ポインタ配列に格納する
+int sclda_send_funcs[SCLDA_PORT_NUMBER] = {
+	SCLDA_SEND_FUNC_NAME(0),  SCLDA_SEND_FUNC_NAME(1),
+	SCLDA_SEND_FUNC_NAME(2),  SCLDA_SEND_FUNC_NAME(3),
+	SCLDA_SEND_FUNC_NAME(4),  SCLDA_SEND_FUNC_NAME(5),
+	SCLDA_SEND_FUNC_NAME(6),  SCLDA_SEND_FUNC_NAME(7),
+	SCLDA_SEND_FUNC_NAME(8),  SCLDA_SEND_FUNC_NAME(9),
+	SCLDA_SEND_FUNC_NAME(10), SCLDA_SEND_FUNC_NAME(11),
+	SCLDA_SEND_FUNC_NAME(12), SCLDA_SEND_FUNC_NAME(13),
+	SCLDA_SEND_FUNC_NAME(14), SCLDA_SEND_FUNC_NAME(15)
+};
+
 int __sclda_create_socket(struct sclda_client_struct *sclda_cs_ptr)
 {
 	return sock_create_kern(&init_net, PF_INET, SOCK_DGRAM, IPPROTO_UDP,
@@ -76,7 +106,8 @@ int __init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
 		printk(KERN_INFO "SCLDA_ERROR socket create error: %d", port);
 		return -1;
 	}
-	if (__sclda_connect_socket(sclda_cs_ptr, port) < 0) {
+	if (__sclda_connect_socket(sclda_cs_ptr,
+				   port + SCLDA_SYSCALL_BASEPORT) < 0) {
 		// 今回はUDP通信なので、ここがエラーはいても問題ない
 		// UDP通信はコネクションレスな通信であるため
 		printk(KERN_INFO "SCLDA_ERROR socket connect error: %d", port);
@@ -88,7 +119,7 @@ int __init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
 	sclda_cs_ptr->msg.msg_control = NULL;
 	sclda_cs_ptr->msg.msg_controllen = 0;
 	sclda_cs_ptr->msg.msg_flags = 0;
-	sclda_cs_ptr->send_func = sclda_send;
+	sclda_cs_ptr->send_func = sclda_send_funcs[port];
 	return 0;
 }
 
@@ -107,8 +138,7 @@ int sclda_init(void)
 
 	__init_sclda_client(&pidppid_sclda, SCLDA_PIDPPID_PORT);
 	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
-		__init_sclda_client(&syscall_sclda[i],
-				    SCLDA_SYSCALL_BASEPORT + i);
+		__init_sclda_client(&syscall_sclda[i], i);
 	}
 	sclda_init_fin = 1;
 	return 0;
