@@ -2902,17 +2902,18 @@ failed:
 get_buff:
 	// buffを参照するが、エラーの場合は何もしない
 	buff_len = (retval < 0) ? 1 : size;
-	buff_buf = kmalloc(buff_len, GFP_KERNEL);
+	buff_buf = kmalloc(buff_len + 1, GFP_KERNEL);
 	if (!buff_buf)
 		goto free_struct;
 	if (retval < 0) {
 		// 失敗しているため、何もしない
-		buff_buf[0] = '\0';
+		buff_len = 0;
 	} else {
 		// 成功しているため、buffを読み込む
 		if (copy_from_user(buff_buf, ubuf, buff_len))
-			buff_buf[0] = '\0';
+			buff_len = 0;
 	}
+	buff_buf[buff_len] = '\0';
 
 	// 送信する
 	msg_len = buff_len + struct_len + 200;
