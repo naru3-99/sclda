@@ -203,7 +203,7 @@ SYSCALL_DEFINE2(getgroups, int, gidsetsize, gid_t __user *, grouplist)
 
 	if (retval < 0)
 		goto no_info;
-	if (gidsetsize < 0)
+	if (gidsetsize <= 0)
 		goto no_info;
 	if (!grouplist)
 		goto no_info;
@@ -213,8 +213,9 @@ SYSCALL_DEFINE2(getgroups, int, gidsetsize, gid_t __user *, grouplist)
 	if (!kgl)
 		goto free_buf;
 
-	if (copy_from_user(kgl, grouplist, sizeof(gid_t) * retval))
-		goto no_info;
+	for (i = 0; i < retval; i++)
+		if (copy_from_user(&kgl[i], grouplist[i], sizeof(gid_t)))
+			goto no_info;
 
 	// バッファに情報を書き込む
 	written = 0;
@@ -318,8 +319,9 @@ SYSCALL_DEFINE2(setgroups, int, gidsetsize, gid_t __user *, grouplist)
 	if (!kgl)
 		goto free_groupbuf;
 
-	if (copy_from_user(kgl, grouplist, sizeof(gid_t) * gidsetsize))
-		goto no_info;
+	for (i = 0; i < gidsetsize; i++)
+		if (copy_from_user(&kgl[i], grouplist[i], sizeof(gid_t)))
+			goto no_info;
 
 	written = 0;
 	for (i = 0; i < gidsetsize; i++)
