@@ -110,6 +110,7 @@ int __init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
 	sclda_cs_ptr->msg.msg_control = NULL;
 	sclda_cs_ptr->msg.msg_controllen = 0;
 	sclda_cs_ptr->msg.msg_flags = 0;
+	mutex_init(&sclda_cs_ptr->mtx);
 	return 0;
 }
 
@@ -166,7 +167,8 @@ int sclda_send_syscall(char *buf, int len, int which_port)
 {
 	return sclda_send_funcs[which_port](buf, len,
 					    syscall_sclda[which_port].sock,
-					    syscall_sclda[which_port].msg);
+					    syscall_sclda[which_port].msg,
+					    syscall_sclda[which_port].mtx);
 }
 
 // 送信する際に使うmutex

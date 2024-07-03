@@ -62,13 +62,14 @@
 
 // ソケットなどをひとまとめにする構造体
 typedef int (*sclda_send_f)(char *buf, int len, struct socket *sock,
-			    struct msghdr msg);
+			    struct msghdr msg, struct mutex mtx);
 
 struct sclda_client_struct {
 	struct socket *sock;
 	struct sockaddr_in addr;
 	struct msghdr msg;
 	struct iov_iter iov_it;
+	struct mutex mtx;
 };
 
 // 文字列の情報を保持するための構造体
@@ -98,12 +99,16 @@ struct sclda_syscallinfo_ls {
 #define SCLDA_SEND_FUNC_NAME(n) sclda_send_func##n
 #define DEFINE_SCLDA_SEND_FUNC(n)                                            \
 	int SCLDA_SEND_FUNC_NAME(n)(char *buf, int len, struct socket *sock, \
-				    struct msghdr msg)                       \
+				    struct msghdr msg, struct mutex mtx)     \
 	{                                                                    \
 		struct kvec iov;                                             \
+		int retval;                                                  \
+		mutex_lock(&mtx);                                            \
 		iov.iov_base = buf;                                          \
 		iov.iov_len = len;                                           \
-		return kernel_sendmsg(sock, &msg, &iov, 1, len);             \
+		retval = kernel_sendmsg(sock, &msg, &iov, 1, len);           \
+		mutex_unlock(&mtx);                                          \
+		return retval;                                               \
 	}
 
 // sclda_client_structをすべて初期化する関数
