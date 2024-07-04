@@ -31,6 +31,7 @@
 #include <linux/netpoll.h>
 #include <linux/uaccess.h>
 #include <linux/types.h>
+#include <linux/delay.h>
 
 #include <linux/sched/clock.h>
 
@@ -56,7 +57,7 @@
 // 付加情報（utime、PID）
 #define SCLDA_PID_CLOCK_SIZE ((int)50)
 // syscall_info構造体がいくつ貯まると送信するか
-#define SCLDA_NUM_TO_SEND_SINFO ((int)2000)
+#define SCLDA_NUM_TO_SEND_SINFO ((int)5000)
 // syscall_info構造体の頭とmutexを用意する数
 #define SCLDA_SCI_NUM ((int)8)
 

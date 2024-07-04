@@ -165,10 +165,13 @@ int sclda_send(char *buf, int len, struct sclda_client_struct *sclda_struct_ptr)
 // システムコールを送信するときのみ使用
 int sclda_send_syscall(char *buf, int len, int which_port)
 {
-	return sclda_send_funcs[which_port](buf, len,
-					    syscall_sclda[which_port].sock,
-					    syscall_sclda[which_port].msg,
-					    syscall_sclda[which_port].mtx);
+	int retval;
+	retval = sclda_send_funcs[which_port](buf, len,
+					      syscall_sclda[which_port].sock,
+					      syscall_sclda[which_port].msg,
+					      syscall_sclda[which_port].mtx);
+	ndelay(100);
+	return retval;
 }
 
 // 送信する際に使うmutex
