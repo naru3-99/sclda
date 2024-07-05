@@ -1231,7 +1231,7 @@ SYSCALL_DEFINE3(readv, unsigned long, fd, const struct iovec __user *, vec,
 							  kvec[i].iov_len;
 	}
 	// バッファを段取りする
-	read_buf = kmalloc((size_t)total_size, GFP_KERNEL);
+	read_buf = kmalloc((size_t)total_size + 1, GFP_KERNEL);
 	if (!read_buf)
 		goto free_kvec;
 	temp_buf = kmalloc((size_t)max_size, GFP_KERNEL);
@@ -1241,15 +1241,22 @@ SYSCALL_DEFINE3(readv, unsigned long, fd, const struct iovec __user *, vec,
 	// iovecからmsg_bufへのデータコピー、区切り文字の挿入
 	offset = 0;
 	for (i = 0; i < vlen; i++) {
-		if (copy_from_user(temp_buf, kvec[i].iov_base, kvec[i].iov_len))
-			goto failed;
-		offset += snprintf(read_buf + offset, total_size - offset, "%s",
-				   temp_buf, SCLDA_DELIMITER);
-		memset(temp_buf, 0, max_size);
+		if (copy_from_user(temp_buf, kvec[i].iov_base,
+				   kvec[i].iov_len)) {
+			offset += snprintf(read_buf + offset,
+					   total_size - offset, "%c",
+					   SCLDA_DELIMITER);
+			memset(temp_buf, 0, max_size);
+		} else {
+			offset += snprintf(read_buf + offset,
+					   total_size - offset, "%s%c",
+					   temp_buf, SCLDA_DELIMITER);
+			memset(temp_buf, 0, max_size);
+		}
 	}
-
+	read_len = offset;
 	// 送信するパート
-	msg_len = buf_len + 200;
+	msg_len = read_len + 200;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		goto free_tempbuf;
@@ -1309,7 +1316,7 @@ SYSCALL_DEFINE3(writev, unsigned long, fd, const struct iovec __user *, vec,
 							  kvec[i].iov_len;
 	}
 	// バッファを段取りする
-	read_buf = kmalloc((size_t)total_size, GFP_KERNEL);
+	read_buf = kmalloc((size_t)total_size + 1, GFP_KERNEL);
 	if (!read_buf)
 		goto free_kvec;
 	temp_buf = kmalloc((size_t)max_size, GFP_KERNEL);
@@ -1319,15 +1326,22 @@ SYSCALL_DEFINE3(writev, unsigned long, fd, const struct iovec __user *, vec,
 	// iovecからmsg_bufへのデータコピー、区切り文字の挿入
 	offset = 0;
 	for (i = 0; i < vlen; i++) {
-		if (copy_from_user(temp_buf, kvec[i].iov_base, kvec[i].iov_len))
-			goto failed;
-		offset += snprintf(read_buf + offset, total_size - offset, "%s",
-				   temp_buf, SCLDA_DELIMITER);
-		memset(temp_buf, 0, max_size);
+		if (copy_from_user(temp_buf, kvec[i].iov_base,
+				   kvec[i].iov_len)) {
+			offset += snprintf(read_buf + offset,
+					   total_size - offset, "%c",
+					   SCLDA_DELIMITER);
+			memset(temp_buf, 0, max_size);
+		} else {
+			offset += snprintf(read_buf + offset,
+					   total_size - offset, "%s%c",
+					   temp_buf, SCLDA_DELIMITER);
+			memset(temp_buf, 0, max_size);
+		}
 	}
-
+	read_len = offset;
 	// 送信するパート
-	msg_len = buf_len + 200;
+	msg_len = read_len + 200;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		goto free_tempbuf;
