@@ -213,9 +213,9 @@ int __sclda_send_split(struct sclda_syscallinfo_ls *ptr, int which_port)
 		offset = 0;
 		len = 0;
 		while (offset < ptr->syscall[i].len) {
+			memset(sending_msg, 0, max_packet_len);
 			len = min(SCLDA_CHUNKSIZE,
 				  (size_t)(ptr->syscall[i].len - offset));
-
 			// 送信する文字列を段取り
 			sending_len = snprintf(sending_msg, max_packet_len,
 					       "%s%.*s", ptr->pid_time.str, len,
