@@ -8447,20 +8447,24 @@ static void do_sched_yield(void)
  */
 SYSCALL_DEFINE0(sched_yield)
 {
-	do_sched_yield();
-
 	int retval = 0;
+	int msg_len;
+	char *msg_buf;
+
 	if (!is_sclda_allsend_fin())
-		return retval;
+		goto out;
 
 	// 送信するパート
-	int msg_len = 100;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	msg_len = 100;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
-		return retval;
+		goto out;
 
 	msg_len = snprintf(msg_buf, msg_len, "24%c%d", SCLDA_DELIMITER, retval);
 	sclda_send_syscall_info(msg_buf, msg_len);
+
+out:
+	do_sched_yield();
 	return retval;
 }
 

@@ -1360,37 +1360,32 @@ SYSCALL_DEFINE1(times, struct tms __user *, tbuf)
 	long retval = -EFAULT;
 	int msg_len, tms_len;
 	char *msg_buf, *tms_buf;
-
-	// sclda: tmsのバッファを用意
-	tms_len = 200;
-	tms_buf = kmalloc(tms_len, GFP_KERNEL);
-	if (!tms_buf)
-		return retval;
-
 	struct tms tmp;
+
+	do_sys_times(&tmp);
 	if (tbuf) {
-		do_sys_times(&tmp);
-
-		// sclda: tms情報を取得する
-		tms_len = snprintf(tms_buf, tms_len, "%ld%c%ld%c%ld%c%ld",
-				   tmp.tms_utime, SCLDA_DELIMITER,
-				   tmp.tms_stime, SCLDA_DELIMITER,
-				   tmp.tms_cutime, SCLDA_DELIMITER,
-				   tmp.tms_cstime);
-
-		if (copy_to_user(tbuf, &tmp, sizeof(struct tms)))
+		if (copy_to_user(tbuf, &tmp, sizeof(struct tms))) {
+			retval = -EFAULT;
 			goto sclda;
-	} else {
-		tms_len = 1;
-		tms_buf[0] = '\0';
+		}
 	}
-
 	force_successful_syscall_return();
 	retval = (long)jiffies_64_to_clock_t(get_jiffies_64());
 
 sclda:
 	if (!is_sclda_allsend_fin())
 		goto free_tmsbuf;
+
+	// sclda: tmsのバッファを用意
+	tms_len = 200;
+	tms_buf = kmalloc(tms_len, GFP_KERNEL);
+	if (!tms_buf)
+		return retval;
+	// sclda: tms情報を取得する
+	tms_len = snprintf(tms_buf, tms_len, "%ld%c%ld%c%ld%c%ld",
+			   tmp.tms_utime, SCLDA_DELIMITER, tmp.tms_stime,
+			   SCLDA_DELIMITER, tmp.tms_cutime, SCLDA_DELIMITER,
+			   tmp.tms_cstime);
 
 	// 送信するパート
 	msg_len = 100 + tms_len;

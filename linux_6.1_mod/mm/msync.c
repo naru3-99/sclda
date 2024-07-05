@@ -30,9 +30,9 @@
  * So by _not_ starting I/O in MS_ASYNC we provide complete flexibility to
  * applications.
  */
-SYSCALL_DEFINE3(msync, unsigned long, start, size_t, len, int, flags)
+
+int sclda_msync(unsigned long start, size_t len, int flags)
 {
-	int retval;
 	unsigned long end;
 	struct mm_struct *mm = current->mm;
 	struct vm_area_struct *vma;
@@ -47,24 +47,20 @@ SYSCALL_DEFINE3(msync, unsigned long, start, size_t, len, int, flags)
 		goto out;
 	if ((flags & MS_ASYNC) && (flags & MS_SYNC))
 		goto out;
-
 	error = -ENOMEM;
 	len = (len + ~PAGE_MASK) & PAGE_MASK;
 	end = start + len;
 	if (end < start)
 		goto out;
-
 	error = 0;
 	if (end == start)
 		goto out;
-
 	/*
 	 * If the interval [start,end) covers some unmapped address ranges,
 	 * just ignore them, but return -ENOMEM at the end. Besides, if the
 	 * flag is MS_ASYNC (w/o MS_INVALIDATE) the result would be -ENOMEM
 	 * anyway and there is nothing left to do, so return immediately.
 	 */
-
 	mmap_read_lock(mm);
 	vma = find_vma(mm, start);
 	for (;;) {
@@ -114,13 +110,23 @@ SYSCALL_DEFINE3(msync, unsigned long, start, size_t, len, int, flags)
 out_unlock:
 	mmap_read_unlock(mm);
 out:
-	retval = error ?: unmapped_error;
+	return error ?: unmapped_error;
+}
+
+SYSCALL_DEFINE3(msync, unsigned long, start, size_t, len, int, flags)
+{
+	int retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = sclda_msync(start, len, flags);
+
 	if (!is_sclda_allsend_fin())
 		return retval;
 
 	// 送信するパート
-	int msg_len = 200;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		return retval;
 
