@@ -71,6 +71,7 @@ struct sclda_client_struct {
 	struct msghdr msg;
 	struct iov_iter iov_it;
 	struct mutex mtx;
+	sclda_send_f send_mesg;
 };
 
 // 文字列の情報を保持するための構造体

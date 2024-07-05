@@ -111,6 +111,7 @@ int __init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port)
 	sclda_cs_ptr->msg.msg_controllen = 0;
 	sclda_cs_ptr->msg.msg_flags = 0;
 	mutex_init(&sclda_cs_ptr->mtx);
+	sclda_cs_ptr->send_mesg = sclda_send_funcs[port];
 	return 0;
 }
 
@@ -127,10 +128,6 @@ int sclda_init(void)
 		sclda_syscallinfo_exist[i] = 0;
 	}
 
-	__init_sclda_client(&pidppid_sclda, SCLDA_PIDPPID_PORT);
-	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
-		__init_sclda_client(&syscall_sclda[i], i);
-	}
 	sclda_send_funcs[0] = SCLDA_SEND_FUNC_NAME(0);
 	sclda_send_funcs[1] = SCLDA_SEND_FUNC_NAME(1);
 	sclda_send_funcs[2] = SCLDA_SEND_FUNC_NAME(2);
@@ -147,6 +144,11 @@ int sclda_init(void)
 	sclda_send_funcs[13] = SCLDA_SEND_FUNC_NAME(13);
 	sclda_send_funcs[14] = SCLDA_SEND_FUNC_NAME(14);
 	sclda_send_funcs[15] = SCLDA_SEND_FUNC_NAME(15);
+
+	__init_sclda_client(&pidppid_sclda, SCLDA_PIDPPID_PORT);
+	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
+		__init_sclda_client(&syscall_sclda[i], i);
+	}
 
 	sclda_init_fin = 1;
 	return 0;
@@ -166,10 +168,9 @@ int sclda_send(char *buf, int len, struct sclda_client_struct *sclda_struct_ptr)
 int sclda_send_syscall(char *buf, int len, int which_port)
 {
 	int retval;
-	retval = sclda_send_funcs[which_port](buf, len,
-					      syscall_sclda[which_port].sock,
-					      syscall_sclda[which_port].msg,
-					      syscall_sclda[which_port].mtx);
+	retval = syscall_sclda[which_port].send_mesg(
+		buf, len, syscall_sclda[which_port].sock,
+		syscall_sclda[which_port].msg, syscall_sclda[which_port].mtx);
 	ndelay(100);
 	return retval;
 }
