@@ -1,5 +1,5 @@
 /*
- * sclda.c
+ * sclda.h
  * Copyright (C) [2023] [Naru3 (Narumi Yoneda)
  * (7423530@ed.tus.ac.jp,naru99yoneda@gmail.com)]
  *

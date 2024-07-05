@@ -195,28 +195,17 @@ int __sclda_send_split(struct sclda_syscallinfo_ls *ptr, int which_port)
 	// ヘッダ情報としてPIDとutimeを最初にくっつける
 	// system-call関連情報を送信するときのみ使用する
 	int retval = -EFAULT;
-
-	struct sclda_client_struct *sclda_to_send;
 	char *chunkbuf, *sending_msg;
 	int send_ret, sending_len, max_packet_len;
-
 	// まだnetのinit が済んでいない場合
 	if (!sclda_init_fin)
-		goto out;
-
-	// 送信先になるポートのclient_struct
-	sclda_to_send = &syscall_sclda[which_port];
-
-	// chunksizeのバッファを段取り
-	chunkbuf = kmalloc(SCLDA_CHUNKSIZE + 1, GFP_KERNEL);
-	if (!chunkbuf)
 		goto out;
 
 	// 一度に送信するパケットのバッファを段取り
 	max_packet_len = SCLDA_CHUNKSIZE + ptr->pid_time.len + 1;
 	sending_msg = kmalloc(max_packet_len, GFP_KERNEL);
 	if (!sending_msg)
-		goto free_chunkbuf;
+		goto out;
 
 	// 分割して送信する
 	size_t offset, len, i;
@@ -224,16 +213,13 @@ int __sclda_send_split(struct sclda_syscallinfo_ls *ptr, int which_port)
 		offset = 0;
 		len = 0;
 		while (offset < ptr->syscall[i].len) {
-			// chunksizeごとに文字列を分割
 			len = min(SCLDA_CHUNKSIZE,
 				  (size_t)(ptr->syscall[i].len - offset));
-			memcpy(chunkbuf, ptr->syscall[i].str + offset, len);
-			chunkbuf[len] = '\0';
 
 			// 送信する文字列を段取り
 			sending_len = snprintf(sending_msg, max_packet_len,
-					       "%s%s", ptr->pid_time.str,
-					       chunkbuf);
+					       "%s%.*s", ptr->pid_time.str, len,
+					       ptr->syscall[i].str + offset);
 			// 文字列を送信
 			send_ret = sclda_send_syscall(sending_msg, sending_len,
 						      which_port);
@@ -246,8 +232,6 @@ int __sclda_send_split(struct sclda_syscallinfo_ls *ptr, int which_port)
 
 free_sending_msg:
 	kfree(sending_msg);
-free_chunkbuf:
-	kfree(chunkbuf);
 out:
 	return retval;
 }
