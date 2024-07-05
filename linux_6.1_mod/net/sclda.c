@@ -167,12 +167,9 @@ int sclda_send(char *buf, int len, struct sclda_client_struct *sclda_struct_ptr)
 // システムコールを送信するときのみ使用
 int sclda_send_syscall(char *buf, int len, int which_port)
 {
-	int retval;
-	retval = syscall_sclda[which_port].send_mesg(
+	return syscall_sclda[which_port].send_mesg(
 		buf, len, syscall_sclda[which_port].sock,
 		syscall_sclda[which_port].msg, syscall_sclda[which_port].mtx);
-	ndelay(100);
-	return retval;
 }
 
 // 送信する際に使うmutex
@@ -217,7 +214,8 @@ int __sclda_send_split(struct sclda_syscallinfo_ls *ptr, int which_port)
 			len = min(SCLDA_CHUNKSIZE,
 				  (size_t)(ptr->syscall[i].len - offset));
 			sending_len = snprintf(sending_msg, max_packet_len,
-					       "%s%.*s", ptr->pid_time.str, (int)len,
+					       "%s%.*s", ptr->pid_time.str,
+					       (int)len,
 					       ptr->syscall[i].str + offset);
 			send_ret = sclda_send_syscall(sending_msg, sending_len,
 						      which_port);
@@ -257,6 +255,7 @@ int sclda_sendall_syscallinfo(void *data)
 	temp_tail = &temp_head;
 
 	while (curptr != NULL) {
+		ndelay(1000);
 		send_ret = __sclda_send_split(curptr, cnt % SCLDA_PORT_NUMBER);
 		next = curptr->next;
 		if (send_ret < 0) {
