@@ -193,7 +193,7 @@ int __sclda_send_split(struct sclda_syscallinfo_ls *ptr, int which_port)
 	// ヘッダ情報としてPIDとutimeを最初にくっつける
 	// system-call関連情報を送信するときのみ使用する
 	int retval = -EFAULT;
-	char *chunkbuf, *sending_msg;
+	char *sending_msg;
 	int send_ret, sending_len, max_packet_len;
 	// まだnetのinit が済んでいない場合
 	if (!sclda_init_fin)
@@ -210,7 +210,7 @@ int __sclda_send_split(struct sclda_syscallinfo_ls *ptr, int which_port)
 	for (i = 0; i < ptr->sc_iov_len; i++) {
 		offset = 0;
 		len = 0;
-		if (!ptr->syscall[i].str)
+		if (ptr->syscall[i].str == NULL)
 			continue;
 		if (ptr->syscall[i].len == 0)
 			continue;
