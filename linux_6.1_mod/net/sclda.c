@@ -210,6 +210,10 @@ int __sclda_send_split(struct sclda_syscallinfo_ls *ptr, int which_port)
 	for (i = 0; i < ptr->sc_iov_len; i++) {
 		offset = 0;
 		len = 0;
+		if (!ptr->syscall[i].str)
+			continue;
+		if (ptr->syscall[i].len == 0)
+			continue;
 		while (offset < ptr->syscall[i].len) {
 			memset(sending_msg, 0, max_packet_len);
 			len = min(SCLDA_CHUNKSIZE,
@@ -225,6 +229,7 @@ int __sclda_send_split(struct sclda_syscallinfo_ls *ptr, int which_port)
 			offset += len;
 		}
 	}
+
 	retval = 0;
 
 free_sending_msg:
