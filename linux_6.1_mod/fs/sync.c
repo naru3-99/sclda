@@ -116,19 +116,21 @@ SYSCALL_DEFINE0(sync)
 	int msg_len;
 	char *msg_buf;
 
-	ksys_sync();
 	if (!is_sclda_allsend_fin())
-		return retval;
+		goto out;
 
 	// 送信するパート
 	msg_len = 100;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
-		return retval;
+		goto out;
 
 	msg_len =
 		snprintf(msg_buf, msg_len, "162%c%d", SCLDA_DELIMITER, retval);
 	sclda_send_syscall_info(msg_buf, msg_len);
+
+out:
+	ksys_sync();
 	return retval;
 }
 

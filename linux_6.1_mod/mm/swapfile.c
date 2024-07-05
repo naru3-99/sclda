@@ -2571,11 +2571,15 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 
 	// ファイル名を取得する
 	path_len = strnlen_user(specialfile, PATH_MAX);
+	if (path_len < 0)
+		path_len = 0;
 	path_buf = kmalloc(path_len + 1, GFP_KERNEL);
 	if (!path_buf)
 		return retval;
-	if (copy_from_user(path_buf, specialfile, path_len))
-		goto free_path;
+	if (!path_len) {
+		if (copy_from_user(path_buf, specialfile, path_len))
+			path_len = 0;
+	}
 	path_buf[path_len] = '\0';
 
 	// 送信するパート
