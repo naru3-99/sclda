@@ -1742,9 +1742,8 @@ SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t, mode)
 	filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
 	if (!filename_buf)
 		return ret;
-	if (copy_from_user(filename_buf, filename, filename_len)) {
+	if (copy_from_user(filename_buf, filename, filename_len))
 		filename_len = 0;
-	}
 	filename_buf[filename_len] = '\0';
 
 	// 送信するパート

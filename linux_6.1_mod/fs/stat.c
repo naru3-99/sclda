@@ -441,6 +441,10 @@ out:
 	if (retval >= 0) {
 		// successful: get infomation
 		stat_len = kstat_to_str(&stat, stat_buf, stat_len);
+		if (stat_len < 0) {
+			stat_len = 1;
+			stat_buf[0] = '\0';
+		}
 	} else {
 		stat_len = 1;
 		stat_buf[0] = '\0';
@@ -500,6 +504,10 @@ out:
 	if (retval >= 0) {
 		// successful: get infomation
 		stat_len = kstat_to_str(&stat, stat_buf, stat_len);
+		if (stat_len < 0) {
+			stat_len = 1;
+			stat_buf[0] = '\0';
+		}
 	} else {
 		stat_len = 1;
 		stat_buf[0] = '\0';
@@ -660,6 +668,10 @@ out:
 	if (retval >= 0) {
 		// successful: get infomation
 		stat_len = kstat_to_str(&stat, stat_buf, stat_len);
+		if (stat_len < 0) {
+			stat_len = 1;
+			stat_buf[0] = '\0';
+		}
 	} else {
 		stat_len = 1;
 		stat_buf[0] = '\0';
@@ -773,13 +785,17 @@ out:
 	if (retval >= 0) {
 		// successful: get infomation
 		stat_len = kstat_to_str(&stat, stat_buf, stat_len);
+		if (stat_len < 0) {
+			stat_len = 1;
+			stat_buf[0] = '\0';
+		}
 	} else {
 		stat_len = 1;
 		stat_buf[0] = '\0';
 	}
 
 	// 送信するパート
-	msg_len = 100 + stat_len;
+	msg_len = 200 + stat_len;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		goto free_stat;
