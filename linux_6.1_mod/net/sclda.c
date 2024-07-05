@@ -216,11 +216,9 @@ int __sclda_send_split(struct sclda_syscallinfo_ls *ptr, int which_port)
 			memset(sending_msg, 0, max_packet_len);
 			len = min(SCLDA_CHUNKSIZE,
 				  (size_t)(ptr->syscall[i].len - offset));
-			// 送信する文字列を段取り
 			sending_len = snprintf(sending_msg, max_packet_len,
-					       "%s%.*s", ptr->pid_time.str, len,
+					       "%s%.*s", ptr->pid_time.str, (int)len,
 					       ptr->syscall[i].str + offset);
-			// 文字列を送信
 			send_ret = sclda_send_syscall(sending_msg, sending_len,
 						      which_port);
 			if (send_ret < 0)
