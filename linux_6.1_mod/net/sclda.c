@@ -145,7 +145,8 @@ int sclda_init(void)
 	sclda_send_funcs[14] = SCLDA_SEND_FUNC_NAME(14);
 	sclda_send_funcs[15] = SCLDA_SEND_FUNC_NAME(15);
 
-	__init_sclda_client(&pidppid_sclda, SCLDA_PIDPPID_PORT);
+	__init_sclda_client(&pidppid_sclda,
+			    SCLDA_PIDPPID_PORT - SCLDA_SYSCALL_BASEPORT);
 	for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++) {
 		__init_sclda_client(&syscall_sclda[i], i);
 	}
