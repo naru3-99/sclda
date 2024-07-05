@@ -247,8 +247,6 @@ int sclda_sendall_syscallinfo(void *data)
 	int target_index, cnt, send_ret, failed_cnt, i;
 	// while文でイテレーションを回すためのポインタ
 	struct sclda_syscallinfo_ls *curptr, *next;
-	// 失敗したときに退避するための頭・尻
-	struct sclda_syscallinfo_ls temp_head, *temp_tail;
 
 	// ターゲットになるindexを特定
 	target_index = *(int *)data;
@@ -260,10 +258,8 @@ int sclda_sendall_syscallinfo(void *data)
 	curptr = sclda_syscall_heads[target_index].next;
 	cnt = 0;
 	failed_cnt = 0;
-	// ダミ頭・尻の初期化
-	temp_head.next = NULL;
-	temp_tail = &temp_head;
-
+	// 失敗したときのために初期化する
+	sclda_syscall_tails[target_index] = &sclda_syscall_heads[target_index];
 	while (curptr != NULL) {
 		ndelay(1000);
 		send_ret = __sclda_send_split(curptr, cnt % SCLDA_PORT_NUMBER);
@@ -271,8 +267,9 @@ int sclda_sendall_syscallinfo(void *data)
 		if (send_ret < 0) {
 			// 送信できていないため、tempに退避する
 			failed_cnt++;
-			temp_tail->next = curptr;
-			temp_tail = temp_tail->next;
+			sclda_syscall_tails[target_index]->next = curptr;
+			sclda_syscall_tails[target_index] =
+				sclda_syscall_tails[target_index]->next;
 		} else {
 			// 送信できたので解放する
 			kfree(curptr->pid_time.str);
@@ -285,17 +282,7 @@ int sclda_sendall_syscallinfo(void *data)
 		cnt = cnt + 1;
 	}
 	// 頭・尻の再初期化
-	sclda_syscall_heads[target_index].next = temp_head.next;
-	if (temp_tail == &temp_head) {
-		// 全て送信できた場合は、tailも初期化
-		sclda_syscall_tails[target_index] =
-			&sclda_syscall_heads[target_index];
-	} else {
-		sclda_syscall_tails[target_index] = temp_tail;
-		sclda_syscall_tails[target_index]->next = NULL;
-	}
 	sclda_syscallinfo_exist[target_index] = failed_cnt;
-
 	mutex_unlock(&syscall_mutex[target_index]);
 	return 0;
 }
