@@ -380,13 +380,9 @@ int sclda_send_syscall_info(char *msg_buf, int msg_len)
 	// リストが溜まっていたら、送信する
 	if (mutex_is_locked(&send_by_kthread))
 		return retval;
-
 	mutex_lock(&send_by_kthread);
-	if (sclda_syscallinfo_exist[sclda_sci_index] < SCLDA_NUM_TO_SEND_SINFO)
-		goto out;
-	sclda_start_to_send();
-
-out:
+	if (sclda_syscallinfo_exist[sclda_sci_index] >= SCLDA_NUM_TO_SEND_SINFO)
+		sclda_start_to_send();
 	mutex_unlock(&send_by_kthread);
 	return retval;
 
@@ -414,15 +410,15 @@ int sclda_send_syscall_info2(struct sclda_iov *siov_ls, int num)
 
 	// リストが溜まっていたら、送信する
 	if (mutex_is_locked(&send_by_kthread))
-		goto out;
-
+		return retval;
 	mutex_lock(&send_by_kthread);
-	if (sclda_syscallinfo_exist[sclda_sci_index] < SCLDA_NUM_TO_SEND_SINFO)
-		goto unlock_mutex;
-	sclda_start_to_send();
-unlock_mutex:
+	if (sclda_syscallinfo_exist[sclda_sci_index] >= SCLDA_NUM_TO_SEND_SINFO)
+		sclda_start_to_send();
 	mutex_unlock(&send_by_kthread);
+	return retval;
 out:
+	for (size_t i = 0; i < num; i++)
+		kfree(siov_ls[i].str);
 	return retval;
 }
 
