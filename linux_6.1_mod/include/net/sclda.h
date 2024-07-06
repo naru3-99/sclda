@@ -59,7 +59,7 @@
 // syscall_info構造体がいくつ貯まると送信するか
 #define SCLDA_NUM_TO_SEND_SINFO ((int)5000)
 // syscall_info構造体の頭とmutexを用意する数
-#define SCLDA_SCI_NUM ((int)8)
+#define SCLDA_SCI_NUM ((int)16)
 
 // ソケットなどをひとまとめにする構造体
 typedef int (*sclda_send_f)(char *buf, int len, struct socket *sock,
