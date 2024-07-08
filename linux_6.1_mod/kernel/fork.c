@@ -2925,7 +2925,7 @@ SYSCALL_DEFINE5(clone, unsigned long, clone_flags, unsigned long, newsp,
 	int msg_len, arg_len;
 	char *msg_buf, *arg_buf;
 
-	struct kernel_clone_args args = {
+	struct kernel_clone_args kargs = {
 		.flags = (lower_32_bits(clone_flags) & ~CSIGNAL),
 		.pidfd = parent_tidptr,
 		.child_tid = child_tidptr,
@@ -2935,7 +2935,7 @@ SYSCALL_DEFINE5(clone, unsigned long, clone_flags, unsigned long, newsp,
 		.tls = tls,
 	};
 
-	retval = kernel_clone(&args);
+	retval = kernel_clone(&kargs);
 	if (!is_sclda_allsend_fin())
 		return retval;
 
