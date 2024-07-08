@@ -172,4 +172,5 @@ getrandom,318,retval,len,flags,ubuf
 execveat,322,retval,flags,filename,[argv...],[envp...]
 statx,332,retval,dfd,flags,mask,stx_mask,stx_blksize,stx_attributes,stx_nlink,stx_uid,stx_gid,stx_mode,stx_ino,stx_size,stx_blocks,stx_attributes_mask,stx_atime.tv_sec,stx_atime.tv_nsec,stx_btime.tv_sec,stx_btime.tv_nsec,stx_ctime.tv_sec,stx_ctime.tv_nsec,stx_mtime.tv_sec,stx_mtime.tv_nsec,stx_rdev_major,stx_rdev_minor,stx_dev_major,stx_dev_minor,stx_mnt_id,stx_dio_mem_align,stx_dio_offset_align,filename
 faccessat2,439,retval,dfd,mode,filename
+clone3,435,retval,flags,pidfd,child_tid,parent_tid,exit_signal,stack,stack_size,tls,set_tid,set_tid_size,cgroup
 close_range,436,retval,fd,max_fd,flags

@@ -3108,21 +3108,67 @@ static bool clone3_args_valid(struct kernel_clone_args *kargs)
  */
 SYSCALL_DEFINE2(clone3, struct clone_args __user *, uargs, size_t, size)
 {
-	int err;
-
+	int retval, err;
 	struct kernel_clone_args kargs;
 	pid_t set_tid[MAX_PID_NS_LEVEL];
 
 	kargs.set_tid = set_tid;
-
 	err = copy_clone_args_from_user(&kargs, uargs, size);
-	if (err)
-		return err;
+	if (err) {
+		retval = err;
+		goto out;
+	}
 
-	if (!clone3_args_valid(&kargs))
-		return -EINVAL;
+	if (!clone3_args_valid(&kargs)) {
+		retval = -EINVAL;
+		goto out;
+	}
+	retval = kernel_clone(&kargs);
+out:
+	int msg_len, arg_len;
+	char *msg_buf, *arg_buf;
 
-	return kernel_clone(&kargs);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// kargsを文字列に変換する
+	arg_len = (retval > 0) ? 200 : 0;
+	arg_buf = kmalloc(arg_len + 1, GFP_KERNEL);
+	if (!arg_buf)
+		return retval;
+	if (retval > 0) {
+		arg_len = snprintf(
+			arg_buf, arg_len,
+			"%llu%c%llu%c%llu%c%llu%c%llu%c"
+			"%llu%c%llu%c%llu%c%llu%c%llu%c%llu",
+			(unsigned long long)kargs.flags, SCLDA_DELIMITER,
+			(unsigned long long)kargs.pidfd, SCLDA_DELIMITER,
+			(unsigned long long)kargs.child_tid, SCLDA_DELIMITER,
+			(unsigned long long)kargs.parent_tid, SCLDA_DELIMITER,
+			(unsigned long long)kargs.exit_signal, SCLDA_DELIMITER,
+			(unsigned long long)kargs.stack, SCLDA_DELIMITER,
+			(unsigned long long)kargs.stack_size, SCLDA_DELIMITER,
+			(unsigned long long)kargs.tls, SCLDA_DELIMITER,
+			(unsigned long long)kargs.set_tid, SCLDA_DELIMITER,
+			(unsigned long long)kargs.set_tid_size, SCLDA_DELIMITER,
+			(unsigned long long)kargs.cgroup);
+	} else {
+		arg_buf[0] = '\0';
+	}
+
+	// 送信するパート
+	msg_len = 200 + arg_len;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		goto free_argbuf;
+
+	msg_len = snprintf(msg_buf, msg_len, "435%c%d%c%s", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, arg_buf);
+
+	sclda_send_syscall_info(msg_buf, msg_len);
+free_argbuf:
+	kfree(arg_buf);
+	return retval;
 }
 #endif
 
