@@ -2922,10 +2922,8 @@ SYSCALL_DEFINE5(clone, unsigned long, clone_flags, unsigned long, newsp,
 #endif
 {
 	pid_t retval;
-	int ctid;
-	int ptid;
-	int msg_len;
-	char *msg_buf;
+	int msg_len, arg_len;
+	char *msg_buf, *arg_buf;
 
 	struct kernel_clone_args args = {
 		.flags = (lower_32_bits(clone_flags) & ~CSIGNAL),
@@ -2941,29 +2939,43 @@ SYSCALL_DEFINE5(clone, unsigned long, clone_flags, unsigned long, newsp,
 	if (!is_sclda_allsend_fin())
 		return retval;
 
-	// child_tidptrとparent_tidptrをコピーする
-	ctid = 0;
-	if (!access_ok(child_tidptr, sizeof(int)))
+	// kargsを文字列に変換する
+	arg_len = (retval > 0) ? 200 : 0;
+	arg_buf = kmalloc(arg_len + 1, GFP_KERNEL);
+	if (!arg_buf)
 		return retval;
-	if (copy_from_user(&ctid, child_tidptr, sizeof(int)))
-		return retval;
-	ptid = 0;
-	if (!access_ok(parent_tidptr, sizeof(int)))
-		return retval;
-	if (copy_from_user(&ptid, parent_tidptr, sizeof(int)))
-		return retval;
+	if (retval > 0) {
+		arg_len = snprintf(
+			arg_buf, arg_len,
+			"%llu%c%llu%c%llu%c%llu%c%llu%c"
+			"%llu%c%llu%c%llu%c%llu%c%llu%c%llu",
+			(unsigned long long)kargs.flags, SCLDA_DELIMITER,
+			(unsigned long long)kargs.pidfd, SCLDA_DELIMITER,
+			(unsigned long long)kargs.child_tid, SCLDA_DELIMITER,
+			(unsigned long long)kargs.parent_tid, SCLDA_DELIMITER,
+			(unsigned long long)kargs.exit_signal, SCLDA_DELIMITER,
+			(unsigned long long)kargs.stack, SCLDA_DELIMITER,
+			(unsigned long long)kargs.stack_size, SCLDA_DELIMITER,
+			(unsigned long long)kargs.tls, SCLDA_DELIMITER,
+			(unsigned long long)kargs.set_tid, SCLDA_DELIMITER,
+			(unsigned long long)kargs.set_tid_size, SCLDA_DELIMITER,
+			(unsigned long long)kargs.cgroup);
+	} else {
+		arg_buf[0] = '\0';
+	}
 
 	// 送信するパート
-	msg_len = 300;
+	msg_len = 200 + arg_len;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
-		return retval;
+		goto free_argbuf;
 
-	msg_len = snprintf(msg_buf, msg_len, "56%c%d%c%lu%c%lu%c%d%c%lu%c%d",
-			   SCLDA_DELIMITER, (int)retval, SCLDA_DELIMITER,
-			   clone_flags, SCLDA_DELIMITER, newsp, SCLDA_DELIMITER,
-			   ptid, SCLDA_DELIMITER, tls, SCLDA_DELIMITER, ctid);
+	msg_len = snprintf(msg_buf, msg_len, "56%c%d%c%s", SCLDA_DELIMITER,
+			   (int)retval, SCLDA_DELIMITER, arg_buf);
 	sclda_send_syscall_info(msg_buf, msg_len);
+
+free_argbuf:
+	kfree(arg_buf);
 	return retval;
 }
 #endif
