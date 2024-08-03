@@ -1120,7 +1120,24 @@ change_okay:
 
 SYSCALL_DEFINE1(setfsuid, uid_t, uid)
 {
-	return __sys_setfsuid(uid);
+	long retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = __sys_setfsuid(uid);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 200;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "122%c%ld%c%u", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, (unsigned int)uid);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 /*
@@ -1165,8 +1182,26 @@ change_okay:
 
 SYSCALL_DEFINE1(setfsgid, gid_t, gid)
 {
-	return __sys_setfsgid(gid);
+	long retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = __sys_setfsgid(gid);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 120;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "123%c%ld%c%u", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, (unsigned int)gid);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
+
 #endif /* CONFIG_MULTIUSER */
 
 /**
@@ -1562,7 +1597,24 @@ out:
 
 SYSCALL_DEFINE1(getpgid, pid_t, pid)
 {
-	return do_getpgid(pid);
+	int retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = do_getpgid(pid);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 120;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "121%c%d%c%d", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, (int)pid);
+	sclda_send_syscall_info(msg_buf, msg_len);
+	return retval;
 }
 
 #ifdef __ARCH_WANT_SYS_GETPGRP
@@ -1591,7 +1643,7 @@ SYSCALL_DEFINE0(getpgrp)
 
 #endif
 
-SYSCALL_DEFINE1(getsid, pid_t, pid)
+int sclda_getsid(pid_t pid)
 {
 	struct task_struct *p;
 	struct pid *sid;
@@ -1616,6 +1668,28 @@ SYSCALL_DEFINE1(getsid, pid_t, pid)
 	retval = pid_vnr(sid);
 out:
 	rcu_read_unlock();
+	return retval;
+}
+
+SYSCALL_DEFINE1(getsid, pid_t, pid)
+{
+	int retval;
+	int msg_len;
+	char *msg_buf;
+
+	retval = sclda_getsid(pid);
+	if (!is_sclda_allsend_fin())
+		return retval;
+
+	// 送信するパート
+	msg_len = 120;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	if (!msg_buf)
+		return retval;
+
+	msg_len = snprintf(msg_buf, msg_len, "124%c%d%c%d", SCLDA_DELIMITER,
+			   retval, SCLDA_DELIMITER, (int)pid);
+	sclda_send_syscall_info(msg_buf, msg_len);
 	return retval;
 }
 
