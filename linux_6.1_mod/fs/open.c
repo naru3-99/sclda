@@ -1539,6 +1539,7 @@ SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t,
     filename_len = strnlen_user(filename, PATH_MAX);
     filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
     if (!filename_buf) return retval;
+
     if (copy_from_user(filename_buf, filename, filename_len)) {
         memset(filename_buf, 0, filename_len);
         filename_len = 0;
@@ -1549,14 +1550,15 @@ SYSCALL_DEFINE3(open, const char __user *, filename, int, flags, umode_t,
     msg_len = filename_len + 200;
     msg_buf = kmalloc(msg_len, GFP_KERNEL);
     if (!msg_buf) goto free_filename;
+
     msg_len = snprintf(msg_buf, msg_len, "2%c%ld%c%d%c%u%c%s", SCLDA_DELIMITER,
-                       ret, SCLDA_DELIMITER, flags, SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, flags, SCLDA_DELIMITER,
                        (unsigned int)mode, SCLDA_DELIMITER, filename_buf);
     sclda_send_syscall_info(msg_buf, msg_len);
 
 free_filename:
     kfree(filename_buf);
-    return ret;
+    return retval;
 }
 
 SYSCALL_DEFINE4(openat, int, dfd, const char __user *, filename, int, flags,

@@ -808,9 +808,9 @@ static int vma_expandable(struct vm_area_struct *vma, unsigned long delta) {
  * MREMAP_FIXED option added 5-Dec-1999 by Benjamin LaHaise
  * This option implies MREMAP_MAYMOVE.
  */
-unsigned long sclda_mremap(unsigned long, addr, unsigned long, old_len,
-                           unsigned long, new_len, unsigned long, flags,
-                           unsigned long, new_addr) {
+unsigned long sclda_mremap(unsigned long addr, unsigned long old_len,
+                           unsigned long new_len, unsigned long flags,
+                           unsigned long new_addr) {
     struct mm_struct *mm = current->mm;
     struct vm_area_struct *vma;
     unsigned long ret = -EINVAL;
