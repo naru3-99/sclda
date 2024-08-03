@@ -3056,8 +3056,7 @@ SYSCALL_DEFINE2(rt_sigpending, sigset_t __user *, uset, size_t, sigsetsize) {
 
 out_success:
     sigset_len = snprintf(sigset_buf, sclda_sigbufsize, "[");
-    // 保留中のシグナルを文字列としてバッファにフォーマット
-    for (int i = 1; i < NSIG; i++)
+    for (int i = 1; i < _NSIG; i++)
         if (sigismember(&set, i))
             sigset_len += snprintf(sigset_buf + sigset_len,
                                    sclda_sigbufsize - sigset_len, "%d,", i);
