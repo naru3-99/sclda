@@ -126,6 +126,7 @@ getsid,124,retval,pid
 capget,125,retval,version,pid,effective,permitted,inheritable
 capset,126,retval,version,pid,effective,permitted,inheritable
 rt_sigpending,127,retval,sigsetsize,[signals]
+mknod,133,retval,mode,dev,filename
 statfs,137,retval,pathname,f_type,f_bsize,f_blocks,f_bfree,f_bavail,f_files,f_ffree,f_fsid.val[0],f_fsid.val[1],f_namelen,f_frsize,f_flags,f_spare[0],f_spare[1],f_spare[2],f_spare[3]
 getpriority,140,retval,which,who
 setpriority,141,retval,which,who,niceval
@@ -154,6 +155,7 @@ inotify_add_watch,254,retval,fd,mask,path
 inotify_rm_watch,255,retval,fd,wd
 openat,257,retval,dfd,flags,mode,filename,,,,,,,,,,,,,
 mkdirat,258,retval,dfd,mode,path
+mknodat,259,retval,dfd,mode,dev,filename
 fchownat,260,retval,dfd,user,group,flag,filename
 newfstatat,262,retval,dfd,flags,st_dev,st_ino,st_mode,st_nlink,st_uid,st_gid,st_rdevst_size,st_atime,st_mtime,st_ctime,filename
 unlinkat,263,retval,dfd,flag,path
