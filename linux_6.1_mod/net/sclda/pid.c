@@ -25,7 +25,7 @@ int sclda_allsend_fin = 0;
 struct sclda_client_struct sclda_pid_client;
 
 // linked list's mutex-dummyhead-tail
-static DEFINE_MUTEX(sclda_pidinfo_mutex);
+DEFINE_MUTEX(sclda_pidinfo_mutex);
 struct sclda_pidinfo_ls sclda_pidinfo_head = {
     .next = NULL, .pid_info.len = 0, .pid_info.str = NULL};
 struct sclda_pidinfo_ls *sclda_pidinfo_tail = &sclda_pidinfo_head;

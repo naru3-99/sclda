@@ -23,7 +23,7 @@
 
 struct sclda_client_struct sclda_syscall_client[SCLDA_PORT_NUMBER];
 
-static struct mutex sclda_syscall_mutex[SCLDA_SCI_NUM];
+struct mutex sclda_syscall_mutex[SCLDA_SCI_NUM];
 struct sclda_syscallinfo_ls sclda_syscall_heads[SCLDA_SCI_NUM];
 struct sclda_syscallinfo_ls *sclda_syscall_tails[SCLDA_SCI_NUM];
 int sclda_syscallinfo_num[SCLDA_SCI_NUM];
