@@ -2728,13 +2728,17 @@ int vm_munmap(unsigned long start, size_t len) {
 EXPORT_SYMBOL(vm_munmap);
 
 SYSCALL_DEFINE2(munmap, unsigned long, addr, size_t, len) {
+    int retval;
+    int msg_len = 200;
+    char *msg_buf;
+
     addr = untagged_addr(addr);
-    int retval = __vm_munmap(addr, len, true);
+    retval = __vm_munmap(addr, len, true);
     if (!is_sclda_allsend_fin()) return retval;
 
     // 送信するパート
-    int msg_len = 200;
-    char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    msg_len = 200;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
     if (!msg_buf) return retval;
 
     msg_len = snprintf(msg_buf, msg_len, "11%c%d%c%lu%c%lu", SCLDA_DELIMITER,

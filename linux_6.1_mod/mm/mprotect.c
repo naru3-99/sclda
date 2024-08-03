@@ -832,13 +832,17 @@ out:
 SYSCALL_DEFINE3(mprotect, unsigned long, start, size_t, len, unsigned long,
 		prot)
 {
-	int retval = do_mprotect_pkey(start, len, prot, -1);
+	int retval;
+	int msg_len = 300;
+	char *msg_buf;
+
+	retval = do_mprotect_pkey(start, len, prot, -1);
 	if (!is_sclda_allsend_fin())
 		return retval;
 
 	// 送信するパート
-	int msg_len = 300;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+	msg_len = 300;
+	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		return retval;
 
