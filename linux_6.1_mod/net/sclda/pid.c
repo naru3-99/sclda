@@ -43,17 +43,17 @@ int sclda_add_pidinfo(char *msg, int len) {
     new_node->pid_info.len = len;
     new_node->next = NULL;
 
-    mutex_lock(&pidinfo_mutex);
+    mutex_lock(&sclda_pidinfo_mutex);
     sclda_pidinfo_tail->next = new_node;
     sclda_pidinfo_tail = sclda_pidinfo_tail->next;
-    mutex_unlock(&pidinfo_mutex);
+    mutex_unlock(&sclda_pidinfo_mutex);
     return 0;
 }
 
 void sclda_sendall_pidinfo(void) {
     struct sclda_pidinfo_ls *curptr, *next;
     curptr = sclda_pidinfo_head.next;
-    mutex_lock(&pidinfo_mutex);
+    mutex_lock(&sclda_pidinfo_mutex);
     while (curptr != NULL) {
         sclda_send_mutex(curptr->pid_info.str, curptr->pid_info.len,
                          &sclda_pid_client);
@@ -63,7 +63,7 @@ void sclda_sendall_pidinfo(void) {
         curptr = next;
     }
     sclda_allsend_fin = 1;
-    mutex_unlock(&pidinfo_mutex);
+    mutex_unlock(&sclda_pidinfo_mutex);
 }
 
 int is_sclda_allsend_fin(void) { return sclda_allsend_fin; }
