@@ -6,8 +6,7 @@
 # Rewritten to use lists instead of if-statements.
 #
 
-obj-y				:= devres.o socket.o sclda.o core/
-
+obj-y				:= devres.o socket.o core/ sclda/
 obj-$(CONFIG_COMPAT)		+= compat.o
 
 # LLC has to be linked before the files in net/802/

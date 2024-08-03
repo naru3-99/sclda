@@ -2774,7 +2774,7 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	put_pid(pid);
 
 	// sclda
-	// basic : pid,ppid,executable name
+	// basic : pid, ppid, executable name
 	int pid_len;
 	char *pid_buf;
 
@@ -2793,15 +2793,15 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	}
 	// 初期化され、allsendも終わった場合
 	if (is_sclda_allsend_fin()) {
-		sclda_send_mutex(pid_buf, pid_len, sclda_get_pidppid_struct());
+		sclda_send_mutex(pid_buf, pid_len, sclda_get_pid_client());
 		kfree(pid_buf);
 		return nr;
 	}
 	// 初期化はされたがallsendできていない場合
-	if (sclda_send_mutex("sclda\0", 6, sclda_get_pidppid_struct()) == 6) {
+	if (sclda_send_mutex("sclda\0", 6, sclda_get_pid_client()) == 6) {
 		// 送信可能になったため、sendallする
 		sclda_sendall_pidinfo();
-		sclda_send_mutex(pid_buf, pid_len, sclda_get_pidppid_struct());
+		sclda_send_mutex(pid_buf, pid_len, sclda_get_pid_client());
 		kfree(pid_buf);
 		return nr;
 	} else {
