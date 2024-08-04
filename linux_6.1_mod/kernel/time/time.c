@@ -150,7 +150,7 @@ sclda:
     msg_buf = kmalloc(msg_len, GFP_KERNEL);
     if (!msg_buf) return retval;
 
-    written = snprintf(msg_buf, msg_len, "96%c%d" SCLDA_DELIMITER, retval);
+    written = snprintf(msg_buf, msg_len, "96%c%d", SCLDA_DELIMITER, retval);
     if (ts_ok)
         written +=
             snprintf(msg_buf + written, msg_len - written, "%c%lld%c%ld",
