@@ -1706,7 +1706,7 @@ EXPORT_SYMBOL(filp_close);
  * releasing the fd. This ensures that one clone task can't release
  * an fd while another clone is opening it.
  */
-SYSCALL_DEFINE1(close, unsigned int, fd) {
+int sclda_close(unsigned int fd) {
     int retval = close_fd(fd);
 
     /* can't restart close syscall because file table entry was cleared */
@@ -1714,11 +1714,20 @@ SYSCALL_DEFINE1(close, unsigned int, fd) {
                  retval == -ERESTARTNOHAND || retval == -ERESTART_RESTARTBLOCK))
         retval = -EINTR;
 
+    return retval;
+}
+
+SYSCALL_DEFINE1(close, unsigned int, fd) {
+    int retval;
+    int msg_len;
+    char *msg_buf;
+
+    retval = sclda_close(fd);
     if (!is_sclda_allsend_fin()) return retval;
 
     // 送信するパート
-    int msg_len = 200;
-    char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    msg_len = 200;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
     if (!msg_buf) return retval;
 
     msg_len = snprintf(msg_buf, msg_len, "3%c%d%c%u", SCLDA_DELIMITER, retval,

@@ -645,7 +645,7 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
 
     if (copy_from_user(write_buf, buf, write_len)) {
         memset(write_buf, 0, write_len);
-        write_len = 0
+        write_len = 0;
     } else {
         write_buf[write_len] = '\0';
     }
