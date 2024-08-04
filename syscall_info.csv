@@ -94,7 +94,7 @@ chown,92,retval,user,group,filename
 fchown,93,retval,fd,user,group
 lchown,94,retval,user,group,filename
 umask,95,retval,mask
-gettimeofday,96,retval,tv_sec,tv_usectz_minuteswest,tz_dsttime
+gettimeofday,96,retval,tv_sec,tv_nsec,tz_dsttime,tz_minuteswest,
 getrlimit,97,retval,resource,rlim_cur,rlim_max
 getrusage,98,retval,who,usage->ru_utime.tv_sec,usage->ru_utime.tv_usec,usage->ru_stime.tv_sec,usage->ru_stime.tv_usec,usage->ru_maxrss,usage->ru_ixrss,usage->ru_idrss,usage->ru_isrss,usage->ru_minflt,usage->ru_majflt,usage->ru_nswap,usage->ru_inblock,usage->ru_oublock,usage->ru_msgsnd,usage->ru_msgrcv,usage->ru_nsignals,usage->ru_nvcsw,usage->ru_nivcsw
 sysinfo,99,retval,uptime,loads[0],loads[1],loads[2],totalram,freeram,sharedram,bufferram,totalswap,freeswap,procs,pad,totalhigh,freehigh,mem_unit
