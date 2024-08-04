@@ -1443,23 +1443,23 @@ int do_madvise(struct mm_struct *mm, unsigned long start, size_t len_in,
 	return error;
 }
 
-SYSCALL_DEFINE3(madvise, unsigned long, start, size_t, len_in, int, behavior)
-{
-	int retval = do_madvise(current->mm, start, len_in, behavior);
-	if (!is_sclda_allsend_fin())
-		return retval;
+SYSCALL_DEFINE3(madvise, unsigned long, start, size_t, len_in, int, behavior) {
+    int retval;
+    int msg_len;
+    char *msg_buf;
 
-	// 送信するパート
-	int msg_len = 300;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		return retval;
+    retval = do_madvise(current->mm, start, len_in, behavior);
+    if (!is_sclda_allsend_fin()) return retval;
 
-	msg_len = snprintf(msg_buf, msg_len, "28%c%d%c%lu%c%zu%c%d",
-			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, start,
-			   SCLDA_DELIMITER, len_in, SCLDA_DELIMITER, behavior);
-	sclda_send_syscall_info(msg_buf, msg_len);
-	return retval;
+    msg_len = 200;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    if (!msg_buf) return retval;
+
+    msg_len = snprintf(msg_buf, msg_len, "28%c%d%c%lu%c%zu%c%d",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, start,
+                       SCLDA_DELIMITER, len_in, SCLDA_DELIMITER, behavior);
+    sclda_send_syscall_info(msg_buf, msg_len);
+    return retval;
 }
 
 SYSCALL_DEFINE5(process_madvise, int, pidfd, const struct iovec __user *, vec,
