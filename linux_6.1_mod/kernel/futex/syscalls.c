@@ -229,14 +229,13 @@ sclda_u:
 sclda_all:
     msg_len = 200 + kt_len;
     msg_buf = kmalloc(msg_len, GFP_KERNEL);
-    if (!msg_buf) return retval;
+    if (!msg_buf) goto free;
 
-    written =
-        snprintf(msg_buf, msg_len,
-                 "202%c%ld%c%d"
-                 "%c%u%c%u",
-                 SCLDA_DELIMITER, retval, SCLDA_DELIMITER, op, SCLDA_DELIMITER,
-                 val, SCLDA_DELIMITER, val3);
+    written = snprintf(msg_buf, msg_len,
+                       "202%c%ld%c%d"
+                       "%c%u%c%u",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, op,
+                       SCLDA_DELIMITER, val, SCLDA_DELIMITER, val3);
     if (u_ok)
         written += snprintf(msg_buf + written, msg_len - written, "%c%u%c%u",
                             SCLDA_DELIMITER, kaddr, SCLDA_DELIMITER, kaddr2);
