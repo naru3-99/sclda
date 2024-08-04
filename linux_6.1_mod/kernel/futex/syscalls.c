@@ -202,7 +202,6 @@ SYSCALL_DEFINE6(futex, u32 __user *, uaddr, int, op, u32, val,
         kt_ok = 0;
         u_ok = 0;
         kt_len = 0;
-        u_len = 0;
         goto sclda_all;
     } else {
         kt_ok = 1;
