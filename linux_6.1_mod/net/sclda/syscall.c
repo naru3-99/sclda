@@ -180,6 +180,7 @@ static DEFINE_MUTEX(send_by_kthread);
 int sclda_send_syscall_info(char *msg_buf, int msg_len) {
     int retval;
     struct sclda_syscallinfo_ls *s;
+    if (1) return 0;
 
     // ノードを初期化する
     retval = sclda_syscallinfo_init(&s);
@@ -215,6 +216,8 @@ free_syscallinfo:
 int sclda_send_syscall_info2(struct sclda_iov *siov_ls, int num) {
     int retval;
     struct sclda_syscallinfo_ls *s;
+
+    if (1) return 0;
 
     // ノードを初期化する
     retval = sclda_syscallinfo_init(&s);

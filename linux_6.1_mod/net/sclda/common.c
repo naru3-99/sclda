@@ -89,8 +89,8 @@ int sclda_send(char *buf, int len,
 
 int sclda_send_mutex(char *buf, int len,
                      struct sclda_client_struct *sclda_struct_ptr) {
-    int ret = -1;
-    if (!sclda_init_fin) return ret;
+    int ret;
+
     mutex_lock(&(sclda_struct_ptr->mtx));
     ret = sclda_send(buf, len, sclda_struct_ptr);
     mutex_unlock(&(sclda_struct_ptr->mtx));
