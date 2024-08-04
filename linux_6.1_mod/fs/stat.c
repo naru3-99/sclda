@@ -354,12 +354,12 @@ sclda_stat:
         goto sclda_path;
     }
 
-    temp_len = kstat_to_str(&stat, stat_buf, stat_len);
-    if (temp_len <= 0) {
+    written = kstat_to_str(&stat, stat_buf, stat_len);
+    if (written <= 0) {
         memset(stat_buf, 0, stat_len);
         stat_len = 0;
     } else {
-        stat_len = temp_len;
+        stat_len = written;
     }
 
 sclda_path:
@@ -382,7 +382,7 @@ sclda_all:
     msg_buf = kmalloc(msg_len, GFP_KERNEL);
     if (!msg_buf) goto free;
 
-    written = snprintf(msg_buf, msg_len, "4%c%d" SCLDA_DELIMITER, retval);
+    written = snprintf(msg_buf, msg_len, "4%c%d", SCLDA_DELIMITER, retval);
     if (path_ok)
         written += snprintf(msg_buf + written, msg_len - written, "%c%s",
                             SCLDA_DELIMITER, path_buf);
@@ -424,12 +424,12 @@ sclda_stat:
         goto sclda_path;
     }
 
-    temp_len = kstat_to_str(&stat, stat_buf, stat_len);
-    if (temp_len <= 0) {
+    written = kstat_to_str(&stat, stat_buf, stat_len);
+    if (written <= 0) {
         memset(stat_buf, 0, stat_len);
         stat_len = 0;
     } else {
-        stat_len = temp_len;
+        stat_len = written;
     }
 
 sclda_path:
@@ -452,7 +452,7 @@ sclda_all:
     msg_buf = kmalloc(msg_len, GFP_KERNEL);
     if (!msg_buf) goto free;
 
-    written = snprintf(msg_buf, msg_len, "4%c%d" SCLDA_DELIMITER, retval);
+    written = snprintf(msg_buf, msg_len, "6%c%d", SCLDA_DELIMITER, retval);
     if (path_ok)
         written += snprintf(msg_buf + written, msg_len - written, "%c%s",
                             SCLDA_DELIMITER, path_buf);
@@ -493,12 +493,12 @@ sclda_stat:
         goto sclda_all;
     }
 
-    temp_len = kstat_to_str(&stat, stat_buf, stat_len);
-    if (temp_len <= 0) {
+    written = kstat_to_str(&stat, stat_buf, stat_len);
+    if (written <= 0) {
         memset(stat_buf, 0, stat_len);
         stat_len = 0;
     } else {
-        stat_len = temp_len;
+        stat_len = written;
     }
 
 sclda_all:
@@ -506,7 +506,10 @@ sclda_all:
     msg_buf = kmalloc(msg_len, GFP_KERNEL);
     if (!msg_buf) goto free;
 
-    written = snprintf(msg_buf, msg_len, "4%c%d" SCLDA_DELIMITER, retval);
+    written = snprintf(msg_buf, msg_len,
+                       "5%c%d"
+                       "%c%d",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd);
     if (stat_ok)
         written += snprintf(msg_buf + written, msg_len - written, "%c%s",
                             SCLDA_DELIMITER, stat_buf);
@@ -568,111 +571,141 @@ static int cp_new_stat(struct kstat *stat, struct stat __user *statbuf) {
 
 SYSCALL_DEFINE2(newstat, const char __user *, filename, struct stat __user *,
                 statbuf) {
-    int msg_len, path_len, stat_len;
-    char *msg_buf, *path_buf, *stat_buf;
+    int retval, stat_ok, path_ok;
+    int stat_len, path_len, msg_len, written;
+    char *stat_buf, *path_buf, *msg_buf;
     struct kstat stat;
-    int error, retval;
 
-    error = vfs_stat(filename, &stat);
-    if (error) {
-        retval = error;
-        goto out;
-    }
+    stat_ok = 0;
+    path_ok = 0;
+
+    retval = vfs_stat(filename, &stat);
+    if (retval) goto sclda_stat;
+    stat_ok = 1;
     retval = cp_new_stat(&stat, statbuf);
-out:
-    if (!is_sclda_allsend_fin()) return retval;
 
-    // statの情報を取得する
+sclda_stat:
+    if (!is_sclda_allsend_fin()) return retval;
+    if (!stat_ok) goto sclda_path;
+
     stat_len = 400;
     stat_buf = kmalloc(stat_len, GFP_KERNEL);
-    if (!stat_buf) return retval;
-    if (retval >= 0) {
-        // successful: get infomation
-        stat_len = kstat_to_str(&stat, stat_buf, stat_len);
-    } else {
-        stat_len = 1;
-        stat_buf[0] = '\0';
+    if (!stat_buf) {
+        stat_ok = 0;
+        stat_len = 0;
+        goto sclda_path;
     }
 
-    // ファイル名を取得する
+    written = kstat_to_str(&stat, stat_buf, stat_len);
+    if (written <= 0) {
+        memset(stat_buf, 0, stat_len);
+        stat_len = 0;
+    } else {
+        stat_len = written;
+    }
+
+sclda_path:
     path_len = strnlen_user(filename, PATH_MAX);
     path_buf = kmalloc(path_len + 1, GFP_KERNEL);
-    if (!path_buf) goto free_stat;
-    if (copy_from_user(path_buf, filename, path_len)) path_len = 0;
-    path_buf[path_len] = '\0';
+    if (!path_buf) {
+        path_len = 0;
+        goto sclda_all;
+    }
+    path_ok = 1;
+    if (copy_from_user(path_buf, filename, path_len)) {
+        memset(path_buf, 0, path_len);
+        path_len = 0;
+    } else {
+        path_buf[path_len] = '\0';
+    }
 
-    // 送信するパート
+sclda_all:
     msg_len = 100 + path_len + stat_len;
     msg_buf = kmalloc(msg_len, GFP_KERNEL);
-    if (!msg_buf) goto free_path;
+    if (!msg_buf) goto free;
 
-    msg_len = snprintf(msg_buf, msg_len,
-                       "4%c%d%c%s"
-                       "%c%s",
-                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, path_buf,
-                       SCLDA_DELIMITER, stat_buf);
-    sclda_send_syscall_info(msg_buf, msg_len);
-free_path:
-    kfree(path_buf);
-free_stat:
-    kfree(stat_buf);
+    written = snprintf(msg_buf, msg_len, "4%c%d", SCLDA_DELIMITER, retval);
+    if (path_ok)
+        written += snprintf(msg_buf + written, msg_len - written, "%c%s",
+                            SCLDA_DELIMITER, path_buf);
+    if (stat_ok)
+        written += snprintf(msg_buf + written, msg_len - written, "%c%s",
+                            SCLDA_DELIMITER, stat_buf);
+    sclda_send_syscall_info(msg_buf, written);
+
+free:
+    if (stat_ok) kfree(stat_buf);
+    if (path_ok) kfree(path_buf);
     return retval;
 }
 
 SYSCALL_DEFINE2(newlstat, const char __user *, filename, struct stat __user *,
                 statbuf) {
-    int msg_len, path_len, stat_len;
-    char *msg_buf, *path_buf, *stat_buf;
+    int retval, stat_ok, path_ok;
+    int stat_len, path_len, msg_len, written;
+    char *stat_buf, *path_buf, *msg_buf;
     struct kstat stat;
-    int error, retval;
 
-    error = vfs_lstat(filename, &stat);
-    if (error) {
-        retval = error;
-        goto out;
-    }
+    stat_ok = 0;
+    path_ok = 0;
+
+    retval = vfs_lstat(filename, &stat);
+    if (retval) goto sclda_stat;
+    stat_ok = 1;
     retval = cp_new_stat(&stat, statbuf);
-out:
-    if (!is_sclda_allsend_fin()) return retval;
 
-    // statの情報を取得する
+sclda_stat:
+    if (!is_sclda_allsend_fin()) return retval;
+    if (!stat_ok) goto sclda_path;
+
     stat_len = 400;
     stat_buf = kmalloc(stat_len, GFP_KERNEL);
-    if (!stat_buf) return retval;
-    if (retval >= 0) {
-        // successful: get infomation
-        stat_len = kstat_to_str(&stat, stat_buf, stat_len);
-        if (stat_len < 0) {
-            stat_len = 1;
-            stat_buf[0] = '\0';
-        }
-    } else {
-        stat_len = 1;
-        stat_buf[0] = '\0';
+    if (!stat_buf) {
+        stat_ok = 0;
+        stat_len = 0;
+        goto sclda_path;
     }
 
-    // ファイル名を取得する
+    written = kstat_to_str(&stat, stat_buf, stat_len);
+    if (written <= 0) {
+        memset(stat_buf, 0, stat_len);
+        stat_len = 0;
+    } else {
+        stat_len = written;
+    }
+
+sclda_path:
     path_len = strnlen_user(filename, PATH_MAX);
     path_buf = kmalloc(path_len + 1, GFP_KERNEL);
-    if (!path_buf) goto free_stat;
-    if (copy_from_user(path_buf, filename, path_len)) path_len = 0;
-    path_buf[path_len] = '\0';
+    if (!path_buf) {
+        path_len = 0;
+        goto sclda_all;
+    }
+    path_ok = 1;
+    if (copy_from_user(path_buf, filename, path_len)) {
+        memset(path_buf, 0, path_len);
+        path_len = 0;
+    } else {
+        path_buf[path_len] = '\0';
+    }
 
-    // 送信するパート
+sclda_all:
     msg_len = 100 + path_len + stat_len;
     msg_buf = kmalloc(msg_len, GFP_KERNEL);
-    if (!msg_buf) goto free_path;
+    if (!msg_buf) goto free;
 
-    msg_len = snprintf(msg_buf, msg_len,
-                       "6%c%d%c%s"
-                       "%c%s",
-                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, path_buf,
-                       SCLDA_DELIMITER, stat_buf);
-    sclda_send_syscall_info(msg_buf, msg_len);
-free_path:
-    kfree(path_buf);
-free_stat:
-    kfree(stat_buf);
+    written = snprintf(msg_buf, msg_len, "6%c%d", SCLDA_DELIMITER, retval);
+    if (path_ok)
+        written += snprintf(msg_buf + written, msg_len - written, "%c%s",
+                            SCLDA_DELIMITER, path_buf);
+    if (stat_ok)
+        written += snprintf(msg_buf + written, msg_len - written, "%c%s",
+                            SCLDA_DELIMITER, stat_buf);
+    sclda_send_syscall_info(msg_buf, written);
+
+free:
+    if (stat_ok) kfree(stat_buf);
+    if (path_ok) kfree(path_buf);
     return retval;
 }
 
@@ -725,49 +758,54 @@ free_path:
 #endif
 
 SYSCALL_DEFINE2(newfstat, unsigned int, fd, struct stat __user *, statbuf) {
-    int msg_len, stat_len;
-    char *msg_buf, *stat_buf;
+    int retval, stat_ok;
+    int stat_len, msg_len, written;
+    char *stat_buf, *msg_buf;
     struct kstat stat;
-    int error, retval;
 
-    error = vfs_fstat(fd, &stat);
-    if (error) {
-        retval = error;
-        goto out;
-    }
-    retval = cp_new_stat(&stat, statbuf);
-out:
+    stat_ok = 0;
+
+    retval = vfs_fstat(fd, &stat);
+    if (retval) goto sclda_stat;
+    stat_ok = 1;
+    retval = cp_old_stat(&stat, statbuf);
+
+sclda_stat:
     if (!is_sclda_allsend_fin()) return retval;
+    if (!stat_ok) goto sclda_all;
 
-    // statの情報を取得する
     stat_len = 400;
     stat_buf = kmalloc(stat_len, GFP_KERNEL);
-    if (!stat_buf) return retval;
-    if (retval >= 0) {
-        // successful: get infomation
-        stat_len = kstat_to_str(&stat, stat_buf, stat_len);
-        if (stat_len < 0) {
-            stat_len = 1;
-            stat_buf[0] = '\0';
-        }
-    } else {
-        stat_len = 1;
-        stat_buf[0] = '\0';
+    if (!stat_buf) {
+        stat_ok = 0;
+        stat_len = 0;
+        goto sclda_all;
     }
 
-    // 送信するパート
-    msg_len = 200 + stat_len;
-    msg_buf = kmalloc(msg_len, GFP_KERNEL);
-    if (!msg_buf) goto free_stat;
+    written = kstat_to_str(&stat, stat_buf, stat_len);
+    if (written <= 0) {
+        memset(stat_buf, 0, stat_len);
+        stat_len = 0;
+    } else {
+        stat_len = written;
+    }
 
-    msg_len = snprintf(msg_buf, msg_len,
-                       "5%c%d%c%u"
-                       "%c%s",
-                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
-                       SCLDA_DELIMITER, stat_buf);
-    sclda_send_syscall_info(msg_buf, msg_len);
-free_stat:
-    kfree(stat_buf);
+sclda_all:
+    msg_len = 100 + stat_len;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    if (!msg_buf) goto free;
+
+    written = snprintf(msg_buf, msg_len,
+                       "5%c%d"
+                       "%c%d",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd);
+    if (stat_ok)
+        written += snprintf(msg_buf + written, msg_len - written, "%c%s",
+                            SCLDA_DELIMITER, stat_buf);
+    sclda_send_syscall_info(msg_buf, written);
+
+free:
+    if (stat_ok) kfree(stat_buf);
     return retval;
 }
 #endif
