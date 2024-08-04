@@ -541,30 +541,44 @@ free_file:
 }
 
 SYSCALL_DEFINE2(access, const char __user *, filename, int, mode) {
-    long retval = do_faccessat(AT_FDCWD, filename, mode, 0);
+    long retval;
+    int msg_len, path_len;
+    char *msg_buf, *path_buf;
+    int written, path_ok;
 
+    retval = do_faccessat(AT_FDCWD, filename, mode, 0);
     if (!is_sclda_allsend_fin()) return retval;
 
-    // ファイル名を取得する
-    int filename_len = strnlen_user(filename, 1000);
-    char *filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
-    if (!filename_buf) return retval;
-    filename_len -= copy_from_user(filename_buf, filename, filename_len);
-    filename_buf[filename_len] = '\0';
-
-    // 文字列を送信する
-    int msg_len = filename_len + 200;
-    char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-    if (!msg_buf) {
-        kfree(filename_buf);
-        return retval;
+    path_len = strnlen_user(filename, PATH_MAX);
+    path_buf = kmalloc(path_len + 1, GFP_KERNEL);
+    if (!path_buf) {
+        path_ok = 0;
+        path_len = 0;
+        goto sclda_all;
     }
 
-    msg_len =
-        snprintf(msg_buf, msg_len, "21%c%ld%c%u%c%s", SCLDA_DELIMITER, retval,
-                 SCLDA_DELIMITER, mode, SCLDA_DELIMITER, filename_buf);
-    kfree(filename_buf);
-    sclda_send_syscall_info(msg_buf, msg_len);
+    path_ok = 1;
+    if (copy_from_user(path_buf, filename, path_len)) {
+        memset(path_buf, 0, path_len + 1);
+        path_len = 0;
+    } else {
+        path_buf[path_len] = '\0';
+    }
+
+sclda_all:
+    msg_len = 100 + path_len;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    if (!msg_buf) goto free_path;
+
+    written = snprintf(msg_buf, msg_len, "21%c%ld%c%u", SCLDA_DELIMITER, retval,
+                       SCLDA_DELIMITER, mode);
+    if (path_ok)
+        written += snprintf(msg_buf + written, msg_len - written, "%c%s",
+                            SCLDA_DELIMITER, path_buf);
+    sclda_send_syscall_info(msg_buf, written);
+
+free_path:
+    if (path_ok) kfree(path_buf);
     return retval;
 }
 
