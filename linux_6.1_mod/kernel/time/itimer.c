@@ -5,34 +5,32 @@
 
 /* These are all the functions necessary to implement itimers */
 
-#include <linux/mm.h>
+#include <linux/compat.h>
+#include <linux/hrtimer.h>
 #include <linux/interrupt.h>
+#include <linux/mm.h>
+#include <linux/posix-timers.h>
+#include <linux/sched/cputime.h>
+#include <linux/sched/signal.h>
 #include <linux/syscalls.h>
 #include <linux/time.h>
-#include <linux/sched/signal.h>
-#include <linux/sched/cputime.h>
-#include <linux/posix-timers.h>
-#include <linux/hrtimer.h>
-#include <trace/events/timer.h>
-#include <linux/compat.h>
-
-#include <net/sclda.h>
-
 #include <linux/uaccess.h>
+#include <net/sclda.h>
+#include <trace/events/timer.h>
 
 int __kernel_old_itimerval_to_str(struct __kernel_old_itimerval __user *uptr,
-				  char *buf, int len)
-{
-	if (!uptr)
-		return -1;
-	struct __kernel_old_itimerval koi;
-	if (copy_from_user(&koi, uptr, sizeof(struct __kernel_old_itimerval)))
-		return -1;
-	return snprintf(buf, len, "%ld%c%ld%c%ld%c%ld",
-			(long)koi.it_interval.tv_sec, SCLDA_DELIMITER,
-			(long)koi.it_interval.tv_usec, SCLDA_DELIMITER,
-			(long)koi.it_value.tv_sec, SCLDA_DELIMITER,
-			(long)koi.it_value.tv_usec);
+                                  char *buf, int len) {
+    struct __kernel_old_itimerval koi;
+
+    if (!uptr) return -1;
+
+    if (copy_from_user(&koi, uptr, sizeof(struct __kernel_old_itimerval)))
+        return -1;
+
+    return snprintf(
+        buf, len, "%ld%c%ld%c%ld%c%ld", (long)koi.it_interval.tv_sec,
+        SCLDA_DELIMITER, (long)koi.it_interval.tv_usec, SCLDA_DELIMITER,
+        (long)koi.it_value.tv_sec, SCLDA_DELIMITER, (long)koi.it_value.tv_usec);
 }
 
 /**
@@ -43,273 +41,248 @@ int __kernel_old_itimerval_to_str(struct __kernel_old_itimerval __user *uptr,
  * Returns the delta between the expiry time and now, which can be
  * less than zero or 1usec for an pending expired timer
  */
-static struct timespec64 itimer_get_remtime(struct hrtimer *timer)
-{
-	ktime_t rem = __hrtimer_get_remaining(timer, true);
+static struct timespec64 itimer_get_remtime(struct hrtimer *timer) {
+    ktime_t rem = __hrtimer_get_remaining(timer, true);
 
-	/*
-	 * Racy but safe: if the itimer expires after the above
-	 * hrtimer_get_remtime() call but before this condition
-	 * then we return 0 - which is correct.
-	 */
-	if (hrtimer_active(timer)) {
-		if (rem <= 0)
-			rem = NSEC_PER_USEC;
-	} else
-		rem = 0;
+    /*
+     * Racy but safe: if the itimer expires after the above
+     * hrtimer_get_remtime() call but before this condition
+     * then we return 0 - which is correct.
+     */
+    if (hrtimer_active(timer)) {
+        if (rem <= 0) rem = NSEC_PER_USEC;
+    } else
+        rem = 0;
 
-	return ktime_to_timespec64(rem);
+    return ktime_to_timespec64(rem);
 }
 
 static void get_cpu_itimer(struct task_struct *tsk, unsigned int clock_id,
-			   struct itimerspec64 *const value)
-{
-	u64 val, interval;
-	struct cpu_itimer *it = &tsk->signal->it[clock_id];
+                           struct itimerspec64 *const value) {
+    u64 val, interval;
+    struct cpu_itimer *it = &tsk->signal->it[clock_id];
 
-	spin_lock_irq(&tsk->sighand->siglock);
+    spin_lock_irq(&tsk->sighand->siglock);
 
-	val = it->expires;
-	interval = it->incr;
-	if (val) {
-		u64 t, samples[CPUCLOCK_MAX];
+    val = it->expires;
+    interval = it->incr;
+    if (val) {
+        u64 t, samples[CPUCLOCK_MAX];
 
-		thread_group_sample_cputime(tsk, samples);
-		t = samples[clock_id];
+        thread_group_sample_cputime(tsk, samples);
+        t = samples[clock_id];
 
-		if (val < t)
-			/* about to fire */
-			val = TICK_NSEC;
-		else
-			val -= t;
-	}
+        if (val < t) /* about to fire */
+            val = TICK_NSEC;
+        else
+            val -= t;
+    }
 
-	spin_unlock_irq(&tsk->sighand->siglock);
+    spin_unlock_irq(&tsk->sighand->siglock);
 
-	value->it_value = ns_to_timespec64(val);
-	value->it_interval = ns_to_timespec64(interval);
+    value->it_value = ns_to_timespec64(val);
+    value->it_interval = ns_to_timespec64(interval);
 }
 
-static int do_getitimer(int which, struct itimerspec64 *value)
-{
-	struct task_struct *tsk = current;
+static int do_getitimer(int which, struct itimerspec64 *value) {
+    struct task_struct *tsk = current;
 
-	switch (which) {
-	case ITIMER_REAL:
-		spin_lock_irq(&tsk->sighand->siglock);
-		value->it_value = itimer_get_remtime(&tsk->signal->real_timer);
-		value->it_interval =
-			ktime_to_timespec64(tsk->signal->it_real_incr);
-		spin_unlock_irq(&tsk->sighand->siglock);
-		break;
-	case ITIMER_VIRTUAL:
-		get_cpu_itimer(tsk, CPUCLOCK_VIRT, value);
-		break;
-	case ITIMER_PROF:
-		get_cpu_itimer(tsk, CPUCLOCK_PROF, value);
-		break;
-	default:
-		return (-EINVAL);
-	}
-	return 0;
+    switch (which) {
+        case ITIMER_REAL:
+            spin_lock_irq(&tsk->sighand->siglock);
+            value->it_value = itimer_get_remtime(&tsk->signal->real_timer);
+            value->it_interval = ktime_to_timespec64(tsk->signal->it_real_incr);
+            spin_unlock_irq(&tsk->sighand->siglock);
+            break;
+        case ITIMER_VIRTUAL:
+            get_cpu_itimer(tsk, CPUCLOCK_VIRT, value);
+            break;
+        case ITIMER_PROF:
+            get_cpu_itimer(tsk, CPUCLOCK_PROF, value);
+            break;
+        default:
+            return (-EINVAL);
+    }
+    return 0;
 }
 
 static int put_itimerval(struct __kernel_old_itimerval __user *o,
-			 const struct itimerspec64 *i)
-{
-	struct __kernel_old_itimerval v;
+                         const struct itimerspec64 *i) {
+    struct __kernel_old_itimerval v;
 
-	v.it_interval.tv_sec = i->it_interval.tv_sec;
-	v.it_interval.tv_usec = i->it_interval.tv_nsec / NSEC_PER_USEC;
-	v.it_value.tv_sec = i->it_value.tv_sec;
-	v.it_value.tv_usec = i->it_value.tv_nsec / NSEC_PER_USEC;
-	return copy_to_user(o, &v, sizeof(struct __kernel_old_itimerval)) ?
-		       -EFAULT :
-		       0;
+    v.it_interval.tv_sec = i->it_interval.tv_sec;
+    v.it_interval.tv_usec = i->it_interval.tv_nsec / NSEC_PER_USEC;
+    v.it_value.tv_sec = i->it_value.tv_sec;
+    v.it_value.tv_usec = i->it_value.tv_nsec / NSEC_PER_USEC;
+    return copy_to_user(o, &v, sizeof(struct __kernel_old_itimerval)) ? -EFAULT
+                                                                      : 0;
 }
 
 SYSCALL_DEFINE2(getitimer, int, which, struct __kernel_old_itimerval __user *,
-		value)
-{
-	int retval;
-	struct itimerspec64 get_buffer;
-	int struct_len, msg_len;
-	char *struct_buf, *msg_buf;
+                value) {
+    int retval;
+    struct itimerspec64 get_buffer;
+    int struct_len, msg_len;
+    char *struct_buf, *msg_buf;
 
-	retval = do_getitimer(which, &get_buffer);
-	if (!retval && put_itimerval(value, &get_buffer))
-		retval = -EFAULT;
+    retval = do_getitimer(which, &get_buffer);
+    if (!retval && put_itimerval(value, &get_buffer)) retval = -EFAULT;
 
-	if (!is_sclda_allsend_fin())
-		return retval;
+    if (!is_sclda_allsend_fin()) return retval;
 
-	// struct __kernel_old_itimerval __user * valueを文字列に
-	struct_len = 200;
-	struct_buf = kmalloc(struct_len, GFP_KERNEL);
-	if (!struct_buf)
-		return retval;
-	struct_len =
-		__kernel_old_itimerval_to_str(value, struct_buf, struct_len);
-	if (struct_len < 0) {
-		struct_len = 1;
-		struct_buf[0] = '\0';
-	}
+    // struct __kernel_old_itimerval __user * valueを文字列に
+    struct_len = 200;
+    struct_buf = kmalloc(struct_len, GFP_KERNEL);
+    if (!struct_buf) return retval;
+    struct_len = __kernel_old_itimerval_to_str(value, struct_buf, struct_len);
+    if (struct_len < 0) {
+        struct_len = 1;
+        struct_buf[0] = '\0';
+    }
 
-	// 送信するパート
-	msg_len = struct_len + 100;
-	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		goto free_structbuf;
+    // 送信するパート
+    msg_len = struct_len + 100;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    if (!msg_buf) goto free_structbuf;
 
-	msg_len = snprintf(msg_buf, msg_len, "36%c%d%c%d%c%s", SCLDA_DELIMITER,
-			   retval, SCLDA_DELIMITER, which, SCLDA_DELIMITER,
-			   struct_buf);
-	sclda_send_syscall_info(msg_buf, msg_len);
+    msg_len =
+        snprintf(msg_buf, msg_len, "36%c%d%c%d%c%s", SCLDA_DELIMITER, retval,
+                 SCLDA_DELIMITER, which, SCLDA_DELIMITER, struct_buf);
+    sclda_send_syscall_info(msg_buf, msg_len);
 
 free_structbuf:
-	kfree(struct_buf);
-	return retval;
+    kfree(struct_buf);
+    return retval;
 }
 
 #if defined(CONFIG_COMPAT) || defined(CONFIG_ALPHA)
 struct old_itimerval32 {
-	struct old_timeval32 it_interval;
-	struct old_timeval32 it_value;
+    struct old_timeval32 it_interval;
+    struct old_timeval32 it_value;
 };
 
 static int put_old_itimerval32(struct old_itimerval32 __user *o,
-			       const struct itimerspec64 *i)
-{
-	struct old_itimerval32 v32;
+                               const struct itimerspec64 *i) {
+    struct old_itimerval32 v32;
 
-	v32.it_interval.tv_sec = i->it_interval.tv_sec;
-	v32.it_interval.tv_usec = i->it_interval.tv_nsec / NSEC_PER_USEC;
-	v32.it_value.tv_sec = i->it_value.tv_sec;
-	v32.it_value.tv_usec = i->it_value.tv_nsec / NSEC_PER_USEC;
-	return copy_to_user(o, &v32, sizeof(struct old_itimerval32)) ? -EFAULT :
-								       0;
+    v32.it_interval.tv_sec = i->it_interval.tv_sec;
+    v32.it_interval.tv_usec = i->it_interval.tv_nsec / NSEC_PER_USEC;
+    v32.it_value.tv_sec = i->it_value.tv_sec;
+    v32.it_value.tv_usec = i->it_value.tv_nsec / NSEC_PER_USEC;
+    return copy_to_user(o, &v32, sizeof(struct old_itimerval32)) ? -EFAULT : 0;
 }
 
 COMPAT_SYSCALL_DEFINE2(getitimer, int, which, struct old_itimerval32 __user *,
-		       value)
-{
-	struct itimerspec64 get_buffer;
-	int error = do_getitimer(which, &get_buffer);
+                       value) {
+    struct itimerspec64 get_buffer;
+    int error = do_getitimer(which, &get_buffer);
 
-	if (!error && put_old_itimerval32(value, &get_buffer))
-		error = -EFAULT;
-	return error;
+    if (!error && put_old_itimerval32(value, &get_buffer)) error = -EFAULT;
+    return error;
 }
 #endif
 
 /*
  * The timer is automagically restarted, when interval != 0
  */
-enum hrtimer_restart it_real_fn(struct hrtimer *timer)
-{
-	struct signal_struct *sig =
-		container_of(timer, struct signal_struct, real_timer);
-	struct pid *leader_pid = sig->pids[PIDTYPE_TGID];
+enum hrtimer_restart it_real_fn(struct hrtimer *timer) {
+    struct signal_struct *sig =
+        container_of(timer, struct signal_struct, real_timer);
+    struct pid *leader_pid = sig->pids[PIDTYPE_TGID];
 
-	trace_itimer_expire(ITIMER_REAL, leader_pid, 0);
-	kill_pid_info(SIGALRM, SEND_SIG_PRIV, leader_pid);
+    trace_itimer_expire(ITIMER_REAL, leader_pid, 0);
+    kill_pid_info(SIGALRM, SEND_SIG_PRIV, leader_pid);
 
-	return HRTIMER_NORESTART;
+    return HRTIMER_NORESTART;
 }
 
 static void set_cpu_itimer(struct task_struct *tsk, unsigned int clock_id,
-			   const struct itimerspec64 *const value,
-			   struct itimerspec64 *const ovalue)
-{
-	u64 oval, nval, ointerval, ninterval;
-	struct cpu_itimer *it = &tsk->signal->it[clock_id];
+                           const struct itimerspec64 *const value,
+                           struct itimerspec64 *const ovalue) {
+    u64 oval, nval, ointerval, ninterval;
+    struct cpu_itimer *it = &tsk->signal->it[clock_id];
 
-	nval = timespec64_to_ns(&value->it_value);
-	ninterval = timespec64_to_ns(&value->it_interval);
+    nval = timespec64_to_ns(&value->it_value);
+    ninterval = timespec64_to_ns(&value->it_interval);
 
-	spin_lock_irq(&tsk->sighand->siglock);
+    spin_lock_irq(&tsk->sighand->siglock);
 
-	oval = it->expires;
-	ointerval = it->incr;
-	if (oval || nval) {
-		if (nval > 0)
-			nval += TICK_NSEC;
-		set_process_cpu_timer(tsk, clock_id, &nval, &oval);
-	}
-	it->expires = nval;
-	it->incr = ninterval;
-	trace_itimer_state(clock_id == CPUCLOCK_VIRT ? ITIMER_VIRTUAL :
-						       ITIMER_PROF,
-			   value, nval);
+    oval = it->expires;
+    ointerval = it->incr;
+    if (oval || nval) {
+        if (nval > 0) nval += TICK_NSEC;
+        set_process_cpu_timer(tsk, clock_id, &nval, &oval);
+    }
+    it->expires = nval;
+    it->incr = ninterval;
+    trace_itimer_state(clock_id == CPUCLOCK_VIRT ? ITIMER_VIRTUAL : ITIMER_PROF,
+                       value, nval);
 
-	spin_unlock_irq(&tsk->sighand->siglock);
+    spin_unlock_irq(&tsk->sighand->siglock);
 
-	if (ovalue) {
-		ovalue->it_value = ns_to_timespec64(oval);
-		ovalue->it_interval = ns_to_timespec64(ointerval);
-	}
+    if (ovalue) {
+        ovalue->it_value = ns_to_timespec64(oval);
+        ovalue->it_interval = ns_to_timespec64(ointerval);
+    }
 }
 
 /*
  * Returns true if the timeval is in canonical form
  */
 #define timeval_valid(t) \
-	(((t)->tv_sec >= 0) && (((unsigned long)(t)->tv_usec) < USEC_PER_SEC))
+    (((t)->tv_sec >= 0) && (((unsigned long)(t)->tv_usec) < USEC_PER_SEC))
 
 static int do_setitimer(int which, struct itimerspec64 *value,
-			struct itimerspec64 *ovalue)
-{
-	struct task_struct *tsk = current;
-	struct hrtimer *timer;
-	ktime_t expires;
+                        struct itimerspec64 *ovalue) {
+    struct task_struct *tsk = current;
+    struct hrtimer *timer;
+    ktime_t expires;
 
-	switch (which) {
-	case ITIMER_REAL:
-again:
-		spin_lock_irq(&tsk->sighand->siglock);
-		timer = &tsk->signal->real_timer;
-		if (ovalue) {
-			ovalue->it_value = itimer_get_remtime(timer);
-			ovalue->it_interval =
-				ktime_to_timespec64(tsk->signal->it_real_incr);
-		}
-		/* We are sharing ->siglock with it_real_fn() */
-		if (hrtimer_try_to_cancel(timer) < 0) {
-			spin_unlock_irq(&tsk->sighand->siglock);
-			hrtimer_cancel_wait_running(timer);
-			goto again;
-		}
-		expires = timespec64_to_ktime(value->it_value);
-		if (expires != 0) {
-			tsk->signal->it_real_incr =
-				timespec64_to_ktime(value->it_interval);
-			hrtimer_start(timer, expires, HRTIMER_MODE_REL);
-		} else
-			tsk->signal->it_real_incr = 0;
+    switch (which) {
+        case ITIMER_REAL:
+        again:
+            spin_lock_irq(&tsk->sighand->siglock);
+            timer = &tsk->signal->real_timer;
+            if (ovalue) {
+                ovalue->it_value = itimer_get_remtime(timer);
+                ovalue->it_interval =
+                    ktime_to_timespec64(tsk->signal->it_real_incr);
+            }
+            /* We are sharing ->siglock with it_real_fn() */
+            if (hrtimer_try_to_cancel(timer) < 0) {
+                spin_unlock_irq(&tsk->sighand->siglock);
+                hrtimer_cancel_wait_running(timer);
+                goto again;
+            }
+            expires = timespec64_to_ktime(value->it_value);
+            if (expires != 0) {
+                tsk->signal->it_real_incr =
+                    timespec64_to_ktime(value->it_interval);
+                hrtimer_start(timer, expires, HRTIMER_MODE_REL);
+            } else
+                tsk->signal->it_real_incr = 0;
 
-		trace_itimer_state(ITIMER_REAL, value, 0);
-		spin_unlock_irq(&tsk->sighand->siglock);
-		break;
-	case ITIMER_VIRTUAL:
-		set_cpu_itimer(tsk, CPUCLOCK_VIRT, value, ovalue);
-		break;
-	case ITIMER_PROF:
-		set_cpu_itimer(tsk, CPUCLOCK_PROF, value, ovalue);
-		break;
-	default:
-		return -EINVAL;
-	}
-	return 0;
+            trace_itimer_state(ITIMER_REAL, value, 0);
+            spin_unlock_irq(&tsk->sighand->siglock);
+            break;
+        case ITIMER_VIRTUAL:
+            set_cpu_itimer(tsk, CPUCLOCK_VIRT, value, ovalue);
+            break;
+        case ITIMER_PROF:
+            set_cpu_itimer(tsk, CPUCLOCK_PROF, value, ovalue);
+            break;
+        default:
+            return -EINVAL;
+    }
+    return 0;
 }
 
 #ifdef CONFIG_SECURITY_SELINUX
-void clear_itimer(void)
-{
-	struct itimerspec64 v = {};
-	int i;
+void clear_itimer(void) {
+    struct itimerspec64 v = {};
+    int i;
 
-	for (i = 0; i < 3; i++)
-		do_setitimer(i, &v, NULL);
+    for (i = 0; i < 3; i++) do_setitimer(i, &v, NULL);
 }
 #endif
 
@@ -327,194 +300,174 @@ void clear_itimer(void)
  * On 32 bit machines the seconds value is limited to (INT_MAX/2) to avoid
  * negative timeval settings which would cause immediate expiry.
  */
-static unsigned int alarm_setitimer(unsigned int seconds)
-{
-	struct itimerspec64 it_new, it_old;
+static unsigned int alarm_setitimer(unsigned int seconds) {
+    struct itimerspec64 it_new, it_old;
 
 #if BITS_PER_LONG < 64
-	if (seconds > INT_MAX)
-		seconds = INT_MAX;
+    if (seconds > INT_MAX) seconds = INT_MAX;
 #endif
-	it_new.it_value.tv_sec = seconds;
-	it_new.it_value.tv_nsec = 0;
-	it_new.it_interval.tv_sec = it_new.it_interval.tv_nsec = 0;
+    it_new.it_value.tv_sec = seconds;
+    it_new.it_value.tv_nsec = 0;
+    it_new.it_interval.tv_sec = it_new.it_interval.tv_nsec = 0;
 
-	do_setitimer(ITIMER_REAL, &it_new, &it_old);
+    do_setitimer(ITIMER_REAL, &it_new, &it_old);
 
-	/*
-	 * We can't return 0 if we have an alarm pending ...  And we'd
-	 * better return too much than too little anyway
-	 */
-	if ((!it_old.it_value.tv_sec && it_old.it_value.tv_nsec) ||
-	    it_old.it_value.tv_nsec >= (NSEC_PER_SEC / 2))
-		it_old.it_value.tv_sec++;
+    /*
+     * We can't return 0 if we have an alarm pending ...  And we'd
+     * better return too much than too little anyway
+     */
+    if ((!it_old.it_value.tv_sec && it_old.it_value.tv_nsec) ||
+        it_old.it_value.tv_nsec >= (NSEC_PER_SEC / 2))
+        it_old.it_value.tv_sec++;
 
-	return it_old.it_value.tv_sec;
+    return it_old.it_value.tv_sec;
 }
 
 /*
  * For backwards compatibility?  This can be done in libc so Alpha
  * and all newer ports shouldn't need it.
  */
-SYSCALL_DEFINE1(alarm, unsigned int, seconds)
-{
-	unsigned int retval = alarm_setitimer(seconds);
-	if (!is_sclda_allsend_fin())
-		return retval;
+SYSCALL_DEFINE1(alarm, unsigned int, seconds) {
+    unsigned int retval;
+    int msg_len;
+    char *msg_buf;
 
-	// 送信するパート
-	int msg_len = 200;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		return retval;
+    retval = alarm_setitimer(seconds);
+    if (!is_sclda_allsend_fin()) return retval;
 
-	msg_len = snprintf(msg_buf, msg_len, "37%c%u%c%u", SCLDA_DELIMITER,
-			   retval, SCLDA_DELIMITER, seconds);
-	sclda_send_syscall_info(msg_buf, msg_len);
-	return retval;
+    msg_len = 200;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    if (!msg_buf) return retval;
+
+    msg_len = snprintf(msg_buf, msg_len, "37%c%u%c%u", SCLDA_DELIMITER, retval,
+                       SCLDA_DELIMITER, seconds);
+    sclda_send_syscall_info(msg_buf, msg_len);
+    return retval;
 }
 
 #endif
 
 static int get_itimerval(struct itimerspec64 *o,
-			 const struct __kernel_old_itimerval __user *i)
-{
-	struct __kernel_old_itimerval v;
+                         const struct __kernel_old_itimerval __user *i) {
+    struct __kernel_old_itimerval v;
 
-	if (copy_from_user(&v, i, sizeof(struct __kernel_old_itimerval)))
-		return -EFAULT;
+    if (copy_from_user(&v, i, sizeof(struct __kernel_old_itimerval)))
+        return -EFAULT;
 
-	/* Validate the timevals in value. */
-	if (!timeval_valid(&v.it_value) || !timeval_valid(&v.it_interval))
-		return -EINVAL;
+    /* Validate the timevals in value. */
+    if (!timeval_valid(&v.it_value) || !timeval_valid(&v.it_interval))
+        return -EINVAL;
 
-	o->it_interval.tv_sec = v.it_interval.tv_sec;
-	o->it_interval.tv_nsec = v.it_interval.tv_usec * NSEC_PER_USEC;
-	o->it_value.tv_sec = v.it_value.tv_sec;
-	o->it_value.tv_nsec = v.it_value.tv_usec * NSEC_PER_USEC;
-	return 0;
+    o->it_interval.tv_sec = v.it_interval.tv_sec;
+    o->it_interval.tv_nsec = v.it_interval.tv_usec * NSEC_PER_USEC;
+    o->it_value.tv_sec = v.it_value.tv_sec;
+    o->it_value.tv_nsec = v.it_value.tv_usec * NSEC_PER_USEC;
+    return 0;
 }
 
 int sclda_setitimer(int which, struct __kernel_old_itimerval __user *value,
-		    struct __kernel_old_itimerval __user *ovalue)
-{
-	struct itimerspec64 set_buffer, get_buffer;
-	int error;
+                    struct __kernel_old_itimerval __user *ovalue) {
+    struct itimerspec64 set_buffer, get_buffer;
+    int error;
 
-	if (value) {
-		error = get_itimerval(&set_buffer, value);
-		if (error)
-			return error;
-	} else {
-		memset(&set_buffer, 0, sizeof(set_buffer));
-		printk_once(KERN_WARNING
-			    "%s calls setitimer() with new_value NULL pointer."
-			    " Misfeature support will be removed\n",
-			    current->comm);
-	}
+    if (value) {
+        error = get_itimerval(&set_buffer, value);
+        if (error) return error;
+    } else {
+        memset(&set_buffer, 0, sizeof(set_buffer));
+        printk_once(KERN_WARNING
+                    "%s calls setitimer() with new_value NULL pointer."
+                    " Misfeature support will be removed\n",
+                    current->comm);
+    }
 
-	error = do_setitimer(which, &set_buffer, ovalue ? &get_buffer : NULL);
-	if (error || !ovalue)
-		return error;
+    error = do_setitimer(which, &set_buffer, ovalue ? &get_buffer : NULL);
+    if (error || !ovalue) return error;
 
-	if (put_itimerval(ovalue, &get_buffer))
-		return -EFAULT;
-	return 0;
+    if (put_itimerval(ovalue, &get_buffer)) return -EFAULT;
+    return 0;
 }
 
 SYSCALL_DEFINE3(setitimer, int, which, struct __kernel_old_itimerval __user *,
-		value, struct __kernel_old_itimerval __user *, ovalue)
-{
-	int retval;
-	int value_len, ovalue_len, msg_len;
-	char *value_buf, *ovalue_buf, *msg_buf;
+                value, struct __kernel_old_itimerval __user *, ovalue) {
+    int retval;
+    int value_len, ovalue_len, msg_len;
+    char *value_buf, *ovalue_buf, *msg_buf;
 
-	retval = sclda_setitimer(which, value, ovalue);
-	if (!is_sclda_allsend_fin())
-		return retval;
+    retval = sclda_setitimer(which, value, ovalue);
+    if (!is_sclda_allsend_fin()) return retval;
 
-	value_len = 200;
-	value_buf = kmalloc(value_len, GFP_KERNEL);
-	if (!value_buf)
-		return retval;
-	value_len = __kernel_old_itimerval_to_str(value, value_buf, value_len);
-	if (value_len < 0) {
-		value_len = 1;
-		value_buf[0] = '\0';
-	}
+    value_len = 200;
+    value_buf = kmalloc(value_len, GFP_KERNEL);
+    if (!value_buf) return retval;
+    value_len = __kernel_old_itimerval_to_str(value, value_buf, value_len);
+    if (value_len < 0) {
+        value_len = 1;
+        value_buf[0] = '\0';
+    }
 
-	ovalue_len = 200;
-	ovalue_buf = kmalloc(ovalue_len, GFP_KERNEL);
-	if (!ovalue_buf)
-		goto free_value;
-	ovalue_len =
-		__kernel_old_itimerval_to_str(ovalue, ovalue_buf, ovalue_len);
-	if (ovalue_len < 0) {
-		ovalue_len = 1;
-		ovalue_buf[0] = '\0';
-	}
+    ovalue_len = 200;
+    ovalue_buf = kmalloc(ovalue_len, GFP_KERNEL);
+    if (!ovalue_buf) goto free_value;
+    ovalue_len = __kernel_old_itimerval_to_str(ovalue, ovalue_buf, ovalue_len);
+    if (ovalue_len < 0) {
+        ovalue_len = 1;
+        ovalue_buf[0] = '\0';
+    }
 
-	// 送信するパート
-	msg_len = value_len + ovalue_len + 200;
-	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		goto free_ovalue;
+    // 送信するパート
+    msg_len = value_len + ovalue_len + 200;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    if (!msg_buf) goto free_ovalue;
 
-	msg_len = snprintf(msg_buf, msg_len, "38%c%d%c%d%c%s%c%s",
-			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, which,
-			   SCLDA_DELIMITER, value_buf, SCLDA_DELIMITER,
-			   ovalue_buf);
-	sclda_send_syscall_info(msg_buf, msg_len);
+    msg_len = snprintf(msg_buf, msg_len, "38%c%d%c%d%c%s%c%s", SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, which, SCLDA_DELIMITER,
+                       value_buf, SCLDA_DELIMITER, ovalue_buf);
+    sclda_send_syscall_info(msg_buf, msg_len);
 free_ovalue:
-	kfree(ovalue_buf);
+    kfree(ovalue_buf);
 free_value:
-	kfree(value_buf);
-	return retval;
+    kfree(value_buf);
+    return retval;
 }
 
 #if defined(CONFIG_COMPAT) || defined(CONFIG_ALPHA)
 static int get_old_itimerval32(struct itimerspec64 *o,
-			       const struct old_itimerval32 __user *i)
-{
-	struct old_itimerval32 v32;
+                               const struct old_itimerval32 __user *i) {
+    struct old_itimerval32 v32;
 
-	if (copy_from_user(&v32, i, sizeof(struct old_itimerval32)))
-		return -EFAULT;
+    if (copy_from_user(&v32, i, sizeof(struct old_itimerval32))) return -EFAULT;
 
-	/* Validate the timevals in value.  */
-	if (!timeval_valid(&v32.it_value) || !timeval_valid(&v32.it_interval))
-		return -EINVAL;
+    /* Validate the timevals in value.  */
+    if (!timeval_valid(&v32.it_value) || !timeval_valid(&v32.it_interval))
+        return -EINVAL;
 
-	o->it_interval.tv_sec = v32.it_interval.tv_sec;
-	o->it_interval.tv_nsec = v32.it_interval.tv_usec * NSEC_PER_USEC;
-	o->it_value.tv_sec = v32.it_value.tv_sec;
-	o->it_value.tv_nsec = v32.it_value.tv_usec * NSEC_PER_USEC;
-	return 0;
+    o->it_interval.tv_sec = v32.it_interval.tv_sec;
+    o->it_interval.tv_nsec = v32.it_interval.tv_usec * NSEC_PER_USEC;
+    o->it_value.tv_sec = v32.it_value.tv_sec;
+    o->it_value.tv_nsec = v32.it_value.tv_usec * NSEC_PER_USEC;
+    return 0;
 }
 
 COMPAT_SYSCALL_DEFINE3(setitimer, int, which, struct old_itimerval32 __user *,
-		       value, struct old_itimerval32 __user *, ovalue)
-{
-	struct itimerspec64 set_buffer, get_buffer;
-	int error;
+                       value, struct old_itimerval32 __user *, ovalue) {
+    struct itimerspec64 set_buffer, get_buffer;
+    int error;
 
-	if (value) {
-		error = get_old_itimerval32(&set_buffer, value);
-		if (error)
-			return error;
-	} else {
-		memset(&set_buffer, 0, sizeof(set_buffer));
-		printk_once(KERN_WARNING
-			    "%s calls setitimer() with new_value NULL pointer."
-			    " Misfeature support will be removed\n",
-			    current->comm);
-	}
+    if (value) {
+        error = get_old_itimerval32(&set_buffer, value);
+        if (error) return error;
+    } else {
+        memset(&set_buffer, 0, sizeof(set_buffer));
+        printk_once(KERN_WARNING
+                    "%s calls setitimer() with new_value NULL pointer."
+                    " Misfeature support will be removed\n",
+                    current->comm);
+    }
 
-	error = do_setitimer(which, &set_buffer, ovalue ? &get_buffer : NULL);
-	if (error || !ovalue)
-		return error;
-	if (put_old_itimerval32(ovalue, &get_buffer))
-		return -EFAULT;
-	return 0;
+    error = do_setitimer(which, &set_buffer, ovalue ? &get_buffer : NULL);
+    if (error || !ovalue) return error;
+    if (put_old_itimerval32(ovalue, &get_buffer)) return -EFAULT;
+    return 0;
 }
 #endif
