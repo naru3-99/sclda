@@ -236,7 +236,7 @@ sclda_all:
                  "202%c%ld%c%d"
                  "%c%u%c%u",
                  SCLDA_DELIMITER, retval, SCLDA_DELIMITER, op, SCLDA_DELIMITER,
-                 val, SCLDA_DELIMITER, SCLDA_DELIMITER, val3);
+                 val, SCLDA_DELIMITER, val3);
     if (u_ok)
         written += snprintf(msg_buf + written, msg_len - written, "%c%u%c%u",
                             SCLDA_DELIMITER, kaddr, SCLDA_DELIMITER, kaddr2);
