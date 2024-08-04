@@ -625,7 +625,7 @@ sclda_all:
     sclda_send_syscall_info(msg_buf, written);
 free:
     if (read_ok) kfree(read_buf);
-    return ret;
+    return retval;
 }
 
 ssize_t ksys_write(unsigned int fd, const char __user *buf, size_t count) {
@@ -690,7 +690,7 @@ sclda_all:
     sclda_send_syscall_info(msg_buf, written);
 free:
     if (write_ok) kfree(write_buf);
-    return ret;
+    return retval;
 }
 
 ssize_t ksys_pread64(unsigned int fd, char __user *buf, size_t count,
