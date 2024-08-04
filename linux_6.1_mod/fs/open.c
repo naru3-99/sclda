@@ -582,7 +582,7 @@ free_path:
     return retval;
 }
 
-SYSCALL_DEFINE1(chdir, const char __user *, filename) {
+int sclda_chdir(const char __user *filename) {
     struct path path;
     int error;
     unsigned int lookup_flags = LOOKUP_FOLLOW | LOOKUP_DIRECTORY;
@@ -602,30 +602,48 @@ dput_and_out:
         goto retry;
     }
 out:
-    int msg_len, filename_len;
-    char *msg_buf, *filename_buf;
-    if (!is_sclda_allsend_fin()) return error;
-
-    // ファイル名を取得する
-    filename_len = strnlen_user(filename, PATH_MAX);
-    filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
-    if (!filename_buf) return error;
-    if (copy_from_user(filename_buf, filename, filename_len))
-        goto free_filename;
-    filename_buf[filename_len] = '\0';
-
-    // 送信するパート
-    msg_len = 50 + filename_len;
-    msg_buf = kmalloc(msg_len, GFP_KERNEL);
-    if (!msg_buf) goto free_filename;
-
-    msg_len = snprintf(msg_buf, msg_len, "80%c%d%c%s", SCLDA_DELIMITER, error,
-                       SCLDA_DELIMITER, filename_buf);
-    sclda_send_syscall_info(msg_buf, msg_len);
-
-free_filename:
-    kfree(filename_buf);
     return error;
+}
+
+SYSCALL_DEFINE1(chdir, const char __user *, filename) {
+    int retval;
+    int msg_len, path_len;
+    char *msg_buf, *path_buf;
+    int written, path_ok;
+
+    retval = sclda_chdir(filename);
+    if (!is_sclda_allsend_fin()) return retval;
+
+    path_len = strnlen_user(filename, PATH_MAX);
+    path_buf = kmalloc(path_len + 1, GFP_KERNEL);
+    if (!path_buf) {
+        path_ok = 0;
+        path_len = 0;
+        goto sclda_all;
+    }
+
+    path_ok = 1;
+    if (copy_from_user(path_buf, filename, path_len)) {
+        memset(path_buf, 0, path_len + 1);
+        path_len = 0;
+    } else {
+        path_buf[path_len] = '\0';
+    }
+
+sclda_all:
+    msg_len = 100 + path_len;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    if (!msg_buf) goto free_path;
+
+    written = snprintf(msg_buf, msg_len, "80%c%d", SCLDA_DELIMITER, retval);
+    if (path_ok)
+        written += snprintf(msg_buf + written, msg_len - written, "%c%s",
+                            SCLDA_DELIMITER, path_buf);
+    sclda_send_syscall_info(msg_buf, written);
+
+free_path:
+    if (path_ok) kfree(path_buf);
+    return retval;
 }
 
 SYSCALL_DEFINE1(fchdir, unsigned int, fd) {
