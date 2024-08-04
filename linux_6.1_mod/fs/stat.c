@@ -768,7 +768,7 @@ SYSCALL_DEFINE2(newfstat, unsigned int, fd, struct stat __user *, statbuf) {
     retval = vfs_fstat(fd, &stat);
     if (retval) goto sclda_stat;
     stat_ok = 1;
-    retval = cp_old_stat(&stat, statbuf);
+    retval = cp_new_stat(&stat, statbuf);
 
 sclda_stat:
     if (!is_sclda_allsend_fin()) return retval;

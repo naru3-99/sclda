@@ -583,16 +583,25 @@ ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count) {
 }
 
 SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count) {
-    size_t read_len, msg_len;
+    ssize_t retval, written;
     char *read_buf, *msg_buf;
-    ssize_t ret;
+    ssize_t read_len, msg_len;
+    int read_ok = 0;
 
-    ret = ksys_read(fd, buf, count);
-    if (!is_sclda_allsend_fin()) return ret;
+    retval = ksys_read(fd, buf, count);
+    if (!is_sclda_allsend_fin() || retval <= 0) {
+        read_len = 0;
+        goto sclda_all;
+    }
 
-    read_len = (ret <= 0) ? 0 : (size_t)ret;
+    read_len = retval;
     read_buf = kmalloc(read_len + 1, GFP_KERNEL);
-    if (!read_buf) return ret;
+    if (!read_buf) {
+        read_len = 0;
+        goto sclda_all;
+    }
+
+    read_ok = 1;
     if (copy_from_user(read_buf, buf, read_len)) {
         memset(read_buf, 0, read_len);
         read_len = 0;
@@ -600,16 +609,22 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count) {
         read_buf[read_len] = '\0';
     }
 
+sclda_all:
     msg_len = read_len + 100;
     msg_buf = kmalloc(msg_len, GFP_KERNEL);
-    if (!msg_buf) goto free_read;
+    if (!msg_buf) goto free;
 
-    msg_len = snprintf(msg_buf, msg_len, "0%c%zd%c%u%c%zu%c%s", SCLDA_DELIMITER,
-                       ret, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, count,
-                       SCLDA_DELIMITER, read_buf);
-    sclda_send_syscall_info(msg_buf, msg_len);
-free_read:
-    kfree(read_buf);
+    written = snprintf(msg_buf, msg_len,
+                       "0%c%zd%c%u"
+                       "%c%zu",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+                       SCLDA_DELIMITER, count);
+    if (read_ok)
+        written += snprintf(msg_buf + written, msg_len - written, "%c%s",
+                            SCLDA_DELIMITER, read_buf);
+    sclda_send_syscall_info(msg_buf, written);
+free:
+    if (read_ok) kfree(read_buf);
     return ret;
 }
 
@@ -633,16 +648,25 @@ ssize_t ksys_write(unsigned int fd, const char __user *buf, size_t count) {
 
 SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
                 count) {
-    ssize_t retval, write_len, msg_len;
+    ssize_t retval, written;
     char *write_buf, *msg_buf;
+    ssize_t write_len, msg_len;
+    int write_ok = 0;
 
     retval = ksys_write(fd, buf, count);
-    if (!is_sclda_allsend_fin()) return retval;
+    if (!is_sclda_allsend_fin() || retval <= 0) {
+        write_len = 0;
+        goto sclda_all;
+    }
 
-    write_len = (retval <= 0) ? 0 : retval;
+    write_len = retval;
     write_buf = kmalloc(write_len + 1, GFP_KERNEL);
-    if (!write_buf) return retval;
+    if (!write_buf) {
+        write_len = 0;
+        goto sclda_all;
+    }
 
+    write_ok = 1;
     if (copy_from_user(write_buf, buf, write_len)) {
         memset(write_buf, 0, write_len);
         write_len = 0;
@@ -650,18 +674,23 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
         write_buf[write_len] = '\0';
     }
 
-    // 送信するデータをひとまとめにする
+sclda_all:
     msg_len = write_len + 100;
     msg_buf = kmalloc(msg_len, GFP_KERNEL);
-    if (!msg_buf) goto free_write;
-    msg_len = snprintf(msg_buf, msg_len, "1%c%zd%c%u%c%zu%c%s", SCLDA_DELIMITER,
-                       retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, count,
-                       SCLDA_DELIMITER, write_buf);
-    sclda_send_syscall_info(msg_buf, msg_len);
+    if (!msg_buf) goto free;
 
-free_write:
-    kfree(write_buf);
-    return retval;
+    written = snprintf(msg_buf, msg_len,
+                       "1%c%zd%c%u"
+                       "%c%zu",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+                       SCLDA_DELIMITER, count);
+    if (write_ok)
+        written += snprintf(msg_buf + written, msg_len - written, "%c%s",
+                            SCLDA_DELIMITER, write_buf);
+    sclda_send_syscall_info(msg_buf, written);
+free:
+    if (write_ok) kfree(write_buf);
+    return ret;
 }
 
 ssize_t ksys_pread64(unsigned int fd, char __user *buf, size_t count,
