@@ -58,7 +58,7 @@ int __init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port) {
 // This function will invoked once in init/main.c
 int sclda_init(void) {
     struct task_struct *newkthread;
-    
+
     // prepare for syscall.c
     for (size_t i = 0; i < SCLDA_SCI_NUM; i++) {
         mutex_init(&sclda_syscall_mutex[i]);
@@ -76,7 +76,12 @@ int sclda_init(void) {
 
     // start the sclda_kthread
     newkthread = kthread_create(sclda_kthread_to_send, NULL, "sclda_thread");
-    if (!IS_ERR(newkthread)) wake_up_process(newkthread);
+    if (!IS_ERR(newkthread)) {
+        printk(KERN_ERR "sclda kthread succeeded");
+        wake_up_process(newkthread);
+    } else {
+        printk(KERN_ERR "sclda kthread failed");
+    }
 
     sclda_init_fin = 1;
     return 0;
