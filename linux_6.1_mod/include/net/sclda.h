@@ -55,7 +55,7 @@
 // bufsize for syscall_info struct
 #define SCLDA_NUM_TO_SEND_SINFO ((int)5000)
 // num for head of syscall_info struct
-#define SCLDA_SCI_NUM ((int)16)
+#define SCLDA_SCI_NUM ((int)4)
 
 // client struct
 struct sclda_client_struct {
@@ -104,6 +104,7 @@ extern struct sclda_client_struct sclda_pid_client;
 int sclda_send_syscall_info(char *, int);
 int sclda_send_syscall_info2(struct sclda_iov *, int);
 struct sclda_client_struct *sclda_decide_struct(void);
+int sclda_kthread_to_send(void *);
 
 extern struct sclda_client_struct sclda_syscall_client[SCLDA_PORT_NUMBER];
 
