@@ -91,7 +91,7 @@ out:
 // operate single link list(sclda_syscallinfo_ls)
 // to send data to the host server
 int sclda_sendall_syscallinfo(int target_index) {
-    int target_index, cnt, send_ret, failed_cnt, i;
+    int send_ret, failed_cnt, i, cnt;
     struct sclda_syscallinfo_ls *curptr, *next;
     struct sclda_syscallinfo_ls dummy_head, *dummy_tail;
     dummy_head.next = NULL;
