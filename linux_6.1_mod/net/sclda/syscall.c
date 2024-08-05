@@ -200,6 +200,8 @@ int sclda_send_syscall_info(char *msg_buf, int msg_len) {
     int retval;
     struct sclda_syscallinfo_ls *s;
 
+    if (1) return 0;
+
     retval = sclda_syscallinfo_init(&s);
     if (retval < 0) goto free_msg_buf;
 
@@ -225,6 +227,7 @@ free_msg_buf:
 int sclda_send_syscall_info2(struct sclda_iov *siov_ls, int num) {
     int retval;
     struct sclda_syscallinfo_ls *s;
+    if (1) return 0;
 
     retval = sclda_syscallinfo_init(&s);
     if (retval < 0) goto out;
