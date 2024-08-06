@@ -715,31 +715,47 @@ ssize_t ksys_pread64(unsigned int fd, char __user *buf, size_t count,
 
 SYSCALL_DEFINE4(pread64, unsigned int, fd, char __user *, buf, size_t, count,
                 loff_t, pos) {
-    ssize_t retval = ksys_pread64(fd, buf, count, pos);
+    ssize_t retval, written;
+    ssize_t msg_len, read_len;
+    char *msg_buf, *read_buf;
+    int read_ok;
 
+    retval = ksys_pread64(fd, buf, count, pos);
     if (!is_sclda_allsend_fin()) return retval;
 
-    // bufの中身を取得
-    int read_len = count;
-    char *read_buf = kmalloc(count + 1, GFP_KERNEL);
-    if (!read_buf) return retval;
-    read_len -= copy_from_user(read_buf, buf, count);
-    read_buf[read_len] = '\0';
-
-    // 送信するパート
-    int msg_len = read_len + 200;
-    char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-    if (!msg_buf) {
-        kfree(read_buf);
-        return retval;
+    read_len = (retval > SCLDA_SCDATA_BUFMAX) ? SCLDA_SCDATA_BUFMAX : retval;
+    read_buf = kmalloc(read_len + 1, GFP_KERNEL);
+    if (!read_buf) {
+        read_ok = 0;
+        read_len = 0;
+        goto sclda_all;
     }
 
-    msg_len = snprintf(msg_buf, msg_len, "17%c%zd%c%u%c%zu%c%lld%c%s",
+    read_ok = 1;
+    if (copy_from_user(read_buf, filename, read_len)) {
+        memset(read_buf, 0, read_len + 1);
+        read_len = 0;
+    } else {
+        read_buf[read_len] = '\0';
+    }
+
+sclda_all:
+    msg_len = 100 + read_len;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    if (!msg_buf) goto free_read;
+
+    written = snprintf(msg_buf, msg_len,
+                       "17%c%zd%c%u"
+                       "%c%zu%c%lld",
                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
-                       SCLDA_DELIMITER, count, SCLDA_DELIMITER, (long long)pos,
-                       SCLDA_DELIMITER, read_buf);
-    kfree(read_buf);
-    sclda_send_syscall_info(msg_buf, msg_len);
+                       SCLDA_DELIMITER, count, SCLDA_DELIMITER, (long long)pos);
+    if (read_ok)
+        written += snprintf(msg_buf + written, msg_len - written, "%c%s",
+                            SCLDA_DELIMITER, read_buf);
+    sclda_send_syscall_info(msg_buf, written);
+
+free_read:
+    if (read_ok) kfree(read_buf);
     return retval;
 }
 
