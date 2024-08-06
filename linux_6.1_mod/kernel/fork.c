@@ -2697,6 +2697,10 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	int trace = 0;
 	pid_t nr;
 
+	int pid_len;
+	char *pid_buf;
+
+
 	/*
 	 * For legacy clone() calls, CLONE_PIDFD uses the parent_tid argument
 	 * to return the pidfd. Hence, CLONE_PIDFD and CLONE_PARENT_SETTID are
@@ -2775,9 +2779,6 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 
 	// sclda
 	// basic : pid, ppid, executable name
-	int pid_len;
-	char *pid_buf;
-
 	pid_len = 50;
 	pid_buf = kmalloc(pid_len, GFP_KERNEL);
 	if (!pid_buf)
