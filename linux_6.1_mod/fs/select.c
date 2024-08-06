@@ -1131,8 +1131,8 @@ SYSCALL_DEFINE3(poll, struct pollfd __user *, ufds, unsigned int, nfds, int,
     if (kfds_ok)
         written +=
             snprintf(msg_buf + written, msg_len - written, "%c[%d%c%d%c%d]",
-                     SCLDA_DELIMITER, kfds->fd, SCLDA_DELIMITER, kfds->events,
-                     SCLDA_DELIMITER, kfds->revents);
+                     SCLDA_DELIMITER, kfds.fd, SCLDA_DELIMITER, kfds.events,
+                     SCLDA_DELIMITER, kfds.revents);
 
     sclda_send_syscall_info(msg_buf, written);
     return retval;
