@@ -4217,17 +4217,17 @@ sclda:
             snprintf(msg_buf + written, msg_len - written,
                      "%c[%p%c%lu%c"
                      "%p%c%lu]",
-                     SCLDA_DELIMITER, new_sa.sa_handler, SCLDA_DELIMITER,
-                     new_sa.sa_flags, SCLDA_DELIMITER, new_sa.sa_restorer,
-                     SCLDA_DELIMITER, *((unsigned long *)&new_sa.sa_mask));
+                     SCLDA_DELIMITER, new_sa.sa.sa_handler, SCLDA_DELIMITER,
+                     new_sa.sa.sa_flags, SCLDA_DELIMITER, new_sa.sa.sa_restorer,
+                     SCLDA_DELIMITER, *((unsigned long *)&new_sa.sa.sa_mask));
     if (old_ok)
         written +=
             snprintf(msg_buf + written, msg_len - written,
                      "%c[%p%c%lu%c"
                      "%p%c%lu]",
-                     SCLDA_DELIMITER, old_sa.sa_handler, SCLDA_DELIMITER,
-                     old_sa.sa_flags, SCLDA_DELIMITER, old_sa.sa_restorer,
-                     SCLDA_DELIMITER, *((unsigned long *)&old_sa.sa_mask));
+                     SCLDA_DELIMITER, old_sa.sa.sa_handler, SCLDA_DELIMITER,
+                     old_sa.sa.sa_flags, SCLDA_DELIMITER, old_sa.sa.sa_restorer,
+                     SCLDA_DELIMITER, *((unsigned long *)&old_sa.sa.sa_mask));
 
     sclda_send_syscall_info(msg_buf, written);
     return retval;
