@@ -62,6 +62,7 @@ int sclda_init(void) {
     // prepare for syscall.c
     for (size_t i = 0; i < SCLDA_SCI_NUM; i++) {
         mutex_init(&sclda_syscall_mutex[i]);
+        sclda_syscall_heads[i].next = NULL;
         sclda_syscall_tails[i] = &sclda_syscall_heads[i];
         sclda_syscallinfo_num[i] = 0;
     }
@@ -76,12 +77,7 @@ int sclda_init(void) {
 
     // start the sclda_kthread
     newkthread = kthread_create(sclda_kthread_to_send, NULL, "sclda_thread");
-    if (!IS_ERR(newkthread)) {
-        printk(KERN_ERR "sclda kthread succeeded");
-        wake_up_process(newkthread);
-    } else {
-        printk(KERN_ERR "sclda kthread failed");
-    }
+    if (!IS_ERR(newkthread)) wake_up_process(newkthread);
 
     sclda_init_fin = 1;
     return 0;

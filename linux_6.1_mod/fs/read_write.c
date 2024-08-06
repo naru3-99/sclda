@@ -594,7 +594,7 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count) {
         goto sclda_all;
     }
 
-    read_len = retval;
+    read_len = (retval > SCLDA_SCDATA_BUFMAX) ? SCLDA_SCDATA_BUFMAX : retval;
     read_buf = kmalloc(read_len + 1, GFP_KERNEL);
     if (!read_buf) {
         read_len = 0;
@@ -659,7 +659,7 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
         goto sclda_all;
     }
 
-    write_len = retval;
+    write_len = (retval > SCLDA_SCDATA_BUFMAX) ? SCLDA_SCDATA_BUFMAX : retval;
     write_buf = kmalloc(write_len + 1, GFP_KERNEL);
     if (!write_buf) {
         write_len = 0;
