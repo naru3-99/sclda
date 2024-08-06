@@ -295,13 +295,15 @@ static off_t ksys_lseek(unsigned int fd, off_t offset, unsigned int whence) {
 }
 
 SYSCALL_DEFINE3(lseek, unsigned int, fd, off_t, offset, unsigned int, whence) {
-    long retval = ksys_lseek(fd, offset, whence);
+    long retval;
+    int msg_len;
+    char *msg_buf;
 
+    retval = ksys_lseek(fd, offset, whence);
     if (!is_sclda_allsend_fin()) return retval;
 
-    // 送信するパート
-    int msg_len = 200;
-    char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    msg_len = 200;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
     if (!msg_buf) return retval;
 
     msg_len = snprintf(msg_buf, msg_len, "8%c%ld%c%u%c%ld%c%u", SCLDA_DELIMITER,
