@@ -2947,54 +2947,64 @@ int set_compat_user_sigmask(const compat_sigset_t __user *umask,
  */
 SYSCALL_DEFINE4(rt_sigprocmask, int, how, sigset_t __user *, nset,
                 sigset_t __user *, oset, size_t, sigsetsize) {
-    int retval;
-    int sigset_msg_len = 1;
-    char sigset_msg_buf[200] = "\0";
-
     sigset_t old_set, new_set;
     int error;
 
+    int retval, old_ok, new_ok;
+    int msg_len, written;
+    char *msg_buf;
+
+    old_ok = 0;
+    new_ok = 0;
+
     /* XXX: Don't preclude handling different sized sigset_t's.  */
-    if (sigsetsize != sizeof(sigset_t)) goto error_invalid;
+    if (sigsetsize != sizeof(sigset_t)) {
+        retval = -EINVAL;
+        goto sclda;
+    }
 
     old_set = current->blocked;
+    old_ok = 1;
+
     if (nset) {
-        if (copy_from_user(&new_set, nset, sizeof(sigset_t))) goto error_fault;
+        if (copy_from_user(&new_set, nset, sizeof(sigset_t))) {
+            retval = -EFAULT;
+            goto sclda;
+        }
+        new_ok = 1;
         sigdelsetmask(&new_set, sigmask(SIGKILL) | sigmask(SIGSTOP));
 
         error = sigprocmask(how, &new_set, NULL);
-        if (error) goto error_sigprocmask;
+        if (error) {
+            retval = error;
+            goto sclda;
+        }
     }
-    if (oset) {
-        if (copy_to_user(oset, &old_set, sizeof(sigset_t))) goto error_fault;
-    }
-    goto success;
-error_invalid:
-    retval = -EINVAL;
-    goto sclda;
-error_fault:
-    retval = -EFAULT;
-    goto sclda;
-error_sigprocmask:
-    retval = error;
-    goto sclda;
-success:
+
+    if (oset)
+        if (copy_to_user(oset, &old_set, sizeof(sigset_t))) {
+            retval = -EFAULT;
+            goto sclda;
+        }
+
     retval = 0;
-    // sigset_tはunsigned long(%lu)で処理する
-    sigset_msg_len = snprintf(sigset_msg_buf, 200, "%lu%c%lu", new_set.sig[0],
-                              SCLDA_DELIMITER, old_set.sig[0]);
-    goto sclda;
 sclda:
     if (!is_sclda_allsend_fin()) return retval;
-
-    // 送信するパート
-    int msg_len = 300 + sigset_msg_len;
-    char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    msg_len = 300;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
     if (!msg_buf) return retval;
-    msg_len = snprintf(msg_buf, msg_len, "14%c%d%c%d%c%zu%c%s", SCLDA_DELIMITER,
+
+    written = snprintf(msg_buf, msg_len, "14%c%d%c%d%c%zu", SCLDA_DELIMITER,
                        retval, SCLDA_DELIMITER, how, SCLDA_DELIMITER,
-                       sigsetsize, SCLDA_DELIMITER, sigset_msg_buf);
-    sclda_send_syscall_info(msg_buf, msg_len);
+                       sigsetsize, SCLDA_DELIMITER);
+
+    if (new_ok)
+        written += snprintf(msg_buf + written, msg_len - written, "%c%lu",
+                            SCLDA_DELIMITER, new_set.sig[0]);
+    if (old_ok)
+        written += snprintf(msg_buf + written, msg_len - written, "%c%lu",
+                            SCLDA_DELIMITER, old_set.sig[0]);
+    sclda_send_syscall_info(msg_buf, written);
     return retval;
 }
 
