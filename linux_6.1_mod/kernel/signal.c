@@ -4147,15 +4147,6 @@ SYSCALL_DEFINE3(sigprocmask, int, how, old_sigset_t __user *, nset,
 #endif /* __ARCH_WANT_SYS_SIGPROCMASK */
 
 #ifndef CONFIG_ODD_RT_SIGACTION
-
-int sigaction_to_string(const struct sigaction *action, char *buffer,
-                        size_t buffer_size) {
-    return snprintf(buffer, buffer_size, "%p%c%lu%c%p%c%lu", action->sa_handler,
-                    SCLDA_DELIMITER, action->sa_flags, SCLDA_DELIMITER,
-                    action->sa_restorer, SCLDA_DELIMITER,
-                    *((unsigned long *)&action->sa_mask));
-}
-
 /**
  *  sys_rt_sigaction - alter an action taken by a process
  *  @sig: signal to be sent
@@ -4166,60 +4157,72 @@ int sigaction_to_string(const struct sigaction *action, char *buffer,
 SYSCALL_DEFINE4(rt_sigaction, int, sig, const struct sigaction __user *, act,
                 struct sigaction __user *, oact, size_t, sigsetsize) {
     struct k_sigaction new_sa, old_sa;
-    int retval;
+    int ret;
+
+    int retval, written;
+    int new_ok, old_ok;
+    int msg_len;
+    char *msg_buf;
+    new_ok = 0;
+    old_ok = 0;
 
     /* XXX: Don't preclude handling different sized sigset_t's.  */
     if (sigsetsize != sizeof(sigset_t)) {
         retval = -EINVAL;
-    } else if (act && copy_from_user(&new_sa.sa, act, sizeof(new_sa.sa))) {
-        retval = -EFAULT;
-    } else {
-        retval = do_sigaction(sig, act ? &new_sa : NULL, oact ? &old_sa : NULL);
-        if (retval) {
-            // do nothing
-        } else if (oact && copy_to_user(oact, &old_sa.sa, sizeof(old_sa.sa))) {
-            retval = -EFAULT;
-        } else {
-            retval = 0;
-        }
+        goto sclda;
     }
 
-    // sclda: send syscall info
-    // まだ完全に初期化されていない場合、諦める
+    if (act && copy_from_user(&new_sa.sa, act, sizeof(new_sa.sa))) {
+        retval = -EFAULT;
+        goto sclda;
+    }
+    new_ok = 1;
+
+    ret = do_sigaction(sig, act ? &new_sa : NULL, oact ? &old_sa : NULL);
+    if (ret) {
+        retval = ret;
+        goto sclda;
+    }
+    old_ok = 1;
+
+    if (oact && copy_to_user(oact, &old_sa.sa, sizeof(old_sa.sa))) {
+        retval = -EFAULT;
+        goto sclda;
+    }
+    retval = 0;
+sclda:
     if (!is_sclda_allsend_fin()) return retval;
 
-    // システムコールが成功したときだけ、
-    // sigaction構造体の中身を調べる
-    // retval=0のときだけ、成功
-    int new_sigstruct_len = 400;
-    char *new_sigaction_msg = kmalloc(new_sigstruct_len, GFP_KERNEL);
-    if (!new_sigaction_msg) return retval;
+    msg_len = 500;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    if (!msg_buf) return retval;
 
-    if (retval) {
-        // 失敗した時
-        new_sigstruct_len = 1;
-        new_sigaction_msg = "\0";
-    } else {
-        // 成功した時
-        new_sigstruct_len = sigaction_to_string(&new_sa.sa, new_sigaction_msg,
-                                                new_sigstruct_len);
-    }
+    written = snprintf(msg_buf, msg_len,
+                       "13%c%d%c%d"
+                       "%c%zu",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, sig,
+                       SCLDA_DELIMITER, sigsetsize);
+    if (new_ok)
+        written +=
+            snprintf(msg_buf + written, msg_len - written,
+                     "%c[%p%c%lu%c"
+                     "%p%c%lu]",
+                     SCLDA_DELIMITER, new_sa.sa_handler, SCLDA_DELIMITER,
+                     new_sa.sa_flags, SCLDA_DELIMITER, new_sa.sa_restorer,
+                     SCLDA_DELIMITER, *((unsigned long *)&new_sa.sa_mask));
+    if (old_ok)
+        written +=
+            snprintf(msg_buf + written, msg_len - written,
+                     "%c[%p%c%lu%c"
+                     "%p%c%lu]",
+                     SCLDA_DELIMITER, old_sa.sa_handler, SCLDA_DELIMITER,
+                     old_sa.sa_flags, SCLDA_DELIMITER, old_sa.sa_restorer,
+                     SCLDA_DELIMITER, *((unsigned long *)&old_sa.sa_mask));
 
-    int msg_len = new_sigstruct_len + 200;
-    char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-    if (!msg_buf) {
-        kfree(new_sigaction_msg);
-        return retval;
-    }
-
-    msg_len = snprintf(msg_buf, msg_len, "13%c%d%c%d%c%zu%c%s", SCLDA_DELIMITER,
-                       retval, SCLDA_DELIMITER, sig, SCLDA_DELIMITER,
-                       sigsetsize, SCLDA_DELIMITER, new_sigaction_msg);
-
-    kfree(new_sigaction_msg);
-    sclda_send_syscall_info(msg_buf, msg_len);
+    sclda_send_syscall_info(msg_buf, written);
     return retval;
 }
+
 #ifdef CONFIG_COMPAT
 COMPAT_SYSCALL_DEFINE4(rt_sigaction, int, sig,
                        const struct compat_sigaction __user *, act,

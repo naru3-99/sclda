@@ -840,7 +840,6 @@ SYSCALL_DEFINE3(mprotect, unsigned long, start, size_t, len, unsigned long,
 	if (!is_sclda_allsend_fin())
 		return retval;
 
-	// 送信するパート
 	msg_len = 300;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)

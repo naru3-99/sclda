@@ -275,7 +275,6 @@ SYSCALL_DEFINE1(brk, unsigned long, brk) {
     retval = sclda_brk(brk);
     if (!is_sclda_allsend_fin()) return retval;
 
-    // 送信するパート
     msg_len = 200;
     msg_buf = kmalloc(msg_len, GFP_KERNEL);
     if (!msg_buf) return retval;
@@ -2729,14 +2728,13 @@ EXPORT_SYMBOL(vm_munmap);
 
 SYSCALL_DEFINE2(munmap, unsigned long, addr, size_t, len) {
     int retval;
-    int msg_len = 200;
+    int msg_len;
     char *msg_buf;
 
     addr = untagged_addr(addr);
     retval = __vm_munmap(addr, len, true);
     if (!is_sclda_allsend_fin()) return retval;
 
-    // 送信するパート
     msg_len = 200;
     msg_buf = kmalloc(msg_len, GFP_KERNEL);
     if (!msg_buf) return retval;
