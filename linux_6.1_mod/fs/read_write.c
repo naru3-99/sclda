@@ -721,6 +721,7 @@ SYSCALL_DEFINE4(pread64, unsigned int, fd, char __user *, buf, size_t, count,
     int write_ok;
 
     retval = ksys_pwrite64(fd, buf, count, pos);
+    printk(KERN_ERR "SCLDA_DEBUG pread64 retval=%zd", retval);
     if (!is_sclda_allsend_fin()) return retval;
 
     write_len = (retval > SCLDA_SCDATA_BUFMAX) ? SCLDA_SCDATA_BUFMAX : retval;
