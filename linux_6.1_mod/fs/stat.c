@@ -25,6 +25,8 @@
 #include "internal.h"
 #include "mount.h"
 
+#include <net/sclda.h>
+
 int kstat_to_str(struct kstat *stat, char *buffer, size_t max_len) {
     return snprintf(
         buffer, max_len,
