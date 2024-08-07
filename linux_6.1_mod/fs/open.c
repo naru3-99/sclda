@@ -1595,34 +1595,39 @@ free_filename:
 
 SYSCALL_DEFINE4(openat, int, dfd, const char __user *, filename, int, flags,
                 umode_t, mode) {
+    long retval;
+    int filename_len, msg_len;
+    char *filename_buf, *msg_buf;
+
     if (force_o_largefile()) flags |= O_LARGEFILE;
-    long ret = do_sys_open(dfd, filename, flags, mode);
+    retval = do_sys_open(dfd, filename, flags, mode);
 
-    // allsendが終わるまでは、初期化プロセス関係なので、
-    // 取得しないようにする。
-    if (!is_sclda_allsend_fin()) return ret;
+    if (!is_sclda_allsend_fin()) return retval;
 
-    // ファイル名を取得する
-    int filename_len = strnlen_user(filename, 1000);
-    char *filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
-    if (!filename_buf) return ret;
-    filename_len -= copy_from_user(filename_buf, filename, filename_len);
-    filename_buf[filename_len] = '\0';
+    filename_len = strnlen_user(filename, PATH_MAX);
+    filename_buf = kmalloc(filename_len + 1, GFP_KERNEL);
+    if (!filename_buf) return retval;
 
-    // 送信するmsgを決定
-    int msg_len = filename_len + 200;
-    char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-    if (!msg_buf) {
-        kfree(filename_buf);
-        return ret;
+    if (copy_from_user(filename_buf, filename, filename_len)) {
+        memset(filename_buf, 0, filename_len);
+        filename_len = 0;
+    } else {
+        filename_buf[filename_len] = '\0';
     }
+
+    msg_len = filename_len + 200;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    if (!msg_buf) goto free_filename;
+
     msg_len = snprintf(msg_buf, msg_len, "257%c%ld%c%d%c%d%c%u%c%s",
-                       SCLDA_DELIMITER, ret, SCLDA_DELIMITER, dfd,
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, dfd,
                        SCLDA_DELIMITER, flags, SCLDA_DELIMITER,
                        (unsigned int)mode, SCLDA_DELIMITER, filename_buf);
-    kfree(filename_buf);
     sclda_send_syscall_info(msg_buf, msg_len);
-    return ret;
+
+free_filename:
+    kfree(filename_buf);
+    return retval;
 }
 
 SYSCALL_DEFINE4(openat2, int, dfd, const char __user *, filename,
