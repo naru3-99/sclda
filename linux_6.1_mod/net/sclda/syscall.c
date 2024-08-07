@@ -29,6 +29,9 @@ struct sclda_syscallinfo_ls sclda_syscall_heads[SCLDA_SCI_NUM];
 struct sclda_syscallinfo_ls *sclda_syscall_tails[SCLDA_SCI_NUM];
 int sclda_syscallinfo_num[SCLDA_SCI_NUM];
 
+// current index
+// we must use get_sclda_sci_index() and
+// add_sclda_sci_index; to protect this value by mutex
 static DEFINE_MUTEX(sclda_sci_index_mutex);
 int sclda_sci_index = 0;
 
@@ -50,11 +53,12 @@ void add_sclda_sci_index(void) {
 // split the data (length = SCLDA_CHUNKSIZE)
 // and send it to the sclda_host server
 int __sclda_send_split(struct sclda_syscallinfo_ls *ptr, int which_port) {
-    int retval = -EFAULT;
+    int retval;
     int send_ret;
     char *packet_buf;
     size_t packet_len, max_packet_len;
     size_t offset, len, i;
+    retval = -EFAULT;
 
     max_packet_len = SCLDA_CHUNKSIZE + (size_t)ptr->pid_time.len + 1;
     packet_buf = kmalloc(max_packet_len, GFP_KERNEL);
@@ -177,8 +181,6 @@ int sclda_add_syscallinfo(struct sclda_syscallinfo_ls *ptr) {
 // if the number in list >= SCLDA_NUM_TO_SEND_SINFO
 int sclda_kthread_to_send(void *data) {
     int current_index;
-
-    while (!is_sclda_allsend_fin()) msleep(1000);
 
     while (1) {
         current_index = get_sclda_sci_index();
