@@ -71,7 +71,7 @@ struct sclda_client_struct {
 
 // char + len struct
 struct sclda_iov {
-    int len;
+    size_t len;
     char *str;
 };
 
