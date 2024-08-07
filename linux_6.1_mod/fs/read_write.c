@@ -1590,6 +1590,7 @@ SYSCALL_DEFINE6(pwritev2, unsigned long, fd, const struct iovec __user *, vec,
                  SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER,
                  vlen, SCLDA_DELIMITER, flags, SCLDA_DELIMITER, (long long) pos,
                  SCLDA_DELIMITER, pos_l, SCLDA_DELIMITER, pos_h);
+	printk(KERN_ERR, "SCLDA_DEBUG %s",msg_buf);
 
     siov = kmalloc_array(vlen + 1, sizeof(struct sclda_iov), GFP_KERNEL);
     if (!siov) goto sclda_fin;
