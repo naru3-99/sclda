@@ -2994,9 +2994,11 @@ sclda:
     msg_buf = kmalloc(msg_len, GFP_KERNEL);
     if (!msg_buf) return retval;
 
-    written = snprintf(msg_buf, msg_len, "14%c%d%c%d%c%zu", SCLDA_DELIMITER,
-                       retval, SCLDA_DELIMITER, how, SCLDA_DELIMITER,
-                       sigsetsize, SCLDA_DELIMITER);
+    written = snprintf(msg_buf, msg_len,
+                       "14%c%d%c%d"
+                       "%c%zu",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, how,
+                       SCLDA_DELIMITER, sigsetsize);
 
     if (new_ok)
         written += snprintf(msg_buf + written, msg_len - written, "%c%lu",
