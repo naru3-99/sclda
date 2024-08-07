@@ -1291,7 +1291,67 @@ sclda_fin:
 SYSCALL_DEFINE3(writev, unsigned long, fd, const struct iovec __user *, vec,
 		unsigned long, vlen)
 {
-	return do_writev(fd, vec, vlen, 0);
+    ssize_t retval;
+    unsigned long i, j, k;
+    ssize_t msg_len;
+    char *msg_buf;
+    struct iovec kvec;
+    struct sclda_iov *siov;
+    int siov_ok, siov_free;
+    siov_ok = 0;
+    siov_free = 0;
+
+    retval = do_writev(fd, vec, vlen, 0);
+    if (!is_sclda_allsend_fin()) return retval;
+
+    msg_len = 100;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    if (!msg_buf) return retval;
+    msg_len = snprintf(msg_buf, msg_len,
+                       "20%c%zd%c%lu"
+                       "%c%lu",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+                       SCLDA_DELIMITER, vlen);
+
+    siov = kmalloc_array(vlen + 1, sizeof(struct sclda_iov), GFP_KERNEL);
+    if (!siov) goto sclda_fin;
+    siov_free = 1;
+    siov[0].str = msg_buf;
+    siov[0].len = msg_len;
+
+    for (i = 0; i < vlen; i++) {
+        j = i + 1;
+        if (copy_from_user(&kvec, &vec[i], sizeof(struct iovec))) {
+            siov[j].len = 1;
+        } else {
+            siov[j].len = kvec.iov_len;
+        }
+        siov[j].str = kmalloc(siov[j].len, GFP_KERNEL);
+        if (!siov[j].str) {
+            for (k = 1; k < j; k++) kfree(siov[k].str);
+            goto sclda_fin;
+        }
+        if (siov[j].len == 1) {
+            siov[j].str = '\0';
+        } else {
+            if(copy_from_user(siov[j].str, kvec.iov_base, siov[j].len)){
+                memset(siov[j].str,0,siov[j].len);
+                siov[j].len = 1;
+            }
+        }
+    }
+    siov_ok = 1;
+    siov_free = 0;
+sclda_fin:
+    if (siov_ok) {
+        sclda_send_syscall_info2(siov, vlen + 1);
+        printk(KERN_ERR "SCLDA_DEBUG writev send2");
+    } else {
+        sclda_send_syscall_info(msg_buf, msg_len);
+        printk(KERN_ERR "SCLDA_DEBUG writev send1");
+    }
+    if (siov_free) kfree(siov);
+    return retval;
 }
 
 SYSCALL_DEFINE5(preadv, unsigned long, fd, const struct iovec __user *, vec,
