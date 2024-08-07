@@ -1128,7 +1128,6 @@ SYSCALL_DEFINE1(setfsuid, uid_t, uid)
 	if (!is_sclda_allsend_fin())
 		return retval;
 
-	// 送信するパート
 	msg_len = 200;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
@@ -1190,8 +1189,7 @@ SYSCALL_DEFINE1(setfsgid, gid_t, gid)
 	if (!is_sclda_allsend_fin())
 		return retval;
 
-	// 送信するパート
-	msg_len = 120;
+	msg_len = 150;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
 		return retval;
@@ -1605,7 +1603,6 @@ SYSCALL_DEFINE1(getpgid, pid_t, pid)
 	if (!is_sclda_allsend_fin())
 		return retval;
 
-	// 送信するパート
 	msg_len = 120;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
@@ -1681,7 +1678,6 @@ SYSCALL_DEFINE1(getsid, pid_t, pid)
 	if (!is_sclda_allsend_fin())
 		return retval;
 
-	// 送信するパート
 	msg_len = 120;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)

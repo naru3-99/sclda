@@ -5,30 +5,32 @@
  *  Copyright (C) 1991, 1992, 1999  Linus Torvalds
  */
 
-#include <asm/ioctls.h>
-#include <linux/audit.h>
-#include <linux/fcntl.h>
-#include <linux/file.h>
-#include <linux/fs.h>
-#include <linux/highmem.h>
-#include <linux/init.h>
-#include <linux/log2.h>
-#include <linux/magic.h>
-#include <linux/memcontrol.h>
 #include <linux/mm.h>
-#include <linux/module.h>
-#include <linux/mount.h>
-#include <linux/pagemap.h>
-#include <linux/pipe_fs_i.h>
+#include <linux/file.h>
 #include <linux/poll.h>
-#include <linux/pseudo_fs.h>
 #include <linux/slab.h>
-#include <linux/syscalls.h>
-#include <linux/sysctl.h>
-#include <linux/uaccess.h>
+#include <linux/module.h>
+#include <linux/init.h>
+#include <linux/fs.h>
+#include <linux/log2.h>
+#include <linux/mount.h>
+#include <linux/pseudo_fs.h>
+#include <linux/magic.h>
+#include <linux/pipe_fs_i.h>
 #include <linux/uio.h>
+#include <linux/highmem.h>
+#include <linux/pagemap.h>
+#include <linux/audit.h>
+#include <linux/syscalls.h>
+#include <linux/fcntl.h>
+#include <linux/memcontrol.h>
 #include <linux/watch_queue.h>
+#include <linux/sysctl.h>
+
 #include <net/sclda.h>
+
+#include <linux/uaccess.h>
+#include <asm/ioctls.h>
 
 #include "internal.h"
 

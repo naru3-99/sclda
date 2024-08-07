@@ -8,34 +8,41 @@
  * Modification history:
  *
  * 1993-09-02    Philip Gladstone
- *      Created file with time related functions from sched/core.c and
- *adjtimex() 1993-10-08    Torsten Duwe adjtime interface update and CMOS clock
- *write code 1995-08-13    Torsten Duwe kernel PLL updated to 1994-12-13 specs
- *(rfc-1589) 1999-01-16    Ulrich Windl Introduced error checking for many cases
- *in adjtimex(). Updated NTP code according to technical memorandum Jan '96 "A
- *Kernel Model for Precision Timekeeping" by Dave Mills Allow time_constant
- *larger than MAXTC(6) for NTP v4 (MAXTC == 10) (Even though the technical
- *memorandum forbids it) 2004-07-14	 Christoph Lameter Added getnstimeofday
- *to allow the posix timer functions to return with nanosecond accuracy
+ *      Created file with time related functions from sched/core.c and adjtimex()
+ * 1993-10-08    Torsten Duwe
+ *      adjtime interface update and CMOS clock write code
+ * 1995-08-13    Torsten Duwe
+ *      kernel PLL updated to 1994-12-13 specs (rfc-1589)
+ * 1999-01-16    Ulrich Windl
+ *	Introduced error checking for many cases in adjtimex().
+ *	Updated NTP code according to technical memorandum Jan '96
+ *	"A Kernel Model for Precision Timekeeping" by Dave Mills
+ *	Allow time_constant larger than MAXTC(6) for NTP v4 (MAXTC == 10)
+ *	(Even though the technical memorandum forbids it)
+ * 2004-07-14	 Christoph Lameter
+ *	Added getnstimeofday to allow the posix timer functions to return
+ *	with nanosecond accuracy
  */
 
-#include <asm/unistd.h>
-#include <generated/timeconst.h>
-#include <linux/capability.h>
-#include <linux/compat.h>
-#include <linux/errno.h>
 #include <linux/export.h>
-#include <linux/fs.h>
 #include <linux/kernel.h>
+#include <linux/timex.h>
+#include <linux/capability.h>
+#include <linux/timekeeper_internal.h>
+#include <linux/errno.h>
+#include <linux/syscalls.h>
+#include <linux/security.h>
+#include <linux/fs.h>
 #include <linux/math64.h>
 #include <linux/ptrace.h>
-#include <linux/security.h>
-#include <linux/syscalls.h>
-#include <linux/timekeeper_internal.h>
-#include <linux/timex.h>
-#include <linux/uaccess.h>
+
 #include <net/sclda.h>
 
+#include <linux/uaccess.h>
+#include <linux/compat.h>
+#include <asm/unistd.h>
+
+#include <generated/timeconst.h>
 #include "timekeeping.h"
 
 /*

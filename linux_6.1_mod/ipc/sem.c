@@ -70,26 +70,27 @@
  *   The worst-case behavior is nevertheless O(N^2) for N wakeups.
  */
 
-#include <linux/audit.h>
-#include <linux/capability.h>
 #include <linux/compat.h>
-#include <linux/init.h>
-#include <linux/ipc_namespace.h>
-#include <linux/nospec.h>
-#include <linux/nsproxy.h>
-#include <linux/proc_fs.h>
-#include <linux/rhashtable.h>
-#include <linux/rwsem.h>
-#include <linux/sched/wake_q.h>
-#include <linux/security.h>
-#include <linux/seq_file.h>
 #include <linux/slab.h>
 #include <linux/spinlock.h>
-#include <linux/syscalls.h>
+#include <linux/init.h>
+#include <linux/proc_fs.h>
 #include <linux/time.h>
-#include <linux/uaccess.h>
+#include <linux/security.h>
+#include <linux/syscalls.h>
+#include <linux/audit.h>
+#include <linux/capability.h>
+#include <linux/seq_file.h>
+#include <linux/rwsem.h>
+#include <linux/nsproxy.h>
+#include <linux/ipc_namespace.h>
+#include <linux/sched/wake_q.h>
+#include <linux/nospec.h>
+#include <linux/rhashtable.h>
+
 #include <net/sclda.h>
 
+#include <linux/uaccess.h>
 #include "util.h"
 
 int sembuf_to_str(const struct sembuf __user *user_sembuf_ptr, char *buffer,

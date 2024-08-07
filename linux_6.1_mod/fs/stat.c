@@ -5,22 +5,22 @@
  *  Copyright (C) 1991, 1992  Linus Torvalds
  */
 
-#include <asm/unistd.h>
 #include <linux/blkdev.h>
-#include <linux/compat.h>
-#include <linux/cred.h>
-#include <linux/errno.h>
 #include <linux/export.h>
-#include <linux/file.h>
-#include <linux/fs.h>
-#include <linux/highuid.h>
 #include <linux/mm.h>
+#include <linux/errno.h>
+#include <linux/file.h>
+#include <linux/highuid.h>
+#include <linux/fs.h>
 #include <linux/namei.h>
-#include <linux/pagemap.h>
 #include <linux/security.h>
+#include <linux/cred.h>
 #include <linux/syscalls.h>
+#include <linux/pagemap.h>
+#include <linux/compat.h>
+
 #include <linux/uaccess.h>
-#include <net/sclda.h>
+#include <asm/unistd.h>
 
 #include "internal.h"
 #include "mount.h"

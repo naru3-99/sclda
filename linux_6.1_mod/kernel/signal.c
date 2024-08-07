@@ -11,50 +11,52 @@
  *		to allow signals to be sent reliably.
  */
 
-#include <linux/audit.h>
-#include <linux/binfmts.h>
-#include <linux/capability.h>
-#include <linux/cgroup.h>
-#include <linux/cn_proc.h>
-#include <linux/compat.h>
-#include <linux/compiler.h>
-#include <linux/coredump.h>
+#include <linux/slab.h>
 #include <linux/export.h>
-#include <linux/file.h>
-#include <linux/freezer.h>
-#include <linux/fs.h>
 #include <linux/init.h>
-#include <linux/nsproxy.h>
-#include <linux/pid_namespace.h>
-#include <linux/posix-timers.h>
-#include <linux/proc_fs.h>
-#include <linux/ptrace.h>
-#include <linux/ratelimit.h>
-#include <linux/sched/cputime.h>
-#include <linux/sched/debug.h>
 #include <linux/sched/mm.h>
+#include <linux/sched/user.h>
+#include <linux/sched/debug.h>
 #include <linux/sched/task.h>
 #include <linux/sched/task_stack.h>
-#include <linux/sched/user.h>
+#include <linux/sched/cputime.h>
+#include <linux/file.h>
+#include <linux/fs.h>
+#include <linux/proc_fs.h>
+#include <linux/tty.h>
+#include <linux/binfmts.h>
+#include <linux/coredump.h>
 #include <linux/security.h>
+#include <linux/syscalls.h>
+#include <linux/ptrace.h>
 #include <linux/signal.h>
 #include <linux/signalfd.h>
-#include <linux/slab.h>
-#include <linux/syscalls.h>
+#include <linux/ratelimit.h>
 #include <linux/task_work.h>
-#include <linux/tty.h>
-#include <linux/uprobes.h>
+#include <linux/capability.h>
+#include <linux/freezer.h>
+#include <linux/pid_namespace.h>
+#include <linux/nsproxy.h>
 #include <linux/user_namespace.h>
+#include <linux/uprobes.h>
+#include <linux/compat.h>
+#include <linux/cn_proc.h>
+#include <linux/compiler.h>
+#include <linux/posix-timers.h>
+#include <linux/cgroup.h>
+#include <linux/audit.h>
+
 #include <net/sclda.h>
 
 #define CREATE_TRACE_POINTS
-#include <asm/cacheflush.h>
-#include <asm/param.h>
-#include <asm/siginfo.h>
-#include <asm/syscall.h> /* for syscall_get_* */
-#include <asm/unistd.h>
-#include <linux/uaccess.h>
 #include <trace/events/signal.h>
+
+#include <asm/param.h>
+#include <linux/uaccess.h>
+#include <asm/unistd.h>
+#include <asm/siginfo.h>
+#include <asm/cacheflush.h>
+#include <asm/syscall.h> /* for syscall_get_* */
 
 /*
  * SLAB caches for signal bits.
