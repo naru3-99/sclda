@@ -107,8 +107,6 @@ extern struct sclda_client_struct sclda_pid_client;
 // syscall.c
 int sclda_send_syscall_info(char *, int);
 int sclda_send_syscall_info2(struct sclda_iov *, unsigned long);
-struct sclda_client_struct *sclda_decide_struct(void);
-int sclda_kthread_to_send(void *);
 
 extern struct sclda_client_struct sclda_syscall_client[SCLDA_PORT_NUMBER];
 
