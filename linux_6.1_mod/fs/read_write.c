@@ -1224,7 +1224,6 @@ static ssize_t do_pwritev(unsigned long fd, const struct iovec __user *vec,
 SYSCALL_DEFINE3(readv, unsigned long, fd, const struct iovec __user *, vec,
 		unsigned long, vlen)
 {
-    printk(KERN_INFO "SCLDA_DEBUG readv vlen:%lu", vlen);
     ssize_t retval;
     unsigned long i, j, k;
     ssize_t msg_len;
@@ -1279,10 +1278,8 @@ SYSCALL_DEFINE3(readv, unsigned long, fd, const struct iovec __user *, vec,
 sclda_fin:
     if (siov_ok) {
         sclda_send_syscall_info2(siov, vlen + 1);
-        printk(KERN_ERR "SCLDA_DEBUG readv send2");
     } else {
         sclda_send_syscall_info(msg_buf, msg_len);
-        printk(KERN_ERR "SCLDA_DEBUG readv send1");
     }
     if (siov_free) kfree(siov);
     return retval;
@@ -1345,10 +1342,8 @@ SYSCALL_DEFINE3(writev, unsigned long, fd, const struct iovec __user *, vec,
 sclda_fin:
     if (siov_ok) {
         sclda_send_syscall_info2(siov, vlen + 1);
-        printk(KERN_ERR "SCLDA_DEBUG writev send2");
     } else {
         sclda_send_syscall_info(msg_buf, msg_len);
-        printk(KERN_ERR "SCLDA_DEBUG writev send1");
     }
     if (siov_free) kfree(siov);
     return retval;
@@ -1357,8 +1352,9 @@ sclda_fin:
 SYSCALL_DEFINE5(preadv, unsigned long, fd, const struct iovec __user *, vec,
 		unsigned long, vlen, unsigned long, pos_l, unsigned long, pos_h)
 {
-	loff_t pos = pos_from_hilo(pos_h, pos_l);
+	loff_t pos;
 
+    pos = pos_from_hilo(pos_h, pos_l);
 	return do_preadv(fd, vec, vlen, pos, 0);
 }
 
