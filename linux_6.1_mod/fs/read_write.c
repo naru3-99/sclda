@@ -1138,7 +1138,7 @@ SYSCALL_DEFINE3(readv, unsigned long, fd, const struct iovec __user *, vec,
 
     for (i = 0; i < vlen; i++) {
         j = i + 1;
-        if (copy_from_user(&kvec, vec[i], sizeof(struct iovec))) {
+        if (copy_from_user(&kvec, &vec[i], sizeof(struct iovec))) {
             siov[j].len = 1;
         } else {
             siov[j].len = kvec.iov_len;
