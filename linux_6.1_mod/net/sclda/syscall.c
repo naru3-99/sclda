@@ -190,7 +190,8 @@ int sclda_kthread_to_send(void *data) {
             sclda_sendall_syscallinfo(current_index);
         }
         mutex_unlock(&sclda_syscall_mutex[current_index]);
-        msleep(1000);
+        printk(KERN_ERR "SCLDA_DEBUG current=%d",sclda_syscallinfo_num[current_index]);
+        msleep(3000);
     }
 
     return 0;
@@ -225,16 +226,18 @@ int sclda_send_syscall_info(char *msg_buf, int msg_len) {
 
 int sclda_send_syscall_info2(struct sclda_iov *siov_ls, unsigned long num) {
     int retval;
+    size_t i;
     struct sclda_syscallinfo_ls *s;
 
     retval = sclda_syscallinfo_init(&s);
-    if (retval < 0) goto out;
+    if (retval < 0) {
+        for (i = 0; i < num; i++) kfree(siov_ls[i].str);
+        return retval;
+    }
+
     s->syscall = siov_ls;
     s->sc_iov_len = num;
 
     retval = sclda_add_syscallinfo(s);
-    return retval;
-out:
-    for (size_t i = 0; i < num; i++) kfree(siov_ls[i].str);
     return retval;
 }
