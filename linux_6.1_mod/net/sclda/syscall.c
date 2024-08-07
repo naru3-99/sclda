@@ -188,17 +188,17 @@ int sclda_wakeup_kthread(void) {
     mutex_lock(&sclda_syscall_mutex[current_index]);
 
     if (sclda_syscallinfo_num[current_index] < SCLDA_NUM_TO_SEND_SINFO)
-        return 0;
+        goto out;
 
     add_sclda_sci_index();
 
     arg = kmalloc(sizeof(int), GFP_KERNEL);
     if (!arg) return -ENOMEM;
     *arg = current_index;
-
     newkthread = kthread_create(sclda_sendall_syscallinfo, arg, "sclda_thread");
     if (!IS_ERR(newkthread)) wake_up_process(newkthread);
 
+out:
     mutex_unlock(&sclda_syscall_mutex[current_index]);
     return 0;
 }
