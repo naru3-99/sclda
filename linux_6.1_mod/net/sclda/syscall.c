@@ -197,43 +197,45 @@ int sclda_kthread_to_send(void *data) {
 }
 
 int sclda_send_syscall_info(char *msg_buf, int msg_len) {
-    int retval;
-    struct sclda_syscallinfo_ls *s;
+//     int retval;
+//     struct sclda_syscallinfo_ls *s;
 
-    retval = sclda_syscallinfo_init(&s);
-    if (retval < 0) goto free_msg_buf;
+//     retval = sclda_syscallinfo_init(&s);
+//     if (retval < 0) goto free_msg_buf;
 
-    s->syscall = kmalloc_array(1, sizeof(struct sclda_iov), GFP_KERNEL);
-    if (!(s->syscall)) {
-        retval = -ENOMEM;
-        goto free_syscallinfo;
-    }
+//     s->syscall = kmalloc_array(1, sizeof(struct sclda_iov), GFP_KERNEL);
+//     if (!(s->syscall)) {
+//         retval = -ENOMEM;
+//         goto free_syscallinfo;
+//     }
 
-    s->sc_iov_len = 1;
-    s->syscall[0].len = msg_len;
-    s->syscall[0].str = msg_buf;
-    return sclda_add_syscallinfo(s);
+//     s->sc_iov_len = 1;
+//     s->syscall[0].len = msg_len;
+//     s->syscall[0].str = msg_buf;
+//     return sclda_add_syscallinfo(s);
 
-free_syscallinfo:
-    kfree(s->pid_time.str);
-    kfree(s);
-free_msg_buf:
-    kfree(msg_buf);
-    return retval;
+// free_syscallinfo:
+//     kfree(s->pid_time.str);
+//     kfree(s);
+// free_msg_buf:
+//     kfree(msg_buf);
+//     return retval;
+    return 0;
 }
 
 int sclda_send_syscall_info2(struct sclda_iov *siov_ls, unsigned long num) {
-    int retval;
-    struct sclda_syscallinfo_ls *s;
+    //     int retval;
+    //     struct sclda_syscallinfo_ls *s;
 
-    retval = sclda_syscallinfo_init(&s);
-    if (retval < 0) goto out;
-    s->syscall = siov_ls;
-    s->sc_iov_len = num;
+    //     retval = sclda_syscallinfo_init(&s);
+    //     if (retval < 0) goto out;
+    //     s->syscall = siov_ls;
+    //     s->sc_iov_len = num;
 
-    retval = sclda_add_syscallinfo(s);
-    return retval;
-out:
-    for (size_t i = 0; i < num; i++) kfree(siov_ls[i].str);
-    return retval;
+    //     retval = sclda_add_syscallinfo(s);
+    //     return retval;
+    // out:
+    //     for (size_t i = 0; i < num; i++) kfree(siov_ls[i].str);
+    //     return retval;
+    return 0;
 }
