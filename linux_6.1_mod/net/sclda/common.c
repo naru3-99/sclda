@@ -76,8 +76,8 @@ int sclda_init(void) {
                             SCLDA_SYSCALL_BASEPORT + i);
 
     // start the sclda_kthread
-    newkthread = kthread_create(sclda_kthread_to_send, NULL, "sclda_thread");
-    if (!IS_ERR(newkthread)) wake_up_process(newkthread);
+    // newkthread = kthread_create(sclda_kthread_to_send, NULL, "sclda_thread");
+    // if (!IS_ERR(newkthread)) wake_up_process(newkthread);
 
     sclda_init_fin = 1;
     return 0;
