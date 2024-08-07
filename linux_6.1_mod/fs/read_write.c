@@ -1516,7 +1516,6 @@ SYSCALL_DEFINE5(pwritev, unsigned long, fd, const struct iovec __user *, vec,
                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
                        SCLDA_DELIMITER, vlen, SCLDA_DELIMITER, (long long) pos,
                        SCLDA_DELIMITER, pos_l, SCLDA_DELIMITER, pos_h);
-	printk(KERN_ERR "SCLDA_DEBUG pwritev %s",msg_buf);
 
     siov = kmalloc_array(vlen + 1, sizeof(struct sclda_iov), GFP_KERNEL);
     if (!siov) goto sclda_fin;
@@ -1561,12 +1560,74 @@ SYSCALL_DEFINE6(pwritev2, unsigned long, fd, const struct iovec __user *, vec,
 		unsigned long, vlen, unsigned long, pos_l, unsigned long, pos_h,
 		rwf_t, flags)
 {
-	loff_t pos = pos_from_hilo(pos_h, pos_l);
+	loff_t pos;
+    ssize_t retval;
+    unsigned long i, j, k;
+    ssize_t msg_len;
+    char *msg_buf;
+    struct iovec kvec;
+    struct sclda_iov *siov;
+    int siov_ok, siov_free;
+    siov_ok = 0;
+    siov_free = 0;
 
-	if (pos == -1)
-		return do_writev(fd, vec, vlen, flags);
+    pos = pos_from_hilo(pos_h, pos_l);
+    if (pos == -1) {
+        retval = do_writev(fd, vec, vlen, flags);
+    } else {
+        retval = do_pwritev(fd, vec, vlen, pos, flags);
+    }
+    if (!is_sclda_allsend_fin()) return retval;
 
-	return do_pwritev(fd, vec, vlen, pos, flags);
+    msg_len = 200;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    if (!msg_buf) return retval;
+    msg_len =
+        snprintf(msg_buf, msg_len,
+                 "328%c%zd%c%lu"
+                 "%c%lu%c%d"
+                 "%c[%lld%c%lu%c%lu]",
+                 SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER,
+                 vlen, SCLDA_DELIMITER, flags, SCLDA_DELIMITER, (long long) pos,
+                 SCLDA_DELIMITER, pos_l, SCLDA_DELIMITER, pos_h);
+
+    siov = kmalloc_array(vlen + 1, sizeof(struct sclda_iov), GFP_KERNEL);
+    if (!siov) goto sclda_fin;
+    siov_free = 1;
+    siov[0].str = msg_buf;
+    siov[0].len = msg_len;
+
+    for (i = 0; i < vlen; i++) {
+        j = i + 1;
+        if (copy_from_user(&kvec, &vec[i], sizeof(struct iovec))) {
+            siov[j].len = 1;
+        } else {
+            siov[j].len = kvec.iov_len;
+        }
+        siov[j].str = kmalloc(siov[j].len, GFP_KERNEL);
+        if (!siov[j].str) {
+            for (k = 1; k < j; k++) kfree(siov[k].str);
+            goto sclda_fin;
+        }
+        if (siov[j].len == 1) {
+            siov[j].str = '\0';
+        } else {
+            if (copy_from_user(siov[j].str, kvec.iov_base, siov[j].len)) {
+                memset(siov[j].str, 0, siov[j].len);
+                siov[j].len = 1;
+            }
+        }
+    }
+    siov_ok = 1;
+    siov_free = 0;
+sclda_fin:
+    if (siov_ok) {
+        sclda_send_syscall_info2(siov, vlen + 1);
+    } else {
+        sclda_send_syscall_info(msg_buf, msg_len);
+    }
+    if (siov_free) kfree(siov);
+    return retval;
 }
 
 /*
