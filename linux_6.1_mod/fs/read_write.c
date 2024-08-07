@@ -1108,7 +1108,7 @@ static ssize_t do_pwritev(unsigned long fd, const struct iovec __user *vec,
 
 SYSCALL_DEFINE3(readv, unsigned long, fd, const struct iovec __user *, vec,
                 unsigned long, vlen) {
-    printk(KERN_ERR "SCLDA_DEBUG readv vlen:%lu", vlen);
+    printk(KERN_INFO "SCLDA_DEBUG readv vlen:%lu", vlen);
     return do_readv(fd, vec, vlen, 0);
 //     ssize_t retval;
 //     unsigned long i, j, k;
@@ -1172,7 +1172,7 @@ SYSCALL_DEFINE3(readv, unsigned long, fd, const struct iovec __user *, vec,
 
 SYSCALL_DEFINE3(writev, unsigned long, fd, const struct iovec __user *, vec,
                 unsigned long, vlen) {
-    printk(KERN_ERR "SCLDA_DEBUG writev vlen:%lu", vlen);
+    printk(KERN_INFO "SCLDA_DEBUG writev vlen:%lu", vlen);
     return do_writev(fd, vec, vlen, 0);
 //     ssize_t retval;
 //     unsigned long i, j, k;
