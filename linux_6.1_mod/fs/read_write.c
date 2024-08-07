@@ -1388,7 +1388,7 @@ out:
 	return retval;
 }
 
-SYSCALL_DEFINE4(sendfile, int, out_fd, int, in_fd, off_t __user *, offset, size_t, count)
+ssize_t sclda_sendfile(int out_fd, int in_fd, off_t __user * offset, size_t count)
 {
 	loff_t pos;
 	off_t off;
@@ -1407,7 +1407,32 @@ SYSCALL_DEFINE4(sendfile, int, out_fd, int, in_fd, off_t __user *, offset, size_
 	return do_sendfile(out_fd, in_fd, NULL, count, 0);
 }
 
-SYSCALL_DEFINE4(sendfile64, int, out_fd, int, in_fd, loff_t __user *, offset, size_t, count)
+SYSCALL_DEFINE4(sendfile, int, out_fd, int, in_fd, off_t __user *, offset,
+                size_t, count) {
+    ssize_t retval;
+    int msg_len;
+    char *msg_buf;
+    off_t koff;
+
+    retval = sclda_sendfile(out_fd, in_fd, offset, count);
+    if (!is_sclda_allsend_fin()) return retval;
+    if (copy_from_user(&koff, offset, sizeof(off_t))) koff = -1;
+
+    msg_len = 200;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    if (!msg_buf) return retval;
+
+    msg_len = snprintf(msg_buf, msg_len,
+                       "40%c%zd%c%d"
+                       "%c%d%c%ld%c%zu",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, out_fd,
+                       SCLDA_DELIMITER, in_fd, SCLDA_DELIMITER, (long)koff,
+                       SCLDA_DELIMITER, count);
+    sclda_send_syscall_info(msg_buf, msg_len);
+    return retval;
+}
+
+ssize_t sclda_sendfile64(int out_fd, int in_fd, loff_t __user * offset, size_t count)
 {
 	loff_t pos;
 	ssize_t ret;
@@ -1422,6 +1447,32 @@ SYSCALL_DEFINE4(sendfile64, int, out_fd, int, in_fd, loff_t __user *, offset, si
 	}
 
 	return do_sendfile(out_fd, in_fd, NULL, count, 0);
+}
+
+SYSCALL_DEFINE4(sendfile64, int, out_fd, int, in_fd, loff_t __user *, offset, size_t, count)
+{
+    ssize_t retval;
+    int msg_len;
+    char *msg_buf;
+    loff_t koff;
+
+    retval = sclda_sendfile64(out_fd, in_fd, offset, count);
+    if (!is_sclda_allsend_fin()) return retval;
+
+    if (copy_from_user(&koff, offset, sizeof(loff_t))) koff = -1;
+
+    msg_len = 200;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    if (!msg_buf) return retval;
+
+    msg_len = snprintf(msg_buf, msg_len,
+                       "40%c%zd%c%d"
+                       "%c%d%c%lld%c%zu",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, out_fd,
+                       SCLDA_DELIMITER, in_fd, SCLDA_DELIMITER, (long long)koff,
+                       SCLDA_DELIMITER, count);
+    sclda_send_syscall_info(msg_buf, msg_len);
+    return retval;
 }
 
 #ifdef CONFIG_COMPAT
