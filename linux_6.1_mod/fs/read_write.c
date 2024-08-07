@@ -733,14 +733,14 @@ SYSCALL_DEFINE4(pread64, unsigned int, fd, char __user *, buf, size_t, count,
 
     write_ok = 1;
     if (copy_from_user(write_buf, buf, write_len)) {
-        memset(write_buf, 0, write_len + 1);
+        memset(write_buf, 0, write_len);
         write_len = 0;
     } else {
         write_buf[write_len] = '\0';
     }
 
 sclda_all:
-    msg_len = 100 + write_len;
+    msg_len = 200 + write_len;
     msg_buf = kmalloc(msg_len, GFP_KERNEL);
     if (!msg_buf) goto free_write;
 
@@ -804,14 +804,14 @@ SYSCALL_DEFINE4(pwrite64, unsigned int, fd, const char __user *, buf, size_t,
 
     write_ok = 1;
     if (copy_from_user(write_buf, buf, write_len)) {
-        memset(write_buf, 0, write_len + 1);
+        memset(write_buf, 0, write_len);
         write_len = 0;
     } else {
         write_buf[write_len] = '\0';
     }
 
 sclda_all:
-    msg_len = 100 + write_len;
+    msg_len = 200 + write_len;
     msg_buf = kmalloc(msg_len, GFP_KERNEL);
     if (!msg_buf) goto free_write;
 
