@@ -1089,7 +1089,6 @@ SYSCALL_DEFINE1(exit_group, int, error_code)
 	if (!is_sclda_allsend_fin())
 		goto do_scinvo;
 
-	// 送信するパート
 	msg_len = 100;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)

@@ -1107,7 +1107,7 @@ static ssize_t do_pwritev(unsigned long fd, const struct iovec __user *vec,
 
 SYSCALL_DEFINE3(readv, unsigned long, fd, const struct iovec __user *, vec,
                 unsigned long, vlen) {
-    printk(KERN_INFO "SCLDA_DEBUG readv vlen:%lu", vlen);
+    printk(KERN_ERR "SCLDA_DEBUG readv vlen:%lu", vlen);
     ssize_t retval;
     unsigned long i, j, k;
     ssize_t msg_len;
@@ -1159,10 +1159,10 @@ SYSCALL_DEFINE3(readv, unsigned long, fd, const struct iovec __user *, vec,
 sclda_fin:
     if (siov_ok) {
         sclda_send_syscall_info2(siov, vlen + 1);
-        printk(KERN_INFO "SCLDA_DEBUG readv send2");
+        printk(KERN_ERR "SCLDA_DEBUG readv send2");
     } else {
         sclda_send_syscall_info(msg_buf, msg_len);
-        printk(KERN_INFO "SCLDA_DEBUG readv send1");
+        printk(KERN_ERR "SCLDA_DEBUG readv send1");
     }
     if (siov_free) kfree(siov);
     return retval;
@@ -1170,74 +1170,64 @@ sclda_fin:
 
 SYSCALL_DEFINE3(writev, unsigned long, fd, const struct iovec __user *, vec,
                 unsigned long, vlen) {
+    printk(KERN_ERR "SCLDA_DEBUG writev vlen:%lu", vlen);
     ssize_t retval;
-    struct iovec *kvec;
-    unsigned long i;
-    size_t msg_len, read_len, total_size, max_size, offset;
-    char *msg_buf, *read_buf, *temp_buf;
+    unsigned long i, j, k;
+    ssize_t msg_len;
+    char *msg_buf;
+    struct iovec kvec;
+    struct sclda_iov *siov;
+    int siov_ok, siov_free;
+    siov_ok = 0;
+    siov_free = 0;
 
     retval = do_writev(fd, vec, vlen, 0);
     if (!is_sclda_allsend_fin()) return retval;
 
-    if (retval < 0) {
-        // 失敗しているため、諦める
-        msg_len = 200;
-        msg_buf = kmalloc(msg_len, GFP_KERNEL);
-        if (!msg_buf) return retval;
-        msg_len =
-            snprintf(msg_buf, msg_len, "20%c%zd%c%lu%c%lu", SCLDA_DELIMITER,
-                     retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, vlen);
-        sclda_send_syscall_info(msg_buf, msg_len);
-        return retval;
-    }
+    msg_len = 100;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    if (!msg_buf) return retval;
+    msg_len = snprintf(msg_buf, msg_len,
+                       "20%c%zd%c%lu"
+                       "%c%lu",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+                       SCLDA_DELIMITER, vlen);
 
-    // カーネル空間に、iovecをコピーする
-    kvec = kmalloc(sizeof(struct iovec) * vlen, GFP_KERNEL);
-    if (!kvec) return retval;
-    if (copy_from_user(kvec, vec, sizeof(struct iovec) * vlen)) goto free_kvec;
+    siov = kmalloc_array(vlen + 1, sizeof(struct sclda_iov), GFP_KERNEL);
+    if (!siov) goto sclda_fin;
+    siov_free = 1;
+    siov[0].str = msg_buf;
+    siov[0].len = msg_len;
 
-    // 全バッファのサイズを計算
-    // 全データのバッファを取得
-    total_size = 0;
     for (i = 0; i < vlen; i++) {
-        total_size += kvec[i].iov_len + 1;
-        max_size = (max_size > kvec[i].iov_len) ? max_size : kvec[i].iov_len;
-    }
-    // バッファを段取りする
-    read_buf = kmalloc((size_t)total_size + 1, GFP_KERNEL);
-    if (!read_buf) goto free_kvec;
-    temp_buf = kmalloc((size_t)max_size, GFP_KERNEL);
-    if (!temp_buf) goto free_readbuf;
-
-    // iovecからmsg_bufへのデータコピー、区切り文字の挿入
-    offset = 0;
-    for (i = 0; i < vlen; i++) {
-        if (copy_from_user(temp_buf, kvec[i].iov_base, kvec[i].iov_len)) {
-            offset += snprintf(read_buf + offset, total_size - offset, "%c",
-                               SCLDA_DELIMITER);
-            memset(temp_buf, 0, max_size);
+        j = i + 1;
+        if (copy_from_user(&kvec, &vec[i], sizeof(struct iovec))) {
+            siov[j].len = 1;
         } else {
-            offset += snprintf(read_buf + offset, total_size - offset, "%s%c",
-                               temp_buf, SCLDA_DELIMITER);
-            memset(temp_buf, 0, max_size);
+            siov[j].len = kvec.iov_len;
+        }
+        siov[j].str = kmalloc(siov[j].len, GFP_KERNEL);
+        if (!siov[j].str) {
+            for (k = 1; k < j; k++) kfree(siov[k].str);
+            goto sclda_fin;
+        }
+        if (siov[j].len == 1) {
+            siov[j].str = '\0';
+        } else {
+            memcpy(siov[j].str, kvec.iov_base, siov[j].len);
         }
     }
-    read_len = offset;
-    // 送信するパート
-    msg_len = read_len + 200;
-    msg_buf = kmalloc(msg_len, GFP_KERNEL);
-    if (!msg_buf) goto free_tempbuf;
-
-    msg_len = snprintf(msg_buf, msg_len, "20%c%zd%c%lu%c%lu%c%s",
-                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
-                       SCLDA_DELIMITER, vlen, SCLDA_DELIMITER, read_buf);
-    sclda_send_syscall_info(msg_buf, msg_len);
-free_tempbuf:
-    kfree(temp_buf);
-free_readbuf:
-    kfree(read_buf);
-free_kvec:
-    kfree(kvec);
+    siov_ok = 1;
+    siov_free = 0;
+sclda_fin:
+    if (siov_ok) {
+        sclda_send_syscall_info2(siov, vlen + 1);
+        printk(KERN_ERR "SCLDA_DEBUG writev send2");
+    } else {
+        sclda_send_syscall_info(msg_buf, msg_len);
+        printk(KERN_ERR "SCLDA_DEBUG writev send1");
+    }
+    if (siov_free) kfree(siov);
     return retval;
 }
 
