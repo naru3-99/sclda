@@ -3443,7 +3443,7 @@ SYSCALL_DEFINE3(sendmsg, int, fd, struct user_msghdr __user *, msg,
 		sclda_send_syscall_info(msg_buf, msg_len);
 		return retval;
 	}
-	// sclda_send_syscall_info2(iov_ls, ret);
+	sclda_send_syscall_info2(iov_ls, ret);
 	kfree(msg_buf);
 	return retval;
 }
@@ -3679,7 +3679,7 @@ SYSCALL_DEFINE3(recvmsg, int, fd, struct user_msghdr __user *, msg,
 		sclda_send_syscall_info(msg_buf, msg_len);
 		return retval;
 	}
-	// sclda_send_syscall_info2(iov_ls, ret);
+	sclda_send_syscall_info2(iov_ls, ret);
 
 	kfree(msg_buf);
 	return retval;
