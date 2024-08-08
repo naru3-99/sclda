@@ -53,12 +53,11 @@ void add_sclda_sci_index(void) {
 // split the data (length = SCLDA_CHUNKSIZE)
 // and send it to the sclda_host server
 int __sclda_send_split(struct sclda_syscallinfo_ls *ptr, int which_port) {
-    int retval;
+    int retval = -EFAULT;
     int send_ret;
     char *packet_buf;
     size_t packet_len, max_packet_len;
     size_t offset, len, i;
-    retval = -EFAULT;
 
     max_packet_len = SCLDA_CHUNKSIZE + (size_t)ptr->pid_time.len + 1;
     packet_buf = kmalloc(max_packet_len, GFP_KERNEL);
@@ -67,11 +66,12 @@ int __sclda_send_split(struct sclda_syscallinfo_ls *ptr, int which_port) {
     for (i = 0; i < ptr->sc_iov_len; i++) {
         offset = 0;
         len = 0;
-        if (ptr->syscall[i].len <= 0 || ptr->syscall[i].str == NULL) continue;
+        if (ptr->syscall[i].str == NULL) continue;
+        if (ptr->syscall[i].len <= 0) continue;
 
         while (offset < ptr->syscall[i].len) {
             memset(packet_buf, 0, max_packet_len);
-            len = min(SCLDA_CHUNKSIZE, (size_t)(ptr->syscall[i].len) - offset);
+            len = min(SCLDA_CHUNKSIZE, ptr->syscall[i].len - offset);
 
             packet_len = snprintf(packet_buf, max_packet_len, "%s%.*s",
                                   ptr->pid_time.str, (int)len,
@@ -124,7 +124,6 @@ int sclda_sendall_syscallinfo(void *data) {
         }
         curptr = next;
         cnt = cnt + 1;
-        ndelay(500);
     }
 
     dummy_tail->next = NULL;
@@ -234,8 +233,8 @@ free_msg_buf:
 }
 
 int sclda_send_syscall_info2(struct sclda_iov *siov_ls, unsigned long num) {
-    int retval;
     size_t i;
+    int retval;
     struct sclda_syscallinfo_ls *s;
 
     if (!is_sclda_allsend_fin()) return 0;
@@ -249,7 +248,7 @@ int sclda_send_syscall_info2(struct sclda_iov *siov_ls, unsigned long num) {
     s->sc_iov_len = num;
     s->syscall = siov_ls;
 
-    retval = sclda_add_syscallinfo(s);
+    sclda_add_syscallinfo(s);
     sclda_wakeup_kthread();
-    return retval;
+    return 0;
 }

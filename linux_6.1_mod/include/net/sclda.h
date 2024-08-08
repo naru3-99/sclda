@@ -53,7 +53,7 @@
 // bufsize for utime, PID
 #define SCLDA_PID_CLOCK_SIZE ((int)50)
 // bufsize for syscall_info struct
-#define SCLDA_NUM_TO_SEND_SINFO ((int)5000)
+#define SCLDA_NUM_TO_SEND_SINFO ((int)4096)
 // num for head of syscall_info struct
 #define SCLDA_SCI_NUM ((int)8)
 // max size of the buffer
