@@ -3612,14 +3612,20 @@ SYSCALL_DEFINE4(mknodat, int, dfd, const char __user *, filename, umode_t, mode,
     int retval;
     int msg_len, path_len;
     char *msg_buf, *path_buf;
+    int written, path_ok;
 
     retval = do_mknodat(dfd, getname(filename), mode, dev);
     if (!is_sclda_allsend_fin()) return retval;
 
-    // ファイル名を取得する
     path_len = strnlen_user(filename, PATH_MAX);
     path_buf = kmalloc(path_len + 1, GFP_KERNEL);
-    if (!path_buf) return retval;
+    if (!path_buf) {
+        path_ok = 0;
+        path_len = 0;
+        goto sclda_all;
+    }
+
+    path_ok = 1;
     if (copy_from_user(path_buf, filename, path_len)) {
         memset(path_buf, 0, path_len + 1);
         path_len = 0;
@@ -3627,21 +3633,24 @@ SYSCALL_DEFINE4(mknodat, int, dfd, const char __user *, filename, umode_t, mode,
         path_buf[path_len] = '\0';
     }
 
-    // 送信するパート
-    msg_len = 100 + path_len;
+sclda_all:
+    msg_len = 150 + path_len;
     msg_buf = kmalloc(msg_len, GFP_KERNEL);
     if (!msg_buf) goto free_path;
 
-    msg_len = snprintf(msg_buf, msg_len,
-                       "259%c%d%c%d%c%u"
-                       "%c%u%c%s",
+    written = snprintf(msg_buf, msg_len,
+                       "259%c%d%c%d"
+                       "%c%u%c%u",
                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, dfd,
                        SCLDA_DELIMITER, (unsigned short)mode, SCLDA_DELIMITER,
-                       dev, SCLDA_DELIMITER, path_buf);
-    sclda_send_syscall_info(msg_buf, msg_len);
+                       dev);
+    if (path_ok && msg_len - written > 0)
+        written += snprintf(msg_buf + written, msg_len - written, "%c%s",
+                            SCLDA_DELIMITER, path_buf);
+    sclda_send_syscall_info(msg_buf, written);
 
 free_path:
-    kfree(path_buf);
+    if (path_ok) kfree(path_buf);
     return retval;
 }
 
@@ -3650,14 +3659,20 @@ SYSCALL_DEFINE3(mknod, const char __user *, filename, umode_t, mode, unsigned,
     int retval;
     int msg_len, path_len;
     char *msg_buf, *path_buf;
+    int written, path_ok;
 
     retval = do_mknodat(AT_FDCWD, getname(filename), mode, dev);
     if (!is_sclda_allsend_fin()) return retval;
 
-    // ファイル名を取得する
     path_len = strnlen_user(filename, PATH_MAX);
     path_buf = kmalloc(path_len + 1, GFP_KERNEL);
-    if (!path_buf) return retval;
+    if (!path_buf) {
+        path_ok = 0;
+        path_len = 0;
+        goto sclda_all;
+    }
+
+    path_ok = 1;
     if (copy_from_user(path_buf, filename, path_len)) {
         memset(path_buf, 0, path_len + 1);
         path_len = 0;
@@ -3665,21 +3680,24 @@ SYSCALL_DEFINE3(mknod, const char __user *, filename, umode_t, mode, unsigned,
         path_buf[path_len] = '\0';
     }
 
-    // 送信するパート
-    msg_len = 100 + path_len;
+sclda_all:
+    msg_len = 150 + path_len;
     msg_buf = kmalloc(msg_len, GFP_KERNEL);
     if (!msg_buf) goto free_path;
 
-    msg_len =
+    written =
         snprintf(msg_buf, msg_len,
-                 "133%c%d%c%u"
-                 "%c%u%c%s",
-                 SCLDA_DELIMITER, retval, SCLDA_DELIMITER, (unsigned short)mode,
-                 SCLDA_DELIMITER, dev, SCLDA_DELIMITER, path_buf);
-    sclda_send_syscall_info(msg_buf, msg_len);
+                 "133%c%d%c%d"
+                 "%c%u%c%u",
+                 SCLDA_DELIMITER, retval, SCLDA_DELIMITER, dfd, SCLDA_DELIMITER,
+                 (unsigned short)mode, SCLDA_DELIMITER, dev);
+    if (path_ok && msg_len - written > 0)
+        written += snprintf(msg_buf + written, msg_len - written, "%c%s",
+                            SCLDA_DELIMITER, path_buf);
+    sclda_send_syscall_info(msg_buf, written);
 
 free_path:
-    kfree(path_buf);
+    if (path_ok) kfree(path_buf);
     return retval;
 }
 
