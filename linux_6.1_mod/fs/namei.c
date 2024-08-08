@@ -3687,9 +3687,9 @@ sclda_all:
 
     written =
         snprintf(msg_buf, msg_len,
-                 "133%c%d%c%d"
+                 "133%c%d"
                  "%c%u%c%u",
-                 SCLDA_DELIMITER, retval, SCLDA_DELIMITER, dfd, SCLDA_DELIMITER,
+                 SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
                  (unsigned short)mode, SCLDA_DELIMITER, dev);
     if (path_ok && msg_len - written > 0)
         written += snprintf(msg_buf + written, msg_len - written, "%c%s",
