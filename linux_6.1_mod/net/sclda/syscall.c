@@ -207,6 +207,8 @@ int sclda_send_syscall_info(char *msg_buf, int msg_len) {
     int retval;
     struct sclda_syscallinfo_ls *s;
 
+    if (!is_sclda_allsend_fin()) return 0;
+
     retval = sclda_syscallinfo_init(&s);
     if (retval < 0) goto free_msg_buf;
 
@@ -236,14 +238,16 @@ int sclda_send_syscall_info2(struct sclda_iov *siov_ls, unsigned long num) {
     size_t i;
     struct sclda_syscallinfo_ls *s;
 
+    if (!is_sclda_allsend_fin()) return 0;
+
     retval = sclda_syscallinfo_init(&s);
     if (retval < 0) {
         for (i = 0; i < num; i++) kfree(siov_ls[i].str);
         return retval;
     }
 
-    s->syscall = siov_ls;
     s->sc_iov_len = num;
+    s->syscall = siov_ls;
 
     retval = sclda_add_syscallinfo(s);
     sclda_wakeup_kthread();

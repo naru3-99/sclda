@@ -641,12 +641,14 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
     char *read_buf, *msg_buf;
     ssize_t read_len, msg_len;
     int read_ok = 0;
+	read_len = 0;
 
     retval = ksys_read(fd, buf, count);
-    if (!is_sclda_allsend_fin() || retval <= 0) {
-        read_len = 0;
+    if (!is_sclda_allsend_fin())
         goto sclda_all;
-    }
+
+    if (retval <= 0)
+        goto sclda_all;
 
     read_len = (retval > SCLDA_SCDATA_BUFMAX) ? SCLDA_SCDATA_BUFMAX : retval;
     read_buf = kmalloc(read_len + 1, GFP_KERNEL);
@@ -659,6 +661,7 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
     if (copy_from_user(read_buf, buf, read_len)) {
         memset(read_buf, 0, read_len);
         read_len = 0;
+		read_buf[0] = '\0';
     } else {
         read_buf[read_len] = '\0';
     }
@@ -702,31 +705,27 @@ ssize_t ksys_write(unsigned int fd, const char __user *buf, size_t count)
 	return ret;
 }
 
-SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,
-		size_t, count)
-{
-ssize_t retval, written;
+SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
+                count) {
+    ssize_t retval, written;
     char *write_buf, *msg_buf;
     ssize_t write_len, msg_len;
     int write_ok = 0;
+    write_len = 0;
 
     retval = ksys_write(fd, buf, count);
-    if (!is_sclda_allsend_fin() || retval <= 0) {
-        write_len = 0;
-        goto sclda_all;
-    }
+    if (!is_sclda_allsend_fin()) goto sclda_all;
+    if (retval <= 0) goto sclda_all;
 
     write_len = (retval > SCLDA_SCDATA_BUFMAX) ? SCLDA_SCDATA_BUFMAX : retval;
     write_buf = kmalloc(write_len + 1, GFP_KERNEL);
-    if (!write_buf) {
-        write_len = 0;
-        goto sclda_all;
-    }
+    if (!write_buf) goto sclda_all;
 
     write_ok = 1;
     if (copy_from_user(write_buf, buf, write_len)) {
         memset(write_buf, 0, write_len);
         write_len = 0;
+        write_buf[0] = '\0';
     } else {
         write_buf[write_len] = '\0';
     }
