@@ -1341,10 +1341,8 @@ SYSCALL_DEFINE3(writev, unsigned long, fd, const struct iovec __user *, vec,
 sclda_fin:
     if (siov_ok) {
         sclda_send_syscall_info2(siov, vlen + 1);
-		printk(KERN_ERR "SCLDA_DEBUG writev 2");
     } else {
         sclda_send_syscall_info(msg_buf, msg_len);
-        printk(KERN_ERR "SCLDA_DEBUG writev 1");
     }
     if (siov_free) kfree(siov);
     return retval;

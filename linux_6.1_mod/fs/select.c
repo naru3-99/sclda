@@ -657,113 +657,120 @@ static int kern_select(int n, fd_set __user *inp, fd_set __user *outp,
     return poll_select_finish(&end_time, tvp, PT_TIMEVAL, ret);
 }
 
-#define FD_ISSET(fd, fdsetp)                         \
+#define SCLDA_FD_ISSET(fd, fdsetp)                         \
     ((fdsetp)->fds_bits[(fd) / (8 * sizeof(long))] & \
      (1UL << ((fd) % (8 * sizeof(long)))))
-
-int fdset_to_string(fd_set __user *user_fdset, char *buf, int buf_size) {
-    fd_set kernel_fdset;
-    int len = 0;
-    // ユーザー空間からのfd_setをカーネル空間にコピー
-    if (copy_from_user(&kernel_fdset, user_fdset, sizeof(fd_set)))
-        return -EFAULT;
-
-    // ビットを確認し、セットされているものを文字列に追加
-    for (int i = 0; i < __FD_SETSIZE; i++) {
-        if (FD_ISSET(i, &kernel_fdset)) {
-            int res = snprintf(buf + len, buf_size - len, "%d,", i);
-            if (res > 0) len += res;
-        }
-    }
-
-    // 終端のヌル文字を追加
-    // バッファサイズ超過の場合は切り詰め
-    if (len < buf_size) {
-        buf[len] = '\0';
-    } else {
-        buf[buf_size - 1] = '\0';
-        len = buf_size - 1;
-    }
-
-    return len;
-}
 
 SYSCALL_DEFINE5(select, int, n, fd_set __user *, inp, fd_set __user *, outp,
                 fd_set __user *, exp, struct __kernel_old_timeval __user *,
                 tvp) {
-    // syscall invocation
-    int retval;
-    int inp_len, outp_len, exp_len, tvp_len, msg_len;
-    char *inp_buf, *outp_buf, *exp_buf, *tvp_buf, *msg_buf;
-    struct __kernel_old_timeval ktvp;
+    int retval, written, i, res;
+    struct sclda_iov allmsg;
+    fd_set kinp, koutp, kexp;
+    struct __kernel_old_timeval kkot;
 
     retval = kern_select(n, inp, outp, exp, tvp);
     if (!is_sclda_allsend_fin()) return retval;
 
-    // inp ->char
-    inp_len = 200;
-    inp_buf = kmalloc(inp_len, GFP_KERNEL);
-    if (!inp_buf) return retval;
-    inp_len = fdset_to_string(inp, inp_buf, inp_len);
-    if (inp_len < 0) {
-        inp_len = 1;
-        inp_buf[0] = '\0';
+    // default data
+    allmsg.len = 1000;
+    allmsg.str = kmalloc(allmsg.len, GFP_KERNEL);
+    if (!allmsg.str) return retval;
+    written = snprintf(allmsg.str, allmsg.len, "23%c%d%c%d", SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, n);
+
+    // inp data
+    if (inp == NULL) {
+        if (allmsg.len - written > 0)
+            written += snprintf(allmsg.str + written, allmsg.len - written,
+                                "%c[NULL]", SCLDA_DELIMITER);
+        goto sclda_outp;
     }
 
-    // outp ->char
-    outp_len = 200;
-    outp_buf = kmalloc(outp_len, GFP_KERNEL);
-    if (!outp_buf) goto free_inp;
-    outp_len = fdset_to_string(outp, outp_buf, outp_len);
-    if (outp_len < 0) {
-        outp_len = 1;
-        outp_buf[0] = '\0';
+    if (copy_from_user(&kinp, inp, sizeof(fd_set))) {
+        if (allmsg.len - written > 0)
+            written += snprintf(allmsg.str + written, allmsg.len - written,
+                                "%c[NULL]", SCLDA_DELIMITER);
+        goto sclda_outp;
     }
 
-    // exp ->char
-    exp_len = 200;
-    exp_buf = kmalloc(exp_len, GFP_KERNEL);
-    if (!exp_buf) goto free_outp;
-    exp_len = fdset_to_string(exp, exp_buf, exp_len);
-    if (exp_len < 0) {
-        exp_len = 1;
-        exp_buf[0] = '\0';
+    if (allmsg.len - written > 0)
+        written += snprintf(allmsg.str + written, allmsg.len - written, "%c[",
+                            SCLDA_DELIMITER);
+    for (i = 0; i < __FD_SETSIZE; i++) {
+        if (SCLDA_FD_ISSET(i, &kinp) && allmsg.len - written > 0)
+            written +=
+                snprintf(allmsg.str + written, allmsg.len - written, "%d,", i);
+    }
+    if (allmsg.len - written > 0)
+        written += snprintf(allmsg.str + written, allmsg.len - written, "]");
+
+sclda_outp:
+    if (outp == NULL) {
+        if (allmsg.len - written > 0)
+            written += snprintf(allmsg.str + written, allmsg.len - written,
+                                "%c[NULL]", SCLDA_DELIMITER);
+        goto sclda_exp;
     }
 
-    // tvp -> char
-    tvp_len = 100;
-    tvp_buf = kmalloc(tvp_len, GFP_KERNEL);
-    if (!tvp_buf) goto free_exp;
-    if (copy_from_user(&ktvp, tvp, sizeof(struct __kernel_old_timeval))) {
-        tvp_len = 1;
-        tvp_buf[0] = '\0';
-    } else {
-        tvp_len = snprintf(tvp_buf, tvp_len, "%ld%c%ld", ktvp.tv_sec,
-                           SCLDA_DELIMITER, ktvp.tv_usec);
+    if (copy_from_user(&koutp, outp, sizeof(fd_set))) {
+        if (allmsg.len - written > 0)
+            written += snprintf(allmsg.str + written, allmsg.len - written,
+                                "%c[NULL]", SCLDA_DELIMITER);
+        goto sclda_exp;
     }
 
-    // 送信するパート
-    msg_len = inp_len + outp_len + exp_len + tvp_len + 100;
-    msg_buf = kmalloc(msg_len, GFP_KERNEL);
-    if (!msg_buf) goto free_tvp;
+    if (allmsg.len - written > 0)
+        written += snprintf(allmsg.str + written, allmsg.len - written, "%c[",
+                            SCLDA_DELIMITER);
+    for (i = 0; i < __FD_SETSIZE; i++) {
+        if (SCLDA_FD_ISSET(i, &koutp) && allmsg.len - written > 0)
+            written +=
+                snprintf(allmsg.str + written, allmsg.len - written, "%d,", i);
+    }
+    if (allmsg.len - written > 0)
+        written += snprintf(allmsg.str + written, allmsg.len - written, "]");
 
-    msg_len = snprintf(msg_buf, msg_len,
-                       "23%c%d%c%d"
-                       "%c%s%c%s"
-                       "%c%s%c%s",
-                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, n,
-                       SCLDA_DELIMITER, inp_buf, SCLDA_DELIMITER, outp_buf,
-                       SCLDA_DELIMITER, exp_buf, SCLDA_DELIMITER, tvp_buf);
-    sclda_send_syscall_info(msg_buf, msg_len);
+sclda_exp:
+    if (exp == NULL) {
+        if (allmsg.len - written > 0)
+            written += snprintf(allmsg.str + written, allmsg.len - written,
+                                "%c[NULL]", SCLDA_DELIMITER);
+        goto sclda_fin;
+    }
 
-free_tvp:
-    kfree(tvp_buf);
-free_exp:
-    kfree(exp_buf);
-free_outp:
-    kfree(outp_buf);
-free_inp:
-    kfree(inp_buf);
+    if (copy_from_user(&kexp, exp, sizeof(fd_set))) {
+        if (allmsg.len - written > 0)
+            written += snprintf(allmsg.str + written, allmsg.len - written,
+                                "%c[NULL]", SCLDA_DELIMITER);
+        goto sclda_fin;
+    }
+
+    if (allmsg.len - written > 0)
+        written += snprintf(allmsg.str + written, allmsg.len - written, "%c[",
+                            SCLDA_DELIMITER);
+    for (i = 0; i < __FD_SETSIZE; i++) {
+        if (SCLDA_FD_ISSET(i, &kexp) && allmsg.len - written > 0)
+            written +=
+                snprintf(allmsg.str + written, allmsg.len - written, "%d,", i);
+    }
+    if (allmsg.len - written > 0)
+        written += snprintf(allmsg.str + written, allmsg.len - written, "]");
+sclda_fin:
+    if (tvp == NULL) goto sclda_all;
+
+    if (copy_from_user(&kkot, tvp, sizeof(struct __kernel_old_timeval))) {
+        if (allmsg.len - written > 0)
+            written += snprintf(allmsg.str + written, allmsg.len - written,
+                                "%c[NULL]", SCLDA_DELIMITER);
+        goto sclda_all;
+    }
+    if (allmsg.len - written > 0)
+        written +=
+            snprintf(allmsg.str + written, allmsg.len - written, "%c[%ld,%ld]",
+                     SCLDA_DELIMITER, kkot.tv_sec, kkot.tv_usec);
+sclda_all:
+    sclda_send_syscall_info(allmsg.str, written);
     return retval;
 }
 

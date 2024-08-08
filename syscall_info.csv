@@ -21,7 +21,7 @@ readv,19,retval,fd,vlen,read_content,,,,,,,,,,,,,,
 writev,20,retval,fd,vlen,read_content,,,,,,,,,,,,,,
 access,21,retval,mode,filename,,,,,,,,,,,,,,,
 pipe,22,retval,fildes,,,,,,,,,,,,,,,,
-select,23,retval,n,in_fdset,out_fdset,exp_fdset,tv_sec,tv_usec,,,,,,,,,,,
+select,23,retval,n,[in_fdset],[out_fdset],[exp_fdset],tvp.[tv_sec,tv_usec]
 sched_yield,24,retval,,,,,,,,,,,,,,,,,
 mremap,25,retval,addr,old_len,new_len,flags,new_addr,,,,,,,,,,,,
 msync,26,retval,start,len,flags,,,,,,,,,,,,,,
