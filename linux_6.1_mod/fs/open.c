@@ -573,7 +573,7 @@ sclda_all:
 
     written = snprintf(msg_buf, msg_len, "21%c%ld%c%u", SCLDA_DELIMITER, retval,
                        SCLDA_DELIMITER, mode);
-    if (path_ok)
+    if (path_ok && msg_len - written > 0)
         written += snprintf(msg_buf + written, msg_len - written, "%c%s",
                             SCLDA_DELIMITER, path_buf);
     sclda_send_syscall_info(msg_buf, written);
@@ -637,7 +637,7 @@ sclda_all:
     if (!msg_buf) goto free_path;
 
     written = snprintf(msg_buf, msg_len, "80%c%d", SCLDA_DELIMITER, retval);
-    if (path_ok)
+    if (path_ok && msg_len - written > 0)
         written += snprintf(msg_buf + written, msg_len - written, "%c%s",
                             SCLDA_DELIMITER, path_buf);
     sclda_send_syscall_info(msg_buf, written);

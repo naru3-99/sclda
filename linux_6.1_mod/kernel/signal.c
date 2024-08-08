@@ -3002,10 +3002,10 @@ sclda:
                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, how,
                        SCLDA_DELIMITER, sigsetsize);
 
-    if (new_ok)
+    if (new_ok && msg_len - written > 0)
         written += snprintf(msg_buf + written, msg_len - written, "%c%lu",
                             SCLDA_DELIMITER, new_set.sig[0]);
-    if (old_ok)
+    if (old_ok && msg_len - written > 0)
         written += snprintf(msg_buf + written, msg_len - written, "%c%lu",
                             SCLDA_DELIMITER, old_set.sig[0]);
     sclda_send_syscall_info(msg_buf, written);
@@ -4216,7 +4216,7 @@ sclda:
                        "%c%zu",
                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, sig,
                        SCLDA_DELIMITER, sigsetsize);
-    if (new_ok)
+    if (new_ok && msg_len - written > 0)
         written +=
             snprintf(msg_buf + written, msg_len - written,
                      "%c[%p%c%lu%c"
@@ -4224,7 +4224,7 @@ sclda:
                      SCLDA_DELIMITER, new_sa.sa.sa_handler, SCLDA_DELIMITER,
                      new_sa.sa.sa_flags, SCLDA_DELIMITER, new_sa.sa.sa_restorer,
                      SCLDA_DELIMITER, *((unsigned long *)&new_sa.sa.sa_mask));
-    if (old_ok)
+    if (old_ok && msg_len - written > 0)
         written +=
             snprintf(msg_buf + written, msg_len - written,
                      "%c[%p%c%lu%c"

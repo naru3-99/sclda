@@ -158,13 +158,14 @@ sclda:
     if (!msg_buf) return retval;
 
     written = snprintf(msg_buf, msg_len, "96%c%d", SCLDA_DELIMITER, retval);
-    if (ts_ok)
+    if (ts_ok && msg_len - written > 0)
         written +=
             snprintf(msg_buf + written, msg_len - written, "%c%lld%c%ld",
                      SCLDA_DELIMITER, ts.tv_sec, SCLDA_DELIMITER, ts.tv_nsec);
-    written += snprintf(msg_buf + written, msg_len - written, "%c%d%c%d",
-                        SCLDA_DELIMITER, sys_tz.tz_dsttime, SCLDA_DELIMITER,
-                        sys_tz.tz_minuteswest);
+    if (msg_len - written > 0)
+        written += snprintf(msg_buf + written, msg_len - written, "%c%d%c%d",
+                            SCLDA_DELIMITER, sys_tz.tz_dsttime, SCLDA_DELIMITER,
+                            sys_tz.tz_minuteswest);
     sclda_send_syscall_info(msg_buf, written);
 
     return retval;

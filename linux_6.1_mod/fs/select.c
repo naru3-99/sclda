@@ -1129,7 +1129,7 @@ SYSCALL_DEFINE3(poll, struct pollfd __user *, ufds, unsigned int, nfds, int,
                        "%c%d",
                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, nfds,
                        SCLDA_DELIMITER, timeout_msecs);
-    if (kfds_ok)
+    if (kfds_ok && msg_len - written > 0)
         written +=
             snprintf(msg_buf + written, msg_len - written, "%c[%d%c%d%c%d]",
                      SCLDA_DELIMITER, kfds.fd, SCLDA_DELIMITER, kfds.events,

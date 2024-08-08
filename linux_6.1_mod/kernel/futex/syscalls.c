@@ -237,10 +237,10 @@ sclda_all:
                        "%c%u%c%u",
                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, op,
                        SCLDA_DELIMITER, val, SCLDA_DELIMITER, val3);
-    if (u_ok)
+    if (u_ok && msg_len - written > 0)
         written += snprintf(msg_buf + written, msg_len - written, "%c%u%c%u",
                             SCLDA_DELIMITER, kaddr, SCLDA_DELIMITER, kaddr2);
-    if (kt_ok)
+    if (kt_ok && msg_len - written > 0)
         written += snprintf(msg_buf + written, msg_len - written, "%c%s",
                             SCLDA_DELIMITER, kt_buf);
     sclda_send_syscall_info(msg_buf, written);
