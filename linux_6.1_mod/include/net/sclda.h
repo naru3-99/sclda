@@ -57,7 +57,7 @@
 // bufsize for syscall_info struct
 #define SCLDA_NUM_TO_SEND_SINFO ((int)8192)
 // num for head of syscall_info struct
-#define SCLDA_SCI_NUM ((int)8)
+#define SCLDA_SCI_NUM ((int)16)
 // max size of the buffer
 // to prevent the do_sys_write
 #define SCLDA_SCDATA_BUFMAX ((int)8192)
