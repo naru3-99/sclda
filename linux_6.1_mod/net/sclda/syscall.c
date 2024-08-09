@@ -62,7 +62,7 @@ int sclda_syscall_init(void) {
 
     // init sclda_client_struct
     for (i = 0; i < SCLDA_PORT_NUMBER; i++)
-        __init_sclda_client(&sclda_syscall_client[i],
+        init_sclda_client(&sclda_syscall_client[i],
                             SCLDA_SYSCALL_BASEPORT + i);
     return 0;
 }
