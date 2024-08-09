@@ -103,7 +103,7 @@ static int init_siovls(struct sclda_iov_ls **siov) {
 }
 
 static int scinfo_to_siov(int target_index) {
-    int cnt = 0;
+    int res, cnt = 0;
     size_t i, chnk_remain, data_remain;
     struct sclda_syscallinfo_ls *curptr, *next;
     struct sclda_iov_ls *temp;
@@ -117,14 +117,22 @@ static int scinfo_to_siov(int target_index) {
             if (temp->data.len + curptr->pid_time.len + curptr->syscall[i].len <
                 SCLDA_CHUNKSIZE) {
                 // まだchunkに余裕がある場合
-                if (SCLDA_CHUNKSIZE - temp->data.len < 0)
-                    printk(KERN_ERR "SCLDA_DEBUG 2 temp->data.len = %zu",
-                           temp->data.len);
-                temp->data.len +=
-                    snprintf(temp->data.str + temp->data.len,
-                             SCLDA_CHUNKSIZE - temp->data.len, "%s%c%s%c",
-                             curptr->pid_time.str, SCLDA_EACH_DLMT,
-                             curptr->syscall[i].str, SCLDA_EACH_DLMT);
+                res = snprintf(temp->data.str + temp->data.len,
+                               SCLDA_CHUNKSIZE - temp->data.len, "%s%c%s%c",
+                               curptr->pid_time.str, SCLDA_EACH_DLMT,
+                               curptr->syscall[i].str, SCLDA_EACH_DLMT);
+                if (res < 0) {
+                    printk(KERN_ERR "SCLDA_DEBUG 1 res = %d", res);
+                    if (init_siovls(&temp) < 0) {
+                        // 失敗したため、終わった部分と
+                        // 終わってない部分を切り分け、引き継ぎを行う
+                        sclda_syscall_heads[target_index].next = curptr;
+                        sclda_syscallinfo_num[target_index] -= cnt;
+                        goto out;
+                    };
+                } else {
+                    temp->data.len += (size_t)res;
+                }
             } else {
                 // chunkに余裕が無い場合
                 data_remain = curptr->syscall[i].len;
@@ -150,14 +158,23 @@ static int scinfo_to_siov(int target_index) {
                     // 分割して書き込む
                     chnk_remain -= 2 + curptr->pid_time.len;
                     chnk_remain = min(chnk_remain, data_remain);
-                    if (SCLDA_CHUNKSIZE - temp->data.len < 0)
-                        printk(KERN_ERR "SCLDA_DEBUG 2 temp->data.len = %zu",
-                               temp->data.len);
-                    temp->data.len += snprintf(
-                        temp->data.str + temp->data.len,
-                        SCLDA_CHUNKSIZE - temp->data.len, "%s%c%.*s%c",
-                        curptr->pid_time.str, SCLDA_EACH_DLMT, (int)chnk_remain,
-                        curptr->syscall[i].str, SCLDA_EACH_DLMT);
+                    res = snprintf(temp->data.str + temp->data.len,
+                                   SCLDA_CHUNKSIZE - temp->data.len,
+                                   "%s%c%.*s%c", curptr->pid_time.str,
+                                   SCLDA_EACH_DLMT, (int)chnk_remain,
+                                   curptr->syscall[i].str, SCLDA_EACH_DLMT);
+                    if (res < 0) {
+                        printk(KERN_ERR "SCLDA_DEBUG 2 res = %d", res);
+                        if (init_siovls(&temp) < 0) {
+                            // 失敗したため、終わった部分と
+                            // 終わってない部分を切り分け、引き継ぎを行う
+                            sclda_syscall_heads[target_index].next = curptr;
+                            sclda_syscallinfo_num[target_index] -= cnt;
+                            goto out;
+                        };
+                    } else {
+                        temp->data.len += (size_t)res;
+                    }
                     data_remain -= chnk_remain;
                 }
             }
