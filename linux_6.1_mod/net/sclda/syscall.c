@@ -29,7 +29,6 @@ struct mutex sclda_siov_mutex[SCLDA_SCI_NUM];
 struct sclda_iov_ls siov_heads[SCLDA_SCI_NUM];
 struct sclda_iov_ls *siov_tails[SCLDA_SCI_NUM];
 
-
 // linked list's mutex, head, tail, number in list
 struct mutex sclda_syscall_mutex[SCLDA_SCI_NUM];
 struct sclda_syscallinfo_ls sclda_syscall_heads[SCLDA_SCI_NUM];
@@ -78,6 +77,7 @@ int sclda_syscall_init(void) {
 }
 
 static int kfree_scinfo_ls(struct sclda_syscallinfo_ls *scinfo_ptr) {
+    size_t i;
     kfree(scinfo_ptr->pid_time.str);
     for (i = 0; i < scinfo_ptr->sc_iov_len; i++)
         kfree(scinfo_ptr->syscall[i].str);
@@ -93,7 +93,7 @@ static int init_siovls(struct sclda_iov_ls **siov) {
     if (!temp) return -EFAULT;
     temp->next = NULL;
     temp->data.len = 0;
-    temp->data.str = kmallc(SCLDA_CHUNKSIZE, GFP_KERNEL);
+    temp->data.str = kmalloc(SCLDA_CHUNKSIZE, GFP_KERNEL);
     if (!(temp->data.str)) {
         kfree(temp);
         return -EFAULT;
@@ -104,7 +104,7 @@ static int init_siovls(struct sclda_iov_ls **siov) {
 
 static int scinfo_to_siov(int target_index) {
     int cnt = 0;
-    size_t i, chnk_remain, data_remain, written;
+    size_t i, chnk_remain, data_remain;
     struct sclda_syscallinfo_ls *curptr, *next;
     struct sclda_iov_ls *temp;
     if (!init_siovls(&temp)) return -EFAULT;
@@ -191,7 +191,7 @@ static int sclda_sendall_syscallinfo(void *data) {
     curptr = siov_heads[target_index].next;
     while (curptr != NULL) {
         send_ret = sclda_send_siov_mutex(
-            &(curptr->data), sclda_syscall_client[cnt % SCLDA_PORT_NUMBER]);
+            &(curptr->data), &(sclda_syscall_client[cnt % SCLDA_PORT_NUMBER]));
 
         if (send_ret < 0) {
             dmtail->next = curptr;
