@@ -146,7 +146,7 @@ static int scinfo_to_siov(int target_index) {
                             sclda_syscallinfo_num[target_index] -= cnt;
                             goto out;
                         };
-                        chnk_remain = SCLDA_CHUNKSIZE-1;
+                        chnk_remain = SCLDA_CHUNKSIZE - 1;
                     }
                     // 分割して書き込む
                     chnk_remain -= 2 + curptr->pid_time.len;
@@ -187,6 +187,11 @@ static int sclda_sendall_syscallinfo(void *data) {
 
     target_index = *(int *)data;
     kfree(data);
+
+    if (!(0 < target_index && target_index < SCLDA_SCI_NUM - 1)) {
+        printk(KERN_ERR "SCLDA_DEBUG target_index = %d", target_index);
+        return -1;
+    }
 
     dmhead.next = NULL;
     dmtail = &dmhead;
