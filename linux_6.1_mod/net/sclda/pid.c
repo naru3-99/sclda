@@ -34,13 +34,13 @@ int sclda_pid_init(void) {
     return init_sclda_client(&sclda_pid_client, SCLDA_PIDPPID_PORT);
 }
 
-static int sclda_add_pidinfo(char *msg, int len) {
+static int sclda_add_pidinfo(struct sclda_iov *siov) {
     struct sclda_pidinfo_ls *new_node;
     new_node = kmalloc(sizeof(struct sclda_pidinfo_ls), GFP_KERNEL);
     if (!new_node) return -ENOMEM;
 
-    new_node->pid_info.str = msg;
-    new_node->pid_info.len = len;
+    new_node->pid_info.str = siov->str;
+    new_node->pid_info.len = siov->len;
     new_node->next = NULL;
 
     mutex_lock(&sclda_pidinfo_mutex);
@@ -71,7 +71,7 @@ int is_sclda_allsend_fin(void) { return sclda_allsend_fin; }
 int sclda_send_pidinfo(struct sclda_iov *siov) {
     // まだscldaが初期化されていない場合
     if (!is_sclda_init_fin()) {
-        sclda_add_pidinfo(pid_buf, pid_len);
+        sclda_add_pidinfo(siov);
         return 0;
     }
     // 初期化され、allsendも終わった場合
@@ -88,7 +88,7 @@ int sclda_send_pidinfo(struct sclda_iov *siov) {
         kfree(siov->str);
     } else {
         // まだ送信できない
-        sclda_add_pidinfo(pid_buf, pid_len);
+        sclda_add_pidinfo(siov);
     }
     return 0;
 }

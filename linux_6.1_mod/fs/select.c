@@ -664,7 +664,7 @@ static int kern_select(int n, fd_set __user *inp, fd_set __user *outp,
 SYSCALL_DEFINE5(select, int, n, fd_set __user *, inp, fd_set __user *, outp,
                 fd_set __user *, exp, struct __kernel_old_timeval __user *,
                 tvp) {
-    int retval, written, i, res;
+    int retval, written, i;
     struct sclda_iov allmsg;
     fd_set kinp, koutp, kexp;
     struct __kernel_old_timeval kkot;
