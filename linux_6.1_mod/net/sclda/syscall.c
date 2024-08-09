@@ -115,6 +115,7 @@ static int scinfo_to_siov(int target_index) {
     curptr = sclda_syscall_heads[target_index].next;
     while (curptr != NULL) {
         for (i = 0; i < curptr->sc_iov_len; i++) {
+            ndelay(500);
             if (temp->data.len + curptr->pid_time.len + curptr->syscall[i].len <
                 SCLDA_CHUNKSIZE) {
                 // まだchunkに余裕がある場合
