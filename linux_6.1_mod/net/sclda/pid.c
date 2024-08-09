@@ -34,6 +34,10 @@ struct sclda_client_struct *sclda_get_pid_client(void) {
     return &sclda_pid_client;
 }
 
+int sclda_pid_init(void) {
+    return __init_sclda_client(&sclda_pid_client, SCLDA_PIDPPID_PORT);
+}
+
 int sclda_add_pidinfo(char *msg, int len) {
     struct sclda_pidinfo_ls *new_node;
     new_node = kmalloc(sizeof(struct sclda_pidinfo_ls), GFP_KERNEL);

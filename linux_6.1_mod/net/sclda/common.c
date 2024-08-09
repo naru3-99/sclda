@@ -37,7 +37,7 @@ int __sclda_connect_socket(struct sclda_client_struct *sclda_cs_ptr, int port) {
                           sizeof(struct sockaddr_in), 0);
 }
 
-int __init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port) {
+int init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port) {
     if (__sclda_create_socket(sclda_cs_ptr) < 0) {
         printk(KERN_INFO "SCLDA_ERROR socket create error: %d", port);
         return -1;
@@ -57,26 +57,15 @@ int __init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port) {
 
 // This function will invoked once in init/main.c
 int sclda_init(void) {
-    // prepare for syscall.c
-    for (size_t i = 0; i < SCLDA_SCI_NUM; i++) {
-        mutex_init(&sclda_syscall_mutex[i]);
-        sclda_syscall_heads[i].next = NULL;
-        sclda_syscall_tails[i] = &sclda_syscall_heads[i];
-        sclda_syscallinfo_num[i] = 0;
-    }
-
-    // init pid_client
-    __init_sclda_client(&sclda_pid_client, SCLDA_PIDPPID_PORT);
-
-    // init syscall_client
-    for (size_t i = 0; i < SCLDA_PORT_NUMBER; i++)
-        __init_sclda_client(&sclda_syscall_client[i],
-                            SCLDA_SYSCALL_BASEPORT + i);
-
+    // init pid.c code
+    sclda_pid_init();
+    // init syscall.c code
+    sclda_syscall_init();
     sclda_init_fin = 1;
     return 0;
 }
 
+// getter for int sclda_init_fin
 int is_sclda_init_fin(void) { return sclda_init_fin; }
 
 int sclda_send(char *buf, int len,
@@ -84,6 +73,7 @@ int sclda_send(char *buf, int len,
     struct kvec iov;
     iov.iov_base = buf;
     iov.iov_len = len;
+
     return kernel_sendmsg(sclda_struct_ptr->sock, &(sclda_struct_ptr->msg),
                           &iov, 1, len);
 }
@@ -94,6 +84,16 @@ int sclda_send_mutex(char *buf, int len,
 
     mutex_lock(&(sclda_struct_ptr->mtx));
     ret = sclda_send(buf, len, sclda_struct_ptr);
+    mutex_unlock(&(sclda_struct_ptr->mtx));
+    return ret;
+}
+
+int sclda_send_siov_mutex(struct sclda_iov *siov,
+                          struct sclda_client_struct *sclda_struct_ptr) {
+    int ret;
+
+    mutex_lock(&(sclda_struct_ptr->mtx));
+    ret = sclda_send(siov->str, siov->len, sclda_struct_ptr);
     mutex_unlock(&(sclda_struct_ptr->mtx));
     return ret;
 }

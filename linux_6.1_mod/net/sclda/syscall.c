@@ -35,7 +35,7 @@ int sclda_syscallinfo_num[SCLDA_SCI_NUM];
 static DEFINE_MUTEX(sclda_sci_index_mutex);
 int sclda_sci_index = 0;
 
-int get_sclda_sci_index(void) {
+static int get_sclda_sci_index(void) {
     int current_index;
 
     mutex_lock(&sclda_sci_index_mutex);
@@ -44,15 +44,32 @@ int get_sclda_sci_index(void) {
     return current_index;
 }
 
-void add_sclda_sci_index(void) {
+static void add_sclda_sci_index(void) {
     mutex_lock(&sclda_sci_index_mutex);
     sclda_sci_index = (sclda_sci_index + 1) % SCLDA_SCI_NUM;
     mutex_unlock(&sclda_sci_index_mutex);
 }
 
+int sclda_syscall_init(void) {
+    size_t i;
+    // init syscallinfo linked list
+    for (i = 0; i < SCLDA_SCI_NUM; i++) {
+        mutex_init(&sclda_syscall_mutex[i]);
+        sclda_syscall_heads[i].next = NULL;
+        sclda_syscall_tails[i] = &sclda_syscall_heads[i];
+        sclda_syscallinfo_num[i] = 0;
+    }
+
+    // init sclda_client_struct
+    for (i = 0; i < SCLDA_PORT_NUMBER; i++)
+        __init_sclda_client(&sclda_syscall_client[i],
+                            SCLDA_SYSCALL_BASEPORT + i);
+    return 0;
+}
+
 // split the data (length = SCLDA_CHUNKSIZE)
 // and send it to the sclda_host server
-int __sclda_send_split(struct sclda_syscallinfo_ls *ptr, int which_port) {
+static int sclda_send_split(struct sclda_syscallinfo_ls *ptr, int which_port) {
     int retval = -EFAULT;
     int send_ret;
     char *packet_buf;
@@ -94,7 +111,7 @@ out:
 
 // operate single link list(sclda_syscallinfo_ls)
 // to send data to the host server
-int sclda_sendall_syscallinfo(void *data) {
+static int sclda_sendall_syscallinfo(void *data) {
     int target_index, send_ret, failed_cnt, i, cnt;
     struct sclda_syscallinfo_ls *curptr, *next;
     struct sclda_syscallinfo_ls dummy_head, *dummy_tail;
@@ -109,7 +126,7 @@ int sclda_sendall_syscallinfo(void *data) {
     mutex_lock(&sclda_syscall_mutex[target_index]);
     curptr = sclda_syscall_heads[target_index].next;
     while (curptr != NULL) {
-        send_ret = __sclda_send_split(curptr, cnt % SCLDA_PORT_NUMBER);
+        send_ret = sclda_send_split(curptr, cnt % SCLDA_PORT_NUMBER);
         next = curptr->next;
         if (send_ret < 0) {
             failed_cnt++;
@@ -135,7 +152,7 @@ int sclda_sendall_syscallinfo(void *data) {
 
 // this is a helper function which init the single link list
 // if return -ENOMEM, init was failed
-int sclda_syscallinfo_init(struct sclda_syscallinfo_ls **ptr) {
+static int sclda_syscallinfo_init(struct sclda_syscallinfo_ls **ptr) {
     struct sclda_syscallinfo_ls *s;
 
     s = kmalloc(sizeof(struct sclda_syscallinfo_ls), GFP_KERNEL);
@@ -160,7 +177,7 @@ out:
 
 // This function simply add the element
 // to the current sclda_sci_index head
-int sclda_add_syscallinfo(struct sclda_syscallinfo_ls *ptr) {
+static int sclda_add_syscallinfo(struct sclda_syscallinfo_ls *ptr) {
     int current_index;
 
     current_index = get_sclda_sci_index();
@@ -178,7 +195,7 @@ int sclda_add_syscallinfo(struct sclda_syscallinfo_ls *ptr) {
 // this function starts to send the data
 // in current sclda_sci_index list
 // if the number in list >= SCLDA_NUM_TO_SEND_SINFO
-int sclda_wakeup_kthread(void) {
+static int sclda_wakeup_kthread(void) {
     int current_index;
     int *arg;
     struct task_struct *newkthread;

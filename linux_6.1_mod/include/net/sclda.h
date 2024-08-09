@@ -58,7 +58,7 @@
 #define SCLDA_SCI_NUM ((int)8)
 // max size of the buffer
 // to prevent the do_sys_write
-#define SCLDA_SCDATA_BUFMAX ((int) 8192)
+#define SCLDA_SCDATA_BUFMAX ((int)8192)
 
 // client struct
 struct sclda_client_struct {
@@ -91,28 +91,25 @@ struct sclda_syscallinfo_ls {
 
 // common.c
 int sclda_init(void);
+int init_sclda_client(struct sclda_client_struct *, int);
 int is_sclda_init_fin(void);
+
 int sclda_send(char *, int, struct sclda_client_struct *);
 int sclda_send_mutex(char *, int, struct sclda_client_struct *);
+int sclda_send_siov_mutex(struct sclda_iov *, struct sclda_client_struct *);
 
 // pid.c
+int sclda_pid_init(void);
+
 struct sclda_client_struct *sclda_get_pid_client(void);
 int sclda_add_pidinfo(char *, int);
 void sclda_sendall_pidinfo(void);
 int is_sclda_allsend_fin(void);
 
-extern struct sclda_client_struct sclda_pid_client;
-
 // syscall.c
+int sclda_syscall_init(void);
 int sclda_send_syscall_info(char *, int);
 int sclda_send_syscall_info2(struct sclda_iov *, unsigned long);
-
-extern struct sclda_client_struct sclda_syscall_client[SCLDA_PORT_NUMBER];
-
-extern struct mutex sclda_syscall_mutex[SCLDA_SCI_NUM];
-extern struct sclda_syscallinfo_ls sclda_syscall_heads[SCLDA_SCI_NUM];
-extern struct sclda_syscallinfo_ls *sclda_syscall_tails[SCLDA_SCI_NUM];
-extern int sclda_syscallinfo_num[SCLDA_SCI_NUM];
 
 // other.c
 int sclda_get_current_pid(void);
