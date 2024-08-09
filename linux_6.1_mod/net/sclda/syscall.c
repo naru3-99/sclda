@@ -128,7 +128,7 @@ static int scinfo_to_siov(int target_index) {
                 while (data_remain != 0) {
                     chnk_remain = SCLDA_CHUNKSIZE - temp->data.len - 1;
                     if (chnk_remain < 0)
-                        printk(KERN_ERR "SCLDA_ERR 1 chnk_remain =%zu");
+                        printk(KERN_ERR "SCLDA_ERR 1 chnk_remain = %zu", chnk_remain);
                     if (chnk_remain < curptr->pid_time.len) {
                         // これ以上書き込めないため、先に
                         // データを保存 + tempを再初期化
@@ -150,7 +150,7 @@ static int scinfo_to_siov(int target_index) {
                     chnk_remain -= 2 + curptr->pid_time.len;
                     chnk_remain = min(chnk_remain, data_remain);
                     if (chnk_remain < 0)
-                        printk(KERN_ERR "SCLDA_ERR 2 chnk_remain =%zu");
+                        printk(KERN_ERR "SCLDA_ERR 2 chnk_remain =%zu", chnk_remain);
                     temp->data.len += snprintf(
                         temp->data.str + temp->data.len,
                         SCLDA_CHUNKSIZE - temp->data.len, "%s%c%.*s%c",
