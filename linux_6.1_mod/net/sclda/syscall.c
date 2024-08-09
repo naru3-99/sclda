@@ -192,6 +192,7 @@ static int sclda_sendall_syscallinfo(void *data) {
     while (curptr != NULL) {
         send_ret = sclda_send_siov_mutex(
             &(curptr->data), &(sclda_syscall_client[cnt % SCLDA_PORT_NUMBER]));
+        ndelay(500);
 
         if (send_ret < 0) {
             dmtail->next = curptr;
