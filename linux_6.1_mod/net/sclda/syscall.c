@@ -102,6 +102,7 @@ static int init_siovls(struct sclda_iov_ls **siov) {
     return 0;
 }
 
+static DEFINE_MUTEX(snprintf_mutex);
 static int scinfo_to_siov(int target_index) {
     int cnt = 0;
     size_t i, chnk_remain, data_remain;
@@ -117,21 +118,13 @@ static int scinfo_to_siov(int target_index) {
             if (temp->data.len + curptr->pid_time.len + curptr->syscall[i].len <
                 SCLDA_CHUNKSIZE) {
                 // まだchunkに余裕がある場合
-                if (temp->data.str == NULL) {
-                    printk(KERN_ERR "SCLDA_DEBUG temp->data.str == NULL");
-                    if (init_siovls(&temp) < 0) {
-                        // 失敗したため、終わった部分と
-                        // 終わってない部分を切り分け、引き継ぎを行う
-                        sclda_syscall_heads[target_index].next = curptr;
-                        sclda_syscallinfo_num[target_index] -= cnt;
-                        goto out;
-                    };
-                }
+                mutex_lock(&snprintf_mutex);
                 temp->data.len +=
                     snprintf(temp->data.str + temp->data.len,
                              SCLDA_CHUNKSIZE - temp->data.len, "%s%c%s%c",
                              curptr->pid_time.str, SCLDA_EACH_DLMT,
                              curptr->syscall[i].str, SCLDA_EACH_DLMT);
+                mutex_unlock(&snprintf_mutex);
             } else {
                 // chunkに余裕が無い場合
                 data_remain = curptr->syscall[i].len;
@@ -158,21 +151,14 @@ static int scinfo_to_siov(int target_index) {
                     chnk_remain -= 2 + curptr->pid_time.len;
                     chnk_remain = min(chnk_remain, data_remain);
 
-                    if (temp->data.str == NULL) {
-                        printk(KERN_ERR "SCLDA_DEBUG 2 temp->data.str == NULL");
-                        if (init_siovls(&temp) < 0) {
-                            // 失敗したため、終わった部分と
-                            // 終わってない部分を切り分け、引き継ぎを行う
-                            sclda_syscall_heads[target_index].next = curptr;
-                            sclda_syscallinfo_num[target_index] -= cnt;
-                            goto out;
-                        };
-                    }
+                    mutex_lock(&snprintf_mutex);
                     temp->data.len += snprintf(
                         temp->data.str + temp->data.len,
                         SCLDA_CHUNKSIZE - temp->data.len, "%s%c%.*s%c",
                         curptr->pid_time.str, SCLDA_EACH_DLMT, (int)chnk_remain,
                         curptr->syscall[i].str, SCLDA_EACH_DLMT);
+                    mutex_unlock(&snprintf_mutex);
+
                     data_remain -= chnk_remain;
                 }
             }
