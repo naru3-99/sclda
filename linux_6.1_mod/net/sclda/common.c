@@ -71,6 +71,7 @@ int is_sclda_init_fin(void) { return sclda_init_fin; }
 int sclda_send(char *buf, int len,
                struct sclda_client_struct *sclda_struct_ptr) {
     struct kvec iov;
+    if (!buf || len == 0) return 0;
     iov.iov_base = buf;
     iov.iov_len = len;
 
