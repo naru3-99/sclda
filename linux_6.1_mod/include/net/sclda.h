@@ -100,11 +100,8 @@ int sclda_send_siov_mutex(struct sclda_iov *, struct sclda_client_struct *);
 
 // pid.c
 int sclda_pid_init(void);
-
-struct sclda_client_struct *sclda_get_pid_client(void);
-int sclda_add_pidinfo(char *, int);
-void sclda_sendall_pidinfo(void);
 int is_sclda_allsend_fin(void);
+int sclda_send_pidinfo(struct sclda_iov *siov);
 
 // syscall.c
 int sclda_syscall_init(void);

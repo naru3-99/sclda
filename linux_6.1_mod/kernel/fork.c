@@ -2697,8 +2697,7 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	int trace = 0;
 	pid_t nr;
 
-	int pid_len;
-	char *pid_buf;
+	struct sclda_iov siov;
 
 	/*
 	 * For legacy clone() calls, CLONE_PIDFD uses the parent_tid argument
@@ -2777,38 +2776,16 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	put_pid(pid);
 
 	// sclda
-	// basic : pid, ppid, executable name
-	pid_len = 50;
-	pid_buf = kmalloc(pid_len, GFP_KERNEL);
-	if (!pid_buf)
+	siov.len = 50;
+	siov.str = kmalloc(siov.len, GFP_KERNEL);
+	if (!siov.str)
 		return nr;
-	pid_len = snprintf(pid_buf, pid_len, "%d%c%d%c%s", (int)nr,
+	// basic : pid, ppid, executable name
+	siov.len = snprintf(siov.str, siov.len, "%d%c%d%c%s", (int)nr,
 			   SCLDA_DELIMITER, sclda_get_current_pid(),
 			   SCLDA_DELIMITER, p->comm);
-
-	// まだ初期化されていない場合
-	if (!is_sclda_init_fin()) {
-		sclda_add_pidinfo(pid_buf, pid_len);
-		return nr;
-	}
-	// 初期化され、allsendも終わった場合
-	if (is_sclda_allsend_fin()) {
-		sclda_send_mutex(pid_buf, pid_len, sclda_get_pid_client());
-		kfree(pid_buf);
-		return nr;
-	}
-	// 初期化はされたがallsendできていない場合
-	if (sclda_send_mutex("sclda\0", 6, sclda_get_pid_client()) == 6) {
-		// 送信可能になったため、sendallする
-		sclda_sendall_pidinfo();
-		sclda_send_mutex(pid_buf, pid_len, sclda_get_pid_client());
-		kfree(pid_buf);
-		return nr;
-	} else {
-		// まだ送信できない場合
-		sclda_add_pidinfo(pid_buf, pid_len);
-		return nr;
-	}
+	sclda_send_pidinfo(&siov);
+	return nr;
 }
 
 /*

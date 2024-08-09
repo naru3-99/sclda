@@ -30,15 +30,11 @@ struct sclda_pidinfo_ls sclda_pidinfo_head = {
     .next = NULL, .pid_info.len = 0, .pid_info.str = NULL};
 struct sclda_pidinfo_ls *sclda_pidinfo_tail = &sclda_pidinfo_head;
 
-struct sclda_client_struct *sclda_get_pid_client(void) {
-    return &sclda_pid_client;
-}
-
 int sclda_pid_init(void) {
     return init_sclda_client(&sclda_pid_client, SCLDA_PIDPPID_PORT);
 }
 
-int sclda_add_pidinfo(char *msg, int len) {
+static int sclda_add_pidinfo(char *msg, int len) {
     struct sclda_pidinfo_ls *new_node;
     new_node = kmalloc(sizeof(struct sclda_pidinfo_ls), GFP_KERNEL);
     if (!new_node) return -ENOMEM;
@@ -54,7 +50,7 @@ int sclda_add_pidinfo(char *msg, int len) {
     return 0;
 }
 
-void sclda_sendall_pidinfo(void) {
+static void sclda_sendall_pidinfo(void) {
     struct sclda_pidinfo_ls *curptr, *next;
     curptr = sclda_pidinfo_head.next;
     mutex_lock(&sclda_pidinfo_mutex);
@@ -71,3 +67,28 @@ void sclda_sendall_pidinfo(void) {
 }
 
 int is_sclda_allsend_fin(void) { return sclda_allsend_fin; }
+
+int sclda_send_pidinfo(struct sclda_iov *siov) {
+    // まだscldaが初期化されていない場合
+    if (!is_sclda_init_fin()) {
+        sclda_add_pidinfo(pid_buf, pid_len);
+        return 0;
+    }
+    // 初期化され、allsendも終わった場合
+    if (is_sclda_allsend_fin()) {
+        sclda_send_siov_mutex(siov, &sclda_pid_client);
+        kfree(siov->str);
+        return 0;
+    }
+    // scldaは初期化済み、allsendは終わっていない
+    if (sclda_send_mutex("sclda\0", 6, &sclda_pid_client) == 6) {
+        // 送信可能-> sendall
+        sclda_sendall_pidinfo();
+        sclda_send_siov_mutex(siov, &sclda_pid_client);
+        kfree(siov->str);
+    } else {
+        // まだ送信できない
+        sclda_add_pidinfo(pid_buf, pid_len);
+    }
+    return 0;
+}
