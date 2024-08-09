@@ -1,5 +1,5 @@
 /*
- * sclda.c
+ * syscall.c
  * Copyright (C) [2023] [Naru3 (Narumi Yoneda)
  * (7423530@ed.tus.ac.jp,naru99yoneda@gmail.com)]
  *
@@ -127,6 +127,8 @@ static int scinfo_to_siov(int target_index) {
                 data_remain = curptr->syscall[i].len;
                 while (data_remain != 0) {
                     chnk_remain = SCLDA_CHUNKSIZE - temp->data.len - 1;
+                    if (chnk_remain < 0)
+                        printk(KERN_ERR "SCLDA_ERR 1 chnk_remain =%zu");
                     if (chnk_remain < curptr->pid_time.len) {
                         // これ以上書き込めないため、先に
                         // データを保存 + tempを再初期化
@@ -147,6 +149,8 @@ static int scinfo_to_siov(int target_index) {
                     // 分割して書き込む
                     chnk_remain -= 2 + curptr->pid_time.len;
                     chnk_remain = min(chnk_remain, data_remain);
+                    if (chnk_remain < 0)
+                        printk(KERN_ERR "SCLDA_ERR 2 chnk_remain =%zu");
                     temp->data.len += snprintf(
                         temp->data.str + temp->data.len,
                         SCLDA_CHUNKSIZE - temp->data.len, "%s%c%.*s%c",
