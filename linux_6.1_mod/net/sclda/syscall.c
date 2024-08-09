@@ -107,7 +107,7 @@ static int scinfo_to_siov(int target_index) {
     size_t i, chnk_remain, data_remain;
     struct sclda_syscallinfo_ls *curptr, *next;
     struct sclda_iov_ls *temp;
-    if (!init_siovls(&temp)) return -EFAULT;
+    if (init_siovls(&temp) < 0) return -EFAULT;
 
     mutex_lock(&sclda_syscall_mutex[target_index]);
 
@@ -135,7 +135,7 @@ static int scinfo_to_siov(int target_index) {
                         siov_tails[target_index] =
                             siov_tails[target_index]->next;
                         mutex_unlock(&sclda_siov_mutex[target_index]);
-                        if (!init_siovls(&temp)) {
+                        if (init_siovls(&temp) < 0) {
                             // 失敗したため、終わった部分と
                             // 終わってない部分を切り分け、引き継ぎを行う
                             sclda_syscall_heads[target_index].next = curptr;
