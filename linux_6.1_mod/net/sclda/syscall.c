@@ -21,7 +21,14 @@
 
 #include <net/sclda.h>
 
+// struct for udp communication
 struct sclda_client_struct sclda_syscall_client[SCLDA_PORT_NUMBER];
+
+// linked list for siov, to store failed data
+struct mutex sclda_siov_mutex[SCLDA_SCI_NUM];
+struct sclda_iov_ls siov_heads[SCLDA_SCI_NUM];
+struct sclda_iov_ls *siov_tails[SCLDA_SCI_NUM];
+
 
 // linked list's mutex, head, tail, number in list
 struct mutex sclda_syscall_mutex[SCLDA_SCI_NUM];
@@ -31,7 +38,7 @@ int sclda_syscallinfo_num[SCLDA_SCI_NUM];
 
 // current index
 // we must use get_sclda_sci_index() and
-// add_sclda_sci_index; to protect this value by mutex
+// add_sclda_sci_index() to protect this value by mutex
 static DEFINE_MUTEX(sclda_sci_index_mutex);
 int sclda_sci_index = 0;
 
@@ -50,10 +57,14 @@ static void add_sclda_sci_index(void) {
     mutex_unlock(&sclda_sci_index_mutex);
 }
 
+// for common.c: init
 int sclda_syscall_init(void) {
     size_t i;
     // init syscallinfo linked list
     for (i = 0; i < SCLDA_SCI_NUM; i++) {
+        mutex_init(&sclda_siov_mutex[i]);
+        siov_heads[i].next = NULL;
+        siov_tails[i] = &siov_heads[i];
         mutex_init(&sclda_syscall_mutex[i]);
         sclda_syscall_heads[i].next = NULL;
         sclda_syscall_tails[i] = &sclda_syscall_heads[i];
@@ -62,91 +73,141 @@ int sclda_syscall_init(void) {
 
     // init sclda_client_struct
     for (i = 0; i < SCLDA_PORT_NUMBER; i++)
-        init_sclda_client(&sclda_syscall_client[i],
-                            SCLDA_SYSCALL_BASEPORT + i);
+        init_sclda_client(&sclda_syscall_client[i], SCLDA_SYSCALL_BASEPORT + i);
     return 0;
 }
 
-// split the data (length = SCLDA_CHUNKSIZE)
-// and send it to the sclda_host server
-static int sclda_send_split(struct sclda_syscallinfo_ls *ptr, int which_port) {
-    int retval = -EFAULT;
-    int send_ret;
-    char *packet_buf;
-    size_t packet_len, max_packet_len;
-    size_t offset, len, i;
-
-    max_packet_len = SCLDA_CHUNKSIZE + (size_t)ptr->pid_time.len + 1;
-    packet_buf = kmalloc(max_packet_len, GFP_KERNEL);
-    if (!packet_buf) goto out;
-
-    for (i = 0; i < ptr->sc_iov_len; i++) {
-        offset = 0;
-        len = 0;
-        if (ptr->syscall[i].str == NULL) continue;
-        if (ptr->syscall[i].len <= 0) continue;
-
-        while (offset < ptr->syscall[i].len) {
-            memset(packet_buf, 0, max_packet_len);
-            len = min(SCLDA_CHUNKSIZE, ptr->syscall[i].len - offset);
-
-            packet_len = snprintf(packet_buf, max_packet_len, "%s%.*s",
-                                  ptr->pid_time.str, (int)len,
-                                  ptr->syscall[i].str + offset);
-            if (packet_len <= 0) goto free_packet_buf;
-
-            send_ret = sclda_send_mutex(packet_buf, packet_len,
-                                        &sclda_syscall_client[which_port]);
-            if (send_ret < 0) goto free_packet_buf;
-            offset += len;
-        }
-    }
-    retval = 0;
-
-free_packet_buf:
-    kfree(packet_buf);
-out:
-    return retval;
+static int kfree_scinfo_ls(struct sclda_syscallinfo_ls *scinfo_ptr) {
+    kfree(scinfo_ptr->pid_time.str);
+    for (i = 0; i < scinfo_ptr->sc_iov_len; i++)
+        kfree(scinfo_ptr->syscall[i].str);
+    kfree(scinfo_ptr->syscall);
+    kfree(scinfo_ptr);
+    return 0;
 }
 
-// operate single link list(sclda_syscallinfo_ls)
-// to send data to the host server
-static int sclda_sendall_syscallinfo(void *data) {
-    int target_index, send_ret, failed_cnt, i, cnt;
+static int init_siovls(struct sclda_iov_ls **siov) {
+    struct sclda_iov_ls *temp;
+
+    temp = kmalloc(sizeof(struct sclda_iov_ls), GFP_KERNEL);
+    if (!temp) return -EFAULT;
+    temp->next = NULL;
+    temp->data.len = 0;
+    temp->data.str = kmallc(SCLDA_CHUNKSIZE, GFP_KERNEL);
+    if (!(temp->data.str)) {
+        kfree(temp);
+        return -EFAULT;
+    }
+    *siov = temp;
+    return 0;
+}
+
+static int scinfo_to_siov(int target_index) {
+    int cnt = 0;
+    size_t i, chnk_remain, data_remain, written;
     struct sclda_syscallinfo_ls *curptr, *next;
-    struct sclda_syscallinfo_ls dummy_head, *dummy_tail;
-    dummy_head.next = NULL;
-    dummy_tail = &dummy_head;
-    cnt = 0;
-    failed_cnt = 0;
+    struct sclda_iov_ls *temp;
+    if (!init_siovls(&temp)) return -EFAULT;
+
+    mutex_lock(&sclda_syscall_mutex[target_index]);
+
+    curptr = sclda_syscall_heads[target_index].next;
+    while (curptr != NULL) {
+        for (i = 0; i < curptr->sc_iov_len; i++) {
+            if (temp->data.len + curptr->pid_time.len + curptr->syscall[i].len <
+                SCLDA_CHUNKSIZE) {
+                // まだchunkに余裕がある場合
+                temp->data.len +=
+                    snprintf(temp->data.str + temp->data.len,
+                             SCLDA_CHUNKSIZE - temp->data.len, "%s%c%s%c",
+                             curptr->pid_time.str, SCLDA_EACH_DLMT,
+                             curptr->syscall[i].str, SCLDA_EACH_DLMT);
+            } else {
+                // chunkに余裕が無い場合
+                data_remain = curptr->syscall[i].len;
+                while (data_remain != 0) {
+                    chnk_remain = SCLDA_CHUNKSIZE - temp->data.len - 1;
+                    if (chnk_remain < curptr->pid_time.len) {
+                        // これ以上書き込めないため、先に
+                        // データを保存 + tempを再初期化
+                        mutex_lock(&sclda_siov_mutex[target_index]);
+                        siov_tails[target_index]->next = temp;
+                        siov_tails[target_index] =
+                            siov_tails[target_index]->next;
+                        mutex_unlock(&sclda_siov_mutex[target_index]);
+                        if (!init_siovls(&temp)) {
+                            // 失敗したため、終わった部分と
+                            // 終わってない部分を切り分け、引き継ぎを行う
+                            sclda_syscall_heads[target_index].next = curptr;
+                            sclda_syscallinfo_num[target_index] -= cnt;
+                            goto out;
+                        };
+                        chnk_remain = SCLDA_CHUNKSIZE;
+                    }
+                    // 分割して書き込む
+                    chnk_remain -= 2 + curptr->pid_time.len;
+                    chnk_remain = min(chnk_remain, data_remain);
+                    temp->data.len += snprintf(
+                        temp->data.str + temp->data.len,
+                        SCLDA_CHUNKSIZE - temp->data.len, "%s%c%.*s%c",
+                        curptr->pid_time.str, SCLDA_EACH_DLMT, (int)chnk_remain,
+                        curptr->syscall[i].str, SCLDA_EACH_DLMT);
+                    data_remain -= chnk_remain;
+                }
+            }
+        }
+        next = curptr->next;
+        kfree_scinfo_ls(curptr);
+        curptr = next;
+        cnt += 1;
+    }
+
+    // scinfoのhead, tailを再初期化する
+    sclda_syscall_heads[target_index].next = NULL;
+    sclda_syscall_tails[target_index] = &sclda_syscall_heads[target_index];
+    sclda_syscallinfo_num[target_index] = 0;
+out:
+    mutex_unlock(&sclda_syscall_mutex[target_index]);
+    return cnt;
+}
+
+static int sclda_sendall_syscallinfo(void *data) {
+    int target_index, send_ret;
+    size_t cnt = 0;
+    struct sclda_iov_ls dmhead, *dmtail;
+    struct sclda_iov_ls *curptr, *next;
 
     target_index = *(int *)data;
     kfree(data);
 
-    mutex_lock(&sclda_syscall_mutex[target_index]);
-    curptr = sclda_syscall_heads[target_index].next;
+    dmhead.next = NULL;
+    dmtail = &dmhead;
+
+    // scinfo_ls -> siov_ls
+    scinfo_to_siov(target_index);
+
+    // send all siov
+    mutex_lock(&sclda_siov_mutex[target_index]);
+    curptr = siov_heads[target_index].next;
     while (curptr != NULL) {
-        send_ret = sclda_send_split(curptr, cnt % SCLDA_PORT_NUMBER);
-        next = curptr->next;
+        send_ret = sclda_send_siov_mutex(
+            &(curptr->data), sclda_syscall_client[cnt % SCLDA_PORT_NUMBER]);
+
         if (send_ret < 0) {
-            failed_cnt++;
-            dummy_tail->next = curptr;
-            dummy_tail = dummy_tail->next;
-        } else {
-            kfree(curptr->pid_time.str);
-            for (i = 0; i < curptr->sc_iov_len; i++) {
-                kfree(curptr->syscall[i].str);
-            }
-            kfree(curptr->syscall);
+            dmtail->next = curptr;
+            dmtail = dmtail->next;
+        }
+
+        next = curptr->next;
+        if (send_ret >= 0) {
+            kfree(curptr->data.str);
+            kfree(curptr);
         }
         curptr = next;
-        cnt = cnt + 1;
+        cnt += 1;
     }
 
-    dummy_tail->next = NULL;
-    sclda_syscallinfo_num[target_index] = failed_cnt;
-    sclda_syscall_heads[target_index].next = dummy_head.next;
-    mutex_unlock(&sclda_syscall_mutex[target_index]);
+    mutex_unlock(&sclda_siov_mutex[target_index]);
     return 0;
 }
 
