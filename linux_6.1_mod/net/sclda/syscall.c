@@ -146,7 +146,7 @@ static int scinfo_to_siov(int target_index) {
                             sclda_syscallinfo_num[target_index] -= cnt;
                             goto out;
                         };
-                        chnk_remain = SCLDA_CHUNKSIZE;
+                        chnk_remain = SCLDA_CHUNKSIZE-1;
                     }
                     // 分割して書き込む
                     chnk_remain -= 2 + curptr->pid_time.len;
