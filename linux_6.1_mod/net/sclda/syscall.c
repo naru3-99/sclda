@@ -119,12 +119,6 @@ static int scinfo_to_siov(int target_index) {
             if (temp->data.len + curptr->pid_time.len + curptr->syscall[i].len <
                 SCLDA_CHUNKSIZE) {
                 // まだchunkに余裕がある場合
-                if (SCLDA_CHUNKSIZE - temp->data.len > INT_MAX) {
-                    printk(KERN_ERR "SCLDA_DEBUG temp->data.len= %zu",
-                           temp->data.len);
-                    printk(KERN_ERR "SCLDA_DEBUG curptr->syscall[i].str= %s",
-                           curptr->syscall[i].str);
-                }
                 mutex_lock(&snprintf_mutex);
                 temp->data.len +=
                     snprintf(temp->data.str + temp->data.len,
@@ -137,7 +131,8 @@ static int scinfo_to_siov(int target_index) {
                 data_remain = curptr->syscall[i].len;
                 while (data_remain != 0) {
                     chnk_remain = SCLDA_CHUNKSIZE - temp->data.len - 1;
-                    if (chnk_remain < curptr->pid_time.len) {
+                    if (chnk_remain < curptr->pid_time.len ||
+                        temp->data.len > SCLDA_CHUNKSIZE) {
                         // これ以上書き込めないため、先に
                         // データを保存 + tempを再初期化
                         mutex_lock(&sclda_siov_mutex[target_index]);
@@ -157,14 +152,6 @@ static int scinfo_to_siov(int target_index) {
                     // 分割して書き込む
                     chnk_remain -= 2 + curptr->pid_time.len;
                     chnk_remain = min(chnk_remain, data_remain);
-
-                    if (SCLDA_CHUNKSIZE - temp->data.len > INT_MAX) {
-                        printk(KERN_ERR "SCLDA_DEBUG2 temp->data.len= %zu",
-                               temp->data.len);
-                        printk(KERN_ERR
-                               "SCLDA_DEBUG2 curptr->syscall[i].str= %s",
-                               curptr->syscall[i].str);
-                    }
 
                     mutex_lock(&snprintf_mutex);
                     temp->data.len += snprintf(
