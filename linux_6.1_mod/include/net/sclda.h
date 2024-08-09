@@ -97,6 +97,9 @@ struct sclda_syscallinfo_ls {
     struct sclda_iov *syscall;          // strings
 };
 
+// init/main.c
+int is_start_kernel_finish(void);
+
 // common.c
 int sclda_init(void);
 int init_sclda_client(struct sclda_client_struct *, int);

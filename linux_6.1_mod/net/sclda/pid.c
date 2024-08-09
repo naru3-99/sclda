@@ -66,7 +66,9 @@ static void sclda_sendall_pidinfo(void) {
     mutex_unlock(&sclda_pidinfo_mutex);
 }
 
-int is_sclda_allsend_fin(void) { return sclda_allsend_fin; }
+int is_sclda_allsend_fin(void) {
+    return sclda_allsend_fin && is_start_kernel_finish();
+}
 
 int sclda_send_pidinfo(struct sclda_iov *siov) {
     // まだscldaが初期化されていない場合

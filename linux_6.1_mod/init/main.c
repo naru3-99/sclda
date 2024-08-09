@@ -113,6 +113,9 @@
 
 #include <kunit/test.h>
 
+int start_kernel_finish = 0;
+int is_start_kernel_finish(void) { return start_kernel_finish; }
+
 static int kernel_init(void *);
 
 extern void init_IRQ(void);
@@ -1160,6 +1163,7 @@ asmlinkage __visible void __init __no_sanitize_address start_kernel(void)
 	/* Do the rest non-__init'ed, we're now alive */
 	arch_call_rest_init();
 
+	start_kernel_finish = 1;
 	prevent_tail_call_optimization();
 }
 
