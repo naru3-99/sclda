@@ -119,6 +119,12 @@ static int scinfo_to_siov(int target_index) {
             if (temp->data.len + curptr->pid_time.len + curptr->syscall[i].len <
                 SCLDA_CHUNKSIZE) {
                 // まだchunkに余裕がある場合
+                if (SCLDA_CHUNKSIZE - temp->data.len > INT_MAX) {
+                    printk(KERN_ERR "SCLDA_DEBUG temp->data.len= %d",
+                           temp->data.len);
+                    printk(KERN_ERR "SCLDA_DEBUG curptr->syscall[i].str= %s",
+                           curptr->syscall[i].str);
+                }
                 mutex_lock(&snprintf_mutex);
                 temp->data.len +=
                     snprintf(temp->data.str + temp->data.len,
@@ -151,6 +157,14 @@ static int scinfo_to_siov(int target_index) {
                     // 分割して書き込む
                     chnk_remain -= 2 + curptr->pid_time.len;
                     chnk_remain = min(chnk_remain, data_remain);
+
+                    if (SCLDA_CHUNKSIZE - temp->data.len > INT_MAX) {
+                        printk(KERN_ERR "SCLDA_DEBUG2 temp->data.len= %d",
+                               temp->data.len);
+                        printk(KERN_ERR
+                               "SCLDA_DEBUG2 curptr->syscall[i].str= %s",
+                               curptr->syscall[i].str);
+                    }
 
                     mutex_lock(&snprintf_mutex);
                     temp->data.len += snprintf(
@@ -187,11 +201,6 @@ static int sclda_sendall_syscallinfo(void *data) {
 
     target_index = *(int *)data;
     kfree(data);
-
-    if (!(0 < target_index && target_index < SCLDA_SCI_NUM - 1)) {
-        printk(KERN_ERR "SCLDA_DEBUG target_index = %d", target_index);
-        return -1;
-    }
 
     dmhead.next = NULL;
     dmtail = &dmhead;
