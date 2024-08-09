@@ -116,6 +116,8 @@ int sclda_syscall_init(void);
 int sclda_send_syscall_info(char *, int);
 int sclda_send_syscall_info2(struct sclda_iov *, unsigned long);
 
+extern int sclda_syscallinfo_num[SCLDA_SCI_NUM];
+
 // other.c
 int sclda_get_current_pid(void);
 int kernel_timespec_to_str(const struct __kernel_timespec __user *, char *,

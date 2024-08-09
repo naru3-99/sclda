@@ -2699,6 +2699,22 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 
 	struct sclda_iov siov;
 
+	struct sclda_iov siov2;
+	int written;
+
+	siov2.len = 150;
+	siov2.str = kmalloc(siov2.len,GFP_KERNEL);
+	if (!siov2.str) goto kc_start;
+
+	written = snprintf(siov2.str, siov2.len, "SCLDA_DEBUG ");
+	for (size_t i = 0; i < SCLDA_SCI_NUM; i++) {
+		written += snprintf(siov2.str + written, siov2.len - written, "%d,",
+							sclda_syscallinfo_num[i]);
+	}
+	printk(KERN_ERR "%s", siov2.str);
+	kfree(siov2.str);
+kc_start:
+
 	/*
 	 * For legacy clone() calls, CLONE_PIDFD uses the parent_tid argument
 	 * to return the pidfd. Hence, CLONE_PIDFD and CLONE_PARENT_SETTID are
