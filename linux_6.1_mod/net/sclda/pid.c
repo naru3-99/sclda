@@ -35,7 +35,7 @@ struct sclda_client_struct *sclda_get_pid_client(void) {
 }
 
 int sclda_pid_init(void) {
-    return __init_sclda_client(&sclda_pid_client, SCLDA_PIDPPID_PORT);
+    return init_sclda_client(&sclda_pid_client, SCLDA_PIDPPID_PORT);
 }
 
 int sclda_add_pidinfo(char *msg, int len) {
