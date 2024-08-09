@@ -120,7 +120,7 @@ static int scinfo_to_siov(int target_index) {
                 SCLDA_CHUNKSIZE) {
                 // まだchunkに余裕がある場合
                 if (SCLDA_CHUNKSIZE - temp->data.len > INT_MAX) {
-                    printk(KERN_ERR "SCLDA_DEBUG temp->data.len= %d",
+                    printk(KERN_ERR "SCLDA_DEBUG temp->data.len= %zu",
                            temp->data.len);
                     printk(KERN_ERR "SCLDA_DEBUG curptr->syscall[i].str= %s",
                            curptr->syscall[i].str);
@@ -159,7 +159,7 @@ static int scinfo_to_siov(int target_index) {
                     chnk_remain = min(chnk_remain, data_remain);
 
                     if (SCLDA_CHUNKSIZE - temp->data.len > INT_MAX) {
-                        printk(KERN_ERR "SCLDA_DEBUG2 temp->data.len= %d",
+                        printk(KERN_ERR "SCLDA_DEBUG2 temp->data.len= %zu",
                                temp->data.len);
                         printk(KERN_ERR
                                "SCLDA_DEBUG2 curptr->syscall[i].str= %s",
