@@ -630,7 +630,7 @@ sclda_all:
     if (path_ok && msg_len > written)
         written += snprintf(msg_buf + written, msg_len - written, "%c%s",
                             SCLDA_DELIMITER, path_buf);
-    if (stat_ok && msg_len > written > 0)
+    if (stat_ok && msg_len > written)
         written += snprintf(msg_buf + written, msg_len - written, "%c%s",
                             SCLDA_DELIMITER, stat_buf);
     sclda_send_syscall_info(msg_buf, written);
