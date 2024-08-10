@@ -112,88 +112,88 @@
 
 #define SCLDA_KMALLOC_MAX 8000
 
-int sockaddr_to_str(struct sockaddr_storage *ss, char *buf, int len)
-{
-	// sockaddr構造体から
-	// 重要な情報(ホストIPやportなど)を抜き出し、
-	// 文字列に変換する関数
-	char *info_buf;
-	int info_len = 100;
-	info_buf = kmalloc(info_len, GFP_KERNEL);
-	if (!info_buf)
-		return -ENOMEM;
+int sockaddr_to_str(struct sockaddr_storage *ss, char *buf, int len) {
+    // sockaddr構造体から
+    // 重要な情報(ホストIPやportなど)を抜き出し、
+    // 文字列に変換する関数
+    char *info_buf;
+    int info_len = 100;
 
-	// sa_familyごとに取得する情報を変更する
-	if (ss->ss_family == AF_INET) {
-		// IPv4 socket address
-		uint32_t ip;
-		struct sockaddr_in *addr_in;
+    if (!ss) return -EFAULT;
 
-		// ipアドレスとport番号を取得する
-		addr_in = (struct sockaddr_in *)ss;
-		ip = ntohl(addr_in->sin_addr.s_addr);
-		snprintf(info_buf, info_len,
-			 "ipv4: address= %u:%u:%u:%u"
-			 " port= %u",
-			 (ip >> 24) & 0xFF, (ip >> 16) & 0xFF, (ip >> 8) & 0xFF,
-			 ip & 0xFF, (unsigned int)ntohs(addr_in->sin_port));
+    info_buf = kmalloc(info_len, GFP_KERNEL);
+    if (!info_buf) return -ENOMEM;
 
-	} else if (ss->ss_family == AF_INET6) {
-		// IPv6 socket address
-		struct sockaddr_in6 *addr_in6;
-		int i, offset;
+    // sa_familyごとに取得する情報を変更する
+    if (ss->ss_family == AF_INET) {
+        // IPv4 socket address
+        uint32_t ip;
+        struct sockaddr_in *addr_in;
 
-		// ipアドレスを取得する
-		addr_in6 = (struct sockaddr_in6 *)ss;
-		offset = snprintf(info_buf, info_len, "ipv6: address= %02x",
-				  addr_in6->sin6_addr.in6_u.u6_addr8[0]);
-		for (i = 1; i < 16; i++) {
-			offset += snprintf(
-				info_buf + offset, info_len - offset, ":%02x",
-				addr_in6->sin6_addr.in6_u.u6_addr8[i]);
-		}
+        // ipアドレスとport番号を取得する
+        addr_in = (struct sockaddr_in *)ss;
+        ip = ntohl(addr_in->sin_addr.s_addr);
+        snprintf(info_buf, info_len,
+                 "ipv4: address= %u:%u:%u:%u"
+                 " port= %u",
+                 (ip >> 24) & 0xFF, (ip >> 16) & 0xFF, (ip >> 8) & 0xFF,
+                 ip & 0xFF, (unsigned int)ntohs(addr_in->sin_port));
 
-		// ipアドレスとport番号を書き込む
-		offset += snprintf(info_buf + offset, info_len - offset,
-				   "port= %u flowinfo= %u scopeid= %u",
-				   (unsigned int)ntohs(addr_in6->sin6_port),
-				   (unsigned int)addr_in6->sin6_flowinfo,
-				   (unsigned int)addr_in6->sin6_scope_id);
-		info_len = offset;
+    } else if (ss->ss_family == AF_INET6) {
+        // IPv6 socket address
+        struct sockaddr_in6 *addr_in6;
+        int i, offset;
 
-	} else if (ss->ss_family == PF_UNSPEC) {
-		// sa->sa_familyが0の時
-		info_len = snprintf(info_buf, info_len, "unspecified");
+        // ipアドレスを取得する
+        addr_in6 = (struct sockaddr_in6 *)ss;
+        offset = snprintf(info_buf, info_len, "ipv6: address= %02x",
+                          addr_in6->sin6_addr.in6_u.u6_addr8[0]);
+        for (i = 1; i < 16; i++) {
+            offset += snprintf(info_buf + offset, info_len - offset, ":%02x",
+                               addr_in6->sin6_addr.in6_u.u6_addr8[i]);
+        }
 
-	} else if (ss->ss_family == PF_UNIX) {
-		// sa->sa_familyが1の時
-		struct sockaddr_un *addr_un = (struct sockaddr_un *)ss;
-		info_len = snprintf(info_buf, info_len, "unix_domain: %s",
-				    addr_un->sun_path);
-	} else if (ss->ss_family == PF_NETLINK) {
-		struct sockaddr_nl *addr_nl = (struct sockaddr_nl *)ss;
-		info_len = snprintf(info_buf, info_len,
-				    "netlink: port= %u groups= 0x%x",
-				    addr_nl->nl_pid, addr_nl->nl_groups);
-	} else if (ss->ss_family == PF_PACKET) {
-		struct sockaddr_ll *ll = (struct sockaddr_ll *)ss;
-		info_len = snprintf(
-			info_buf, info_len,
-			"packet: index= %d hatype= %u ptktype= %u"
-			" sll_halen= %u addr=%02x:%02x:%02x:%02x:%02x:%02x",
-			ll->sll_ifindex, ll->sll_hatype, ll->sll_pkttype,
-			ll->sll_halen, ll->sll_addr[0], ll->sll_addr[1],
-			ll->sll_addr[2], ll->sll_addr[3], ll->sll_addr[4],
-			ll->sll_addr[5]);
-	} else {
-		// unknown socket address
-		info_len = snprintf(info_buf, info_len, "unknown: %d",
-				    (int)ss->ss_family);
-	}
-	len = snprintf(buf, len, "%u%c%s", (unsigned int)ss->ss_family,
-		       SCLDA_DELIMITER, info_buf);
-	kfree(info_buf);
-	return len;
+        // ipアドレスとport番号を書き込む
+        offset += snprintf(info_buf + offset, info_len - offset,
+                           "port= %u flowinfo= %u scopeid= %u",
+                           (unsigned int)ntohs(addr_in6->sin6_port),
+                           (unsigned int)addr_in6->sin6_flowinfo,
+                           (unsigned int)addr_in6->sin6_scope_id);
+        info_len = offset;
+
+    } else if (ss->ss_family == PF_UNSPEC) {
+        // sa->sa_familyが0の時
+        info_len = snprintf(info_buf, info_len, "unspecified");
+
+    } else if (ss->ss_family == PF_UNIX) {
+        // sa->sa_familyが1の時
+        struct sockaddr_un *addr_un = (struct sockaddr_un *)ss;
+        info_len =
+            snprintf(info_buf, info_len, "unix_domain: %s", addr_un->sun_path);
+    } else if (ss->ss_family == PF_NETLINK) {
+        struct sockaddr_nl *addr_nl = (struct sockaddr_nl *)ss;
+        info_len =
+            snprintf(info_buf, info_len, "netlink: port= %u groups= 0x%x",
+                     addr_nl->nl_pid, addr_nl->nl_groups);
+    } else if (ss->ss_family == PF_PACKET) {
+        struct sockaddr_ll *ll = (struct sockaddr_ll *)ss;
+        info_len = snprintf(info_buf, info_len,
+                            "packet: index= %d hatype= %u ptktype= %u"
+                            " sll_halen= %u addr=%02x:%02x:%02x:%02x:%02x:%02x",
+                            ll->sll_ifindex, ll->sll_hatype, ll->sll_pkttype,
+                            ll->sll_halen, ll->sll_addr[0], ll->sll_addr[1],
+                            ll->sll_addr[2], ll->sll_addr[3], ll->sll_addr[4],
+                            ll->sll_addr[5]);
+    } else {
+        // unknown socket address
+        info_len =
+            snprintf(info_buf, info_len, "unknown: %d", (int)ss->ss_family);
+    }
+
+    len = snprintf(buf, len, "%u%c%s", (unsigned int)ss->ss_family,
+                   SCLDA_DELIMITER, info_buf);
+    kfree(info_buf);
+    return len;
 }
 
 int _msgname_to_str(struct user_msghdr *kmsg, char *buf, int buf_size)
@@ -1906,7 +1906,6 @@ SYSCALL_DEFINE3(socket, int, family, int, type, int, protocol)
 	if (!is_sclda_allsend_fin())
 		return retval;
 
-	// 送信するパート
 	msg_len = 200;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
 	if (!msg_buf)
@@ -2451,50 +2450,45 @@ int __sys_connect(int fd, struct sockaddr __user *uservaddr, int addrlen)
 }
 
 SYSCALL_DEFINE3(connect, int, fd, struct sockaddr __user *, uservaddr, int,
-		addrlen)
-{
-	int retval;
-	int struct_len, msg_len;
-	char *struct_buf, *msg_buf;
-	struct sockaddr_storage ss;
+                addrlen) {
+    int retval, sck_ok = 0, sck_free = 0;
+    size_t written;
+    struct sclda_iov siov, sck, allmsg;
 
-	retval = __sys_connect(fd, uservaddr, addrlen);
-	if (!is_sclda_allsend_fin())
-		return retval;
+    retval = __sys_connect(fd, uservaddr, addrlen);
+    if (!is_sclda_allsend_fin()) return retval;
 
-	// sockaddrを文字列に変換
-	struct_len = 200;
-	struct_buf = kmalloc(struct_len, GFP_KERNEL);
-	if (!struct_buf)
-		return retval;
-	if (addrlen < 0 || addrlen > sizeof(struct sockaddr_storage))
-		goto failed;
-	if (copy_from_user(&ss, uservaddr, addrlen))
-		goto failed;
-	struct_len = sockaddr_to_str(&ss, struct_buf, struct_len);
-	if (struct_len < 0)
-		goto failed;
-	goto sclda;
+    siov.len = 100;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
 
-failed:
-	struct_len = 1;
-	struct_buf[0] = '\0';
+    siov.len = snprintf(siov.str, siov.len, "42%c%d%c%d%c%d", SCLDA_DELIMITER,
+                        retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, addrlen);
 
-sclda:
-	// 送信するパート
-	msg_len = struct_len + 100;
-	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		goto free_struct;
-	msg_len = snprintf(msg_buf, msg_len, "42%c%d%c%d%c%d%c%s",
-			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
-			   SCLDA_DELIMITER, addrlen, SCLDA_DELIMITER,
-			   struct_buf);
-	sclda_send_syscall_info(msg_buf, msg_len);
+    sck.len = 200;
+    sck.str = kmalloc(sck.len, GFP_KERNEL);
+    if (!(sck.str)) goto out;
+    sck_free = 1;
 
-free_struct:
-	kfree(struct_buf);
-	return retval;
+    sck.len = sockaddr_to_str(ss, sck.str, sck.len);
+    if (sck.len < 0) goto out;
+    sck_ok = 1;
+
+out:
+    allmsg.len = siov.len + (sck_ok ? sck.len : 0);
+    allmsg.str = kmalloc(allmsg.len, GFP_KERNEL);
+    if (!(allmsg.str)) goto free_all;
+
+    written = snprintf(allmsg.str, allmsg.len, "%s", siov.str);
+    if (sck_ok && allmsg.len > written)
+        written += snprintf(allmsg.str + written, allmsg.len - written, "%c%s",
+                            SCLDA_DELIMITER, sck.str);
+
+    sclda_send_syscall_info(allmsg.str, written);
+free_all:
+    kfree(siov.str);
+    if (sck_free) kfree(sck.str);
+    return retval;
 }
 
 /*
