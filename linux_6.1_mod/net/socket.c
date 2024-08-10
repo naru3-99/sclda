@@ -2471,10 +2471,11 @@ SYSCALL_DEFINE3(connect, int, fd, struct sockaddr __user *, uservaddr, int,
     if (!(sck.str)) goto out;
     sck_free = 1;
 
-    if (addrlen > 0 &&
-        !copy_from_user(&kaddr, uservaddr,
-                       min(sizeof(struct sockaddr_storage), addrlen)))
+    if (0 < addrlen && addrlen < sizeof(struct sockaddr_storage)) {
+        if (copy_from_user(&kaddr, uservaddr, addrlen)) goto out;
+    } else {
         goto out;
+    }
 
     sck.len = sockaddr_to_str(&kaddr, sck.str, sck.len);
     if (sck.len < 0) goto out;
