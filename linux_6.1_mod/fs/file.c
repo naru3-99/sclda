@@ -1276,7 +1276,7 @@ SYSCALL_DEFINE3(dup3, unsigned int, oldfd, unsigned int, newfd, int, flags)
     siov.str = kmalloc(siov.len, GFP_KERNEL);
     if (!(siov.str)) return retval;
 
-    siov.len = snprintf(msg_buf, msg_len, "292%c%d%c%u%c%u%c%d",
+    siov.len = snprintf(siov.str, siov.len, "292%c%d%c%u%c%u%c%d",
 			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, oldfd,
 			   SCLDA_DELIMITER, newfd, SCLDA_DELIMITER, flags);
 
@@ -1310,7 +1310,7 @@ SYSCALL_DEFINE2(dup2, unsigned int, oldfd, unsigned int, newfd) {
     siov.str = kmalloc(siov.len, GFP_KERNEL);
     if (!(siov.str)) return retval;
 
-    siov.len = snprintf(msg_buf, msg_len, "33%c%d%c%u%c%u", SCLDA_DELIMITER,
+    siov.len = snprintf(siov.str, siov.len, "33%c%d%c%u%c%u", SCLDA_DELIMITER,
                         ret, SCLDA_DELIMITER, oldfd, SCLDA_DELIMITER, newfd);
 
     sclda_send_syscall_info(siov.str, siov.len);

@@ -4404,7 +4404,6 @@ SYSCALL_DEFINE0(pause) {
     retval = -ERESTARTNOHAND;
     if (!is_sclda_allsend_fin()) goto do_pause;
 
-    // 送信するパート
     msg_len = 100;
     msg_buf = kmalloc(msg_len, GFP_KERNEL);
     if (!msg_buf) goto do_pause;
