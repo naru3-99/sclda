@@ -806,7 +806,7 @@ sclda_all:
                        "%c%zu%c%lld",
                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
                        SCLDA_DELIMITER, count, SCLDA_DELIMITER, (long long)pos);
-    if (write_ok && msg_len - written > 0)
+    if (write_ok && msg_len > written)
         written += snprintf(msg_buf + written, msg_len - written, "%c%s",
                             SCLDA_DELIMITER, write_buf);
     sclda_send_syscall_info(msg_buf, written);
@@ -881,7 +881,7 @@ sclda_all:
                        "%c%zu%c%lld",
                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
                        SCLDA_DELIMITER, count, SCLDA_DELIMITER, (long long)pos);
-    if (write_ok && msg_len - written > 0)
+    if (write_ok && msg_len > written)
         written += snprintf(msg_buf + written, msg_len - written, "%c%s",
                             SCLDA_DELIMITER, write_buf);
     sclda_send_syscall_info(msg_buf, written);

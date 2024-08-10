@@ -681,91 +681,91 @@ SYSCALL_DEFINE5(select, int, n, fd_set __user *, inp, fd_set __user *, outp,
 
     // inp data
     if (inp == NULL) {
-        if (allmsg.len - written > 0)
+        if (allmsg.len > written)
             written += snprintf(allmsg.str + written, allmsg.len - written,
                                 "%c[NULL]", SCLDA_DELIMITER);
         goto sclda_outp;
     }
 
     if (copy_from_user(&kinp, inp, sizeof(fd_set))) {
-        if (allmsg.len - written > 0)
+        if (allmsg.len > written)
             written += snprintf(allmsg.str + written, allmsg.len - written,
                                 "%c[NULL]", SCLDA_DELIMITER);
         goto sclda_outp;
     }
 
-    if (allmsg.len - written > 0)
+    if (allmsg.len > written)
         written += snprintf(allmsg.str + written, allmsg.len - written, "%c[",
                             SCLDA_DELIMITER);
     for (i = 0; i < __FD_SETSIZE; i++) {
-        if (SCLDA_FD_ISSET(i, &kinp) && allmsg.len - written > 0)
+        if (SCLDA_FD_ISSET(i, &kinp) && allmsg.len > written)
             written +=
                 snprintf(allmsg.str + written, allmsg.len - written, "%d,", i);
     }
-    if (allmsg.len - written > 0)
+    if (allmsg.len > written)
         written += snprintf(allmsg.str + written, allmsg.len - written, "]");
 
 sclda_outp:
     if (outp == NULL) {
-        if (allmsg.len - written > 0)
+        if (allmsg.len > written)
             written += snprintf(allmsg.str + written, allmsg.len - written,
                                 "%c[NULL]", SCLDA_DELIMITER);
         goto sclda_exp;
     }
 
     if (copy_from_user(&koutp, outp, sizeof(fd_set))) {
-        if (allmsg.len - written > 0)
+        if (allmsg.len > written)
             written += snprintf(allmsg.str + written, allmsg.len - written,
                                 "%c[NULL]", SCLDA_DELIMITER);
         goto sclda_exp;
     }
 
-    if (allmsg.len - written > 0)
+    if (allmsg.len > written)
         written += snprintf(allmsg.str + written, allmsg.len - written, "%c[",
                             SCLDA_DELIMITER);
     for (i = 0; i < __FD_SETSIZE; i++) {
-        if (SCLDA_FD_ISSET(i, &koutp) && allmsg.len - written > 0)
+        if (SCLDA_FD_ISSET(i, &koutp) && allmsg.len > written )
             written +=
                 snprintf(allmsg.str + written, allmsg.len - written, "%d,", i);
     }
-    if (allmsg.len - written > 0)
+    if (allmsg.len > written)
         written += snprintf(allmsg.str + written, allmsg.len - written, "]");
 
 sclda_exp:
     if (exp == NULL) {
-        if (allmsg.len - written > 0)
+        if (allmsg.len > written)
             written += snprintf(allmsg.str + written, allmsg.len - written,
                                 "%c[NULL]", SCLDA_DELIMITER);
         goto sclda_fin;
     }
 
     if (copy_from_user(&kexp, exp, sizeof(fd_set))) {
-        if (allmsg.len - written > 0)
+        if (allmsg.len > written )
             written += snprintf(allmsg.str + written, allmsg.len - written,
                                 "%c[NULL]", SCLDA_DELIMITER);
         goto sclda_fin;
     }
 
-    if (allmsg.len - written > 0)
+    if (allmsg.len > written)
         written += snprintf(allmsg.str + written, allmsg.len - written, "%c[",
                             SCLDA_DELIMITER);
     for (i = 0; i < __FD_SETSIZE; i++) {
-        if (SCLDA_FD_ISSET(i, &kexp) && allmsg.len - written > 0)
+        if (SCLDA_FD_ISSET(i, &kexp) && allmsg.len > written)
             written +=
                 snprintf(allmsg.str + written, allmsg.len - written, "%d,", i);
     }
-    if (allmsg.len - written > 0)
+    if (allmsg.len > written)
         written += snprintf(allmsg.str + written, allmsg.len - written, "]");
 sclda_fin:
     if (tvp == NULL) goto sclda_all;
 
     if (copy_from_user(&kkot, tvp, sizeof(struct __kernel_old_timeval))) {
-        if (allmsg.len - written > 0)
+        if (allmsg.len > written)
             written += snprintf(allmsg.str + written, allmsg.len - written,
                                 "%c[NULL]", SCLDA_DELIMITER);
         goto sclda_all;
     }
-    if (allmsg.len - written > 0)
+    if (allmsg.len > written)
         written +=
             snprintf(allmsg.str + written, allmsg.len - written, "%c[%ld,%ld]",
                      SCLDA_DELIMITER, kkot.tv_sec, kkot.tv_usec);
