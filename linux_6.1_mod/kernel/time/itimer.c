@@ -122,38 +122,32 @@ static int put_itimerval(struct __kernel_old_itimerval __user *o,
 
 SYSCALL_DEFINE2(getitimer, int, which, struct __kernel_old_itimerval __user *,
                 value) {
-    int retval;
     struct itimerspec64 get_buffer;
-    int struct_len, msg_len;
-    char *struct_buf, *msg_buf;
+    int retval;
+    size_t written;
+    struct sclda_iov siov;
 
     retval = do_getitimer(which, &get_buffer);
     if (!retval && put_itimerval(value, &get_buffer)) retval = -EFAULT;
 
     if (!is_sclda_allsend_fin()) return retval;
 
-    // struct __kernel_old_itimerval __user * valueを文字列に
-    struct_len = 200;
-    struct_buf = kmalloc(struct_len, GFP_KERNEL);
-    if (!struct_buf) return retval;
-    struct_len = __kernel_old_itimerval_to_str(value, struct_buf, struct_len);
-    if (struct_len < 0) {
-        struct_len = 1;
-        struct_buf[0] = '\0';
-    }
+    siov.len = 400;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
 
-    // 送信するパート
-    msg_len = struct_len + 100;
-    msg_buf = kmalloc(msg_len, GFP_KERNEL);
-    if (!msg_buf) goto free_structbuf;
+    written = snprintf(siov.str, siov.len, "36%c%d%c%d", SCLDA_DELIMITER, retval,
+                        SCLDA_DELIMITER, which);
 
-    msg_len =
-        snprintf(msg_buf, msg_len, "36%c%d%c%d%c%s", SCLDA_DELIMITER, retval,
-                 SCLDA_DELIMITER, which, SCLDA_DELIMITER, struct_buf);
-    sclda_send_syscall_info(msg_buf, msg_len);
+    if (retval > 0 && siov.len > written)
+        written += snprintf(siov.str + written, siov.len - written,
+                            "%cvalue.[%lld,%ld,%lld,%ld]", SCLDA_DELIMITER,
+                            (long long) get_buffer.it_interval.tv_sec,
+                            (long) get_buffer.it_interval.tv_nsec / NSEC_PER_USEC,
+                            (long long) get_buffer.it_value.tv_sec,
+                            (long) get_buffer.it_value.tv_nsec / NSEC_PER_USEC);
 
-free_structbuf:
-    kfree(struct_buf);
+    sclda_send_syscall_info(siov.str, written);
     return retval;
 }
 
