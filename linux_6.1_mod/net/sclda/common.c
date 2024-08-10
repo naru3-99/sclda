@@ -77,7 +77,7 @@ int sclda_send(char *buf, int len,
     iov.iov_base = buf;
     iov.iov_len = len;
 
-    return kernel_sendmsg(sclda_struct_ptr->sock, &(sclda_struct_ptr->msg),
+    return kernel_sendmsg(sclda_struct_ptr->sock, &(sclda_struct_ptr->hdr),
                           &iov, 1, len);
 }
 
