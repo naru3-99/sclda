@@ -1211,21 +1211,21 @@ SYSCALL_DEFINE1(setfsgid, gid_t, gid)
  *
  * This is SMP safe as current->tgid does not change.
  */
-SYSCALL_DEFINE0(getpid)
-{
-	int retval = task_tgid_vnr(current);
-	if (!is_sclda_allsend_fin())
-		return retval;
+SYSCALL_DEFINE0(getpid) {
+    int retval;
+    int msg_len;
+    char *msg_buf;
 
-	// 送信するパート
-	int msg_len = 200;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		return retval;
+    retval = task_tgid_vnr(current);
+    if (!is_sclda_allsend_fin()) return retval;
 
-	msg_len = snprintf(msg_buf, msg_len, "39%c%d", SCLDA_DELIMITER, retval);
-	sclda_send_syscall_info(msg_buf, msg_len);
-	return retval;
+    msg_len = 200;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    if (!msg_buf) return retval;
+
+    msg_len = snprintf(msg_buf, msg_len, "39%c%d", SCLDA_DELIMITER, retval);
+    sclda_send_syscall_info(msg_buf, msg_len);
+    return retval;
 }
 
 /* Thread ID - the internal kernel "pid" */
