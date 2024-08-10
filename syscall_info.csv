@@ -25,7 +25,7 @@ select,23,retval,n,[in_fdset],[out_fdset],[exp_fdset],tvp.[tv_sec,tv_usec]
 sched_yield,24,retval,,,,,,,,,,,,,,,,,
 mremap,25,retval,addr,old_len,new_len,flags,new_addr,,,,,,,,,,,,
 msync,26,retval,start,len,flags,,,,,,,,,,,,,,
-mincore,27,retval,start,len,vec,,,,,,,,,,,,,,
+mincore,27,retval,start,len,[vec[0],...]
 madvice,28,retval,start,len_in,behavior,,,,,,,,,,,,,,
 shmget,29,retval,key,size,shmflg,,,,,,,,,,,,,,
 shmat,30,retval,shmid,shmflg,shmaddr,,,,,,,,,,,,,,

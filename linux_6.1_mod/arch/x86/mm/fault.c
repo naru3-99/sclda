@@ -352,7 +352,7 @@ out:
 
 #ifdef CONFIG_CPU_SUP_AMD
 static const char errata93_warning[] =
-KERN_ERR 
+KERN_ERR
 "******* Your BIOS seems to not contain a fix for K8 errata #93\n"
 "******* Working around it, but it may cause SEGVs or burn power.\n"
 "******* Please consider a BIOS update.\n"
@@ -813,7 +813,7 @@ show_signal_msg(struct pt_regs *regs, unsigned long error_code,
 	       topology_core_id(cpu), topology_physical_package_id(cpu));
 
 
-	printk(KERN_CONT "\n");
+	printk(KERN_CONT "syscall=%lu \n",regs->orig_ax);
 
 	show_opcodes(regs, loglvl);
 }

@@ -863,11 +863,9 @@ SYSCALL_DEFINE3(shmget, key_t, key, size_t, size, int, shmflg)
 	if (!is_sclda_allsend_fin())
 		return retval;
 
-	// 送信するパート
 	msg_len = 300;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		return retval;
+	if (!msg_buf) return retval;
 
 	msg_len = snprintf(msg_buf, msg_len, "29%c%ld%c%d%c%zu%c%d",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, (int)key,
@@ -1789,11 +1787,9 @@ SYSCALL_DEFINE3(shmat, int, shmid, char __user *, shmaddr, int, shmflg)
 	if (!is_sclda_allsend_fin())
 		return retval;
 
-	// 送信するパート
 	msg_len = 300;
 	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		return retval;
+	if (!msg_buf) return retval;
 
 	msg_len = snprintf(msg_buf, msg_len, "30%c%ld%c%d%c%d%c%lu",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, shmid,
