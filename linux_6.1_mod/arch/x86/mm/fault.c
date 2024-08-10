@@ -813,7 +813,7 @@ show_signal_msg(struct pt_regs *regs, unsigned long error_code,
 	       topology_core_id(cpu), topology_physical_package_id(cpu));
 
 
-	printk(KERN_CONT "syscall=%lu \n",regs->orig_ax);
+	printk(KERN_CONT "\n");
 
 	show_opcodes(regs, loglvl);
 }
@@ -832,6 +832,8 @@ __bad_area_nosemaphore(struct pt_regs *regs, unsigned long error_code,
 		       unsigned long address, u32 pkey, int si_code)
 {
 	struct task_struct *tsk = current;
+
+	printk(KERN_INFO "SCLDA_Segfault syscall: %lu\n", regs->orig_ax);
 
 	if (!user_mode(regs)) {
 		kernelmode_fixup_or_oops(regs, error_code, address,
