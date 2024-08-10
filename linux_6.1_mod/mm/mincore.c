@@ -292,6 +292,7 @@ SYSCALL_DEFINE3(mincore, unsigned long, start, size_t, len,
     struct sclda_iov siov;
     size_t written;
     unsigned long num_pages;
+    unsigned char *kv;
 
     retval = sclda_mincore(start, len, vec);
     if (!is_sclda_allsend_fin()) return retval;
@@ -303,23 +304,28 @@ SYSCALL_DEFINE3(mincore, unsigned long, start, size_t, len,
 
     written = snprintf(siov.str, siov.len, "27%c%ld%c%lu%c%zu", SCLDA_DELIMITER,
                        retval, SCLDA_DELIMITER, start, SCLDA_DELIMITER, len);
-    if (retval > 0) {
-        unsigned char *kv;
-        kv = kmalloc(num_pages + 1, GFP_KERNEL);
-        if (!kv) goto out;
-        if (copy_from_user(kv, vec, num_pages)) {
-            kfree(kv);
-            goto out;
-        }
-        if (siov.len - written > 1)
-            written += snprintf(siov.str + written, siov.len - written, "%c[",
-                                SCLDA_DELIMITER);
-        for (size_t i = 0; i < num_pages; i++)
-            if (siov.len - written > 1)
-                written += snprintf(siov.str + written, siov.len - written,
-                                    "%u,", kv[i]);
-        if (siov.len - written > 1)
-            written += snprintf(siov.str + written, siov.len - written, "]");
+
+    if (retval <= 0) goto out;
+
+    kv = kmalloc(num_pages + 1, GFP_KERNEL);
+    if (!kv) goto out;
+    if (copy_from_user(kv, vec, num_pages)) {
+        kfree(kv);
+        goto out;
     }
+
+    if (siov.len - written > 1)
+        written += snprintf(siov.str + written, siov.len - written, "%c[",
+                            SCLDA_DELIMITER);
+    for (size_t i = 0; i < num_pages; i++)
+        if (siov.len - written > 1)
+            written +=
+                snprintf(siov.str + written, siov.len - written, "%u,", kv[i]);
+    if (siov.len - written > 1)
+        written += snprintf(siov.str + written, siov.len - written, "]");
+    kfree(kv);
+
+out:
+    sclda_send_syscall_info(siov.str, written);
     return retval;
 }
