@@ -113,26 +113,23 @@ out:
 	return error ?: unmapped_error;
 }
 
-SYSCALL_DEFINE3(msync, unsigned long, start, size_t, len, int, flags)
-{
-	int retval;
-	int msg_len;
-	char *msg_buf;
+SYSCALL_DEFINE3(msync, unsigned long, start, size_t, len, int, flags) {
+    int retval;
+    int msg_len;
+    char *msg_buf;
 
-	retval = sclda_msync(start, len, flags);
+    retval = sclda_msync(start, len, flags);
+    if (!is_sclda_allsend_fin()) return retval;
 
-	if (!is_sclda_allsend_fin())
-		return retval;
+    msg_len = 200;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    if (!msg_buf) return retval;
 
-	// 送信するパート
-	msg_len = 200;
-	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		return retval;
-
-	msg_len = snprintf(msg_buf, msg_len, "26%c%d%c%lu%c%zu%c%d",
-			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, start,
-			   SCLDA_DELIMITER, len, SCLDA_DELIMITER, flags);
-	sclda_send_syscall_info(msg_buf, msg_len);
-	return retval;
+    msg_len = snprintf(msg_buf, msg_len,
+                       "26%c%d%c%lu"
+                       "%c%zu%c%d",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, start,
+                       SCLDA_DELIMITER, len, SCLDA_DELIMITER, flags);
+    sclda_send_syscall_info(msg_buf, msg_len);
+    return retval;
 }

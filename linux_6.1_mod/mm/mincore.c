@@ -287,50 +287,39 @@ long sclda_mincore(unsigned long start, size_t len, unsigned char __user *vec)
 }
 
 SYSCALL_DEFINE3(mincore, unsigned long, start, size_t, len,
-		unsigned char __user *, vec)
-{
-	long retval;
-	size_t msg_len, vec_len;
-	char *msg_buf, *vec_buf;
+                unsigned char __user *, vec) {
+    long retval;
+    struct sclda_iov siov;
+    size_t written;
+    unsigned long num_pages;
 
-	retval = sclda_mincore(start, len, vec);
-	if (!is_sclda_allsend_fin())
-		return retval;
+    retval = sclda_mincore(start, len, vec);
+    if (!is_sclda_allsend_fin()) return retval;
 
-	// vecを取得する
-	if (retval < 0) {
-		// 失敗しているため、何も取得しない
-		vec_len = 1;
-		vec_buf = kmalloc(vec_len, GFP_KERNEL);
-		if (!vec_buf)
-			return retval;
-		vec_buf[0] = '\0';
-		goto sclda;
-	}
-	// 成功している場合は内容を取得
-	vec_len = len;
-	vec_buf = kmalloc(len + 1, GFP_KERNEL);
-	if (!vec_buf)
-		return retval;
-	if (copy_from_user(vec_buf, vec, len))
-		vec_len = 0;
-	vec_buf[vec_len] = '\0';
+    num_pages = (len + PAGE_SIZE - 1) / PAGE_SIZE;
+    siov.len = 300 + (size_t)num_pages;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
 
-sclda:
-	// 送信するパート
-	msg_len = 150 + vec_len;
-	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		goto free_vec;
-
-	msg_len = snprintf(msg_buf, msg_len,
-			   "27%c%ld%c%lu"
-			   "%c%zu%c%s",
-			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, start,
-			   SCLDA_DELIMITER, len, SCLDA_DELIMITER, vec_buf);
-	sclda_send_syscall_info(msg_buf, msg_len);
-
-free_vec:
-	kfree(vec_buf);
-	return retval;
+    written = snprintf(siov.str, siov.len, "27%c%ld%c%lu%c%zu", SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, start, SCLDA_DELIMITER, len);
+    if (retval > 0) {
+        unsigned char *kv;
+        kv = kmalloc(num_pages + 1, GFP_KERNEL);
+        if (!kv) goto out;
+        if (copy_from_user(kv, vec, num_pages)) {
+            kfree(kv);
+            goto out;
+        }
+        if (siov.len - written > 1)
+            written += snprintf(siov.str + written, siov.len - written, "%c[",
+                                SCLDA_DELIMITER);
+        for (size_t i = 0; i < num_pages; i++)
+            if (siov.len - written > 1)
+                written += snprintf(siov.str + written, siov.len - written,
+                                    "%u,", kv[i]);
+        if (siov.len - written > 1)
+            written += snprintf(siov.str + written, siov.len - written, "]");
+    }
+    return retval;
 }
