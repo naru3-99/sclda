@@ -2133,6 +2133,8 @@ out:
 	return ret;
 }
 
+#ifdef CONFIG_64BIT
+
 SYSCALL_DEFINE2(nanosleep, struct __kernel_timespec __user *, rqtp,
                 struct __kernel_timespec __user *, rmtp) {
     long retval;
@@ -2182,89 +2184,6 @@ sclda:
 out:
     sclda_send_syscall_info(siov.str, siov.len);
     return retval;
-}
-
-#ifdef CONFIG_64BIT
-
-SYSCALL_DEFINE2(nanosleep, struct __kernel_timespec __user *, rqtp,
-		struct __kernel_timespec __user *, rmtp)
-{
-	long retval;
-	int rok = 0;
-	struct timespec64 tu;
-
-	if (get_timespec64(&tu, rqtp)) {
-		retval = -EFAULT;
-		goto sclda;
-	}
-
-	if (!timespec64_valid(&tu)) {
-		retval = -EINVAL;
-		goto sclda;
-	}
-	int rok = 1;
-
-	current->restart_block.fn = do_no_restart_syscall;
-	current->restart_block.nanosleep.type = rmtp ? TT_NATIVE : TT_NONE;
-	current->restart_block.nanosleep.rmtp = rmtp;
-
-	retval = hrtimer_nanosleep(timespec64_to_ktime(tu), HRTIMER_MODE_REL,
-				   CLOCK_MONOTONIC);
-sclda:
-	int rqtp_len, rmtp_len, msg_len;
-	char *rqtp_buf, *rmtp_buf, *msg_buf;
-
-	if (!is_sclda_allsend_fin())
-		return retval;
-
-	// 第1引数を文字列に変換
-	rqtp_len = 200;
-	rqtp_buf = kmalloc(rqtp_len, GFP_KERNEL);
-	if (!rqtp_buf)
-		return retval;
-	if (retval >= 0) {
-		rqtp_len = kernel_timespec_to_str(rqtp, rqtp_buf, rqtp_len);
-		if (rqtp_len < 0) {
-			rqtp_len = 1;
-			rqtp_buf[0] = '\0';
-		}
-	} else {
-		rqtp_len = 1;
-		rqtp_buf[0] = '\0';
-	}
-
-	// 第2引数を文字列に変換
-	rmtp_len = 200;
-	rmtp_buf = kmalloc(rmtp_len, GFP_KERNEL);
-	if (!rmtp_buf)
-		goto free_rqtp;
-	if (retval >= 0) {
-		rmtp_len = kernel_timespec_to_str(rqtp, rmtp_buf, rmtp_len);
-		if (rmtp_len < 0) {
-			rmtp_len = 1;
-			rmtp_buf[0] = '\0';
-		}
-	} else {
-		rmtp_len = 1;
-		rmtp_buf[0] = '\0';
-	}
-
-	// 送信するパート
-	msg_len = rqtp_len + rmtp_len + 200;
-	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		goto free_rmtp;
-
-	msg_len = snprintf(msg_buf, msg_len, "35%c%ld%c%s%c%s", SCLDA_DELIMITER,
-			   retval, SCLDA_DELIMITER, rqtp_buf, SCLDA_DELIMITER,
-			   rmtp_buf);
-	sclda_send_syscall_info(msg_buf, msg_len);
-
-free_rmtp:
-	kfree(rmtp_buf);
-free_rqtp:
-	kfree(rqtp_buf);
-	return retval;
 }
 
 #endif
