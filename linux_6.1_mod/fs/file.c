@@ -1266,24 +1266,25 @@ out_unlock:
 
 SYSCALL_DEFINE3(dup3, unsigned int, oldfd, unsigned int, newfd, int, flags)
 {
-	int ret = ksys_dup3(oldfd, newfd, flags);
-	// allsendが終わるまでは、初期化プロセス関係なので、
-	// 取得しないようにする。
-	if (!is_sclda_allsend_fin())
-		return ret;
+    int retval;
+    struct sclda_iov siov;
 
-	int msg_len = 200;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		return ret;
-	msg_len = snprintf(msg_buf, msg_len, "292%c%d%c%u%c%u%c%d",
+    retval = ksys_dup3(oldfd, newfd, flags);
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 200;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    siov.len = snprintf(msg_buf, msg_len, "292%c%d%c%u%c%u%c%d",
 			   SCLDA_DELIMITER, ret, SCLDA_DELIMITER, oldfd,
 			   SCLDA_DELIMITER, newfd, SCLDA_DELIMITER, flags);
-	sclda_send_syscall_info(msg_buf, msg_len);
-	return ret;
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
-SYSCALL_DEFINE2(dup2, unsigned int, oldfd, unsigned int, newfd)
+int sclda_dup2(unsigned int oldfd, unsigned int newfd)
 {
 	if (unlikely(newfd == oldfd)) { /* corner case */
 		struct files_struct *files = current->files;
@@ -1293,42 +1294,30 @@ SYSCALL_DEFINE2(dup2, unsigned int, oldfd, unsigned int, newfd)
 		if (!files_lookup_fd_rcu(files, oldfd))
 			retval = -EBADF;
 		rcu_read_unlock();
-
-		// errorした場合の送信コード
-		if (!is_sclda_allsend_fin())
-			return retval;
-
-		int msg_len = 200;
-		char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-		if (!msg_buf)
-			return retval;
-
-		msg_len = snprintf(msg_buf, msg_len, "33%c%d%c%u%c%u",
-				   SCLDA_DELIMITER, retval, SCLDA_DELIMITER,
-				   oldfd, SCLDA_DELIMITER, newfd);
-		sclda_send_syscall_info(msg_buf, msg_len);
 		return retval;
 	}
-
-	int ret = ksys_dup3(oldfd, newfd, 0);
-	// allsendが終わるまでは、初期化プロセス関係なので、
-	// 取得しないようにする。
-	if (!is_sclda_allsend_fin())
-		return ret;
-
-	int msg_len = 200;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		return ret;
-
-	msg_len = snprintf(msg_buf, msg_len, "33%c%d%c%u%c%u", SCLDA_DELIMITER,
-			   ret, SCLDA_DELIMITER, oldfd, SCLDA_DELIMITER, newfd);
-	sclda_send_syscall_info(msg_buf, msg_len);
-
-	return ret;
+	return ksys_dup3(oldfd, newfd, 0);
 }
 
-SYSCALL_DEFINE1(dup, unsigned int, fildes)
+SYSCALL_DEFINE2(dup2, unsigned int, oldfd, unsigned int, newfd) {
+    int retval;
+    struct sclda_iov siov;
+
+    retval = sclda_dup2(oldfd, newfd);
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 150;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    siov.len = snprintf(msg_buf, msg_len, "33%c%d%c%u%c%u", SCLDA_DELIMITER,
+                        ret, SCLDA_DELIMITER, oldfd, SCLDA_DELIMITER, newfd);
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
+}
+
+int sclda_dup(unsigned int fildes)
 {
 	int ret = -EBADF;
 	struct file *file = fget_raw(fildes);
@@ -1340,19 +1329,25 @@ SYSCALL_DEFINE1(dup, unsigned int, fildes)
 		else
 			fput(file);
 	}
-
-	if (!is_sclda_allsend_fin())
-		return ret;
-
-	int msg_len = 100;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		return ret;
-	msg_len = snprintf(msg_buf, msg_len, "32%c%d%c%u", SCLDA_DELIMITER, ret,
-			   SCLDA_DELIMITER, fildes);
-
-	sclda_send_syscall_info(msg_buf, msg_len);
 	return ret;
+}
+
+SYSCALL_DEFINE1(dup, unsigned int, fildes) {
+    int retval;
+    struct sclda_iov siov;
+
+    retval = sclda_dup(fildes);
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 100;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    siov.len = snprintf(siov.str, siov.len, "32%c%d%c%u", SCLDA_DELIMITER,
+                        retval, SCLDA_DELIMITER, fildes);
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
 int f_dupfd(unsigned int from, struct file *file, unsigned flags)

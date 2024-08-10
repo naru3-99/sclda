@@ -833,8 +833,6 @@ __bad_area_nosemaphore(struct pt_regs *regs, unsigned long error_code,
 {
 	struct task_struct *tsk = current;
 
-	printk(KERN_INFO "SCLDA_Segfault syscall: %lu\n", regs->orig_ax);
-
 	if (!user_mode(regs)) {
 		kernelmode_fixup_or_oops(regs, error_code, address,
 					 SIGSEGV, si_code, pkey);
