@@ -627,10 +627,10 @@ sclda_all:
     if (!msg_buf) goto free;
 
     written = snprintf(msg_buf, msg_len, "4%c%d", SCLDA_DELIMITER, retval);
-    if (path_ok && msg_len - written > 0)
+    if (path_ok && msg_len > written)
         written += snprintf(msg_buf + written, msg_len - written, "%c%s",
                             SCLDA_DELIMITER, path_buf);
-    if (stat_ok && msg_len - written > 0)
+    if (stat_ok && msg_len > written > 0)
         written += snprintf(msg_buf + written, msg_len - written, "%c%s",
                             SCLDA_DELIMITER, stat_buf);
     sclda_send_syscall_info(msg_buf, written);
@@ -697,10 +697,10 @@ sclda_all:
     if (!msg_buf) goto free;
 
     written = snprintf(msg_buf, msg_len, "6%c%d", SCLDA_DELIMITER, retval);
-    if (path_ok && msg_len - written > 0)
+    if (path_ok && msg_len > written)
         written += snprintf(msg_buf + written, msg_len - written, "%c%s",
                             SCLDA_DELIMITER, path_buf);
-    if (stat_ok && msg_len - written > 0)
+    if (stat_ok && msg_len > written)
         written += snprintf(msg_buf + written, msg_len - written, "%c%s",
                             SCLDA_DELIMITER, stat_buf);
     sclda_send_syscall_info(msg_buf, written);
@@ -801,7 +801,7 @@ sclda_all:
                        "5%c%d"
                        "%c%d",
                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd);
-    if (stat_ok && msg_len - written > 0)
+    if (stat_ok && msg_len > written)
         written += snprintf(msg_buf + written, msg_len - written, "%c%s",
                             SCLDA_DELIMITER, stat_buf);
     sclda_send_syscall_info(msg_buf, written);

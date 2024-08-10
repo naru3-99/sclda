@@ -1763,7 +1763,6 @@ SYSCALL_DEFINE1(close, unsigned int, fd) {
     retval = sclda_close(fd);
     if (!is_sclda_allsend_fin()) return retval;
 
-    // 送信するパート
     msg_len = 200;
     msg_buf = kmalloc(msg_len, GFP_KERNEL);
     if (!msg_buf) return retval;
