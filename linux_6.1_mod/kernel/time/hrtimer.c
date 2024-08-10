@@ -2171,8 +2171,8 @@ sclda:
     if (tu_ok)
         if (siov.len > written)
             written += snprintf(siov.str + written, siov.len - written,
-                                "%crqtp.[%lld,%lld]", SCLDA_DELIMITER,
-                                tu.tv_sec, tu.tv_nsec);
+                                "%crqtp.[%lld,%ld]", SCLDA_DELIMITER,
+                                (long long) tu.tv_sec, (long) tu.tv_nsec);
     if (!rmtp) goto out;
     if (copy_from_user(&krmtp, rmtp, sizeof(struct __kernel_timespec)))
         goto out;

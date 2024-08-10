@@ -395,10 +395,10 @@ out:
 
     siov.len = 500;
     siov.str = kmalloc(siov.len, GFP_KERNEL);
-    if (!(siov.str)) return retval;
+    if (!(siov.str)) return error;
 
     written = snprintf(siov.str, siov.len, "38%c%d%c%d", SCLDA_DELIMITER,
-                       retval, SCLDA_DELIMITER, which);
+                       error, SCLDA_DELIMITER, which);
     if (get_ok && siov.len > written)
             written +=
                 snprintf(siov.str + written, siov.len - written,
@@ -417,7 +417,7 @@ out:
                          (long)set_buffer.it_value.tv_nsec / NSEC_PER_USEC);
 
     sclda_send_syscall_info(siov.str, written);
-    return retval;
+    return error;
 }
 
 #if defined(CONFIG_COMPAT) || defined(CONFIG_ALPHA)
