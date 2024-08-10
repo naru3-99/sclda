@@ -179,28 +179,20 @@ out:
     return cnt;
 }
 
-static int sclda_sendall_syscallinfo(void *data) {
-    int target_index, send_ret;
-    size_t cnt = 0;
+static int sclda_sendall_siovls(int target_index) {
+    int send_ret;
+    size_t cnt;
     struct sclda_iov_ls *curptr, *next;
 
-    target_index = *(int *)data;
-    kfree(data);
-
-    dmhead.next = NULL;
-    dmtail = &dmhead;
-
-    // scinfo_ls -> siov_ls
-    scinfo_to_siov(target_index);
-
-    // send all siov
     mutex_lock(&sclda_siov_mutex[target_index]);
+
+    cnt = 0;
     curptr = siov_heads[target_index].next;
     siov_tails[target_index] = &siov_heads[target_index];
+
     while (curptr != NULL) {
         send_ret = sclda_send_siov_mutex(
             &(curptr->data), &(sclda_syscall_client[cnt % SCLDA_PORT_NUMBER]));
-
         if (send_ret < 0) {
             siov_tails[target_index]->next = curptr;
             siov_tails[target_index] = siov_tails[target_index]->next;
@@ -216,6 +208,20 @@ static int sclda_sendall_syscallinfo(void *data) {
     }
     siov_tails[target_index]->next = NULL;
     mutex_unlock(&sclda_siov_mutex[target_index]);
+    return 0;
+}
+
+static int sclda_sendall_syscallinfo(void *data) {
+    int target_index;
+
+    target_index = *(int *)data;
+    kfree(data);
+
+    // scinfo_ls -> siov_ls
+    scinfo_to_siov(target_index);
+    // send all siov in linked list
+    sclda_sendall_siovls(target_index);
+
     return 0;
 }
 
