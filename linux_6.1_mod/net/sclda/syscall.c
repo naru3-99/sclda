@@ -182,7 +182,6 @@ out:
 static int sclda_sendall_syscallinfo(void *data) {
     int target_index, send_ret;
     size_t cnt = 0;
-    struct sclda_iov_ls dmhead, *dmtail;
     struct sclda_iov_ls *curptr, *next;
 
     target_index = *(int *)data;
@@ -197,13 +196,14 @@ static int sclda_sendall_syscallinfo(void *data) {
     // send all siov
     mutex_lock(&sclda_siov_mutex[target_index]);
     curptr = siov_heads[target_index].next;
+    siov_tails[target_index] = &siov_heads[target_index];
     while (curptr != NULL) {
         send_ret = sclda_send_siov_mutex(
             &(curptr->data), &(sclda_syscall_client[cnt % SCLDA_PORT_NUMBER]));
 
         if (send_ret < 0) {
-            dmtail->next = curptr;
-            dmtail = dmtail->next;
+            siov_tails[target_index]->next = curptr;
+            siov_tails[target_index] = siov_tails[target_index]->next;
         }
 
         next = curptr->next;
@@ -214,12 +214,7 @@ static int sclda_sendall_syscallinfo(void *data) {
         curptr = next;
         cnt += 1;
     }
-
-    // siovの再初期化をする
-    dmtail->next = NULL;
-    siov_heads[target_index].next = dmhead.next;
-    siov_tails[target_index] = dmtail;
-
+    siov_tails[target_index]->next = NULL;
     mutex_unlock(&sclda_siov_mutex[target_index]);
     return 0;
 }
@@ -285,7 +280,8 @@ static int sclda_wakeup_kthread(void) {
     arg = kmalloc(sizeof(int), GFP_KERNEL);
     if (!arg) return -ENOMEM;
     *arg = current_index;
-    newkthread = kthread_create(sclda_sendall_syscallinfo, (void *)arg, "sclda_thread");
+    newkthread =
+        kthread_create(sclda_sendall_syscallinfo, (void *)arg, "sclda_thread");
     if (!IS_ERR(newkthread)) wake_up_process(newkthread);
 
 out:
