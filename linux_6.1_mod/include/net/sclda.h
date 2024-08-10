@@ -66,8 +66,7 @@
 struct sclda_client_struct {
     struct socket *sock;
     struct sockaddr_in addr;
-    struct msghdr msg;
-    struct iov_iter iov_it;
+    struct msghdr hdr;
     struct mutex mtx;
 };
 
