@@ -2454,6 +2454,7 @@ SYSCALL_DEFINE3(connect, int, fd, struct sockaddr __user *, uservaddr, int,
     int retval, sck_ok = 0, sck_free = 0;
     size_t written;
     struct sclda_iov siov, sck, allmsg;
+	struct sockaddr_storage kaddr;
 
     retval = __sys_connect(fd, uservaddr, addrlen);
     if (!is_sclda_allsend_fin()) return retval;
@@ -2470,7 +2471,12 @@ SYSCALL_DEFINE3(connect, int, fd, struct sockaddr __user *, uservaddr, int,
     if (!(sck.str)) goto out;
     sck_free = 1;
 
-    sck.len = sockaddr_to_str(ss, sck.str, sck.len);
+    if (addrlen > 0 &&
+        !copy_from_user(&kaddr, uservaddr,
+                       min(sizeof(struct sockaddr_storage), addrlen)))
+        goto out;
+
+    sck.len = sockaddr_to_str(&kaddr, sck.str, sck.len);
     if (sck.len < 0) goto out;
     sck_ok = 1;
 
