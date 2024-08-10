@@ -1,22 +1,21 @@
 #include <net/sclda.h>
 #include <stdio.h>
 
-int hinagata() {
+SYSCALL_DEFINE1(dup, unsigned int, fildes) {
     int retval;
-    int msg_len;
-    char *msg_buf;
+    struct sclda_iov siov;
 
-    retval = __sys_listen(fd, backlog);
+    retval = sclda_dup(fildes);
     if (!is_sclda_allsend_fin()) return retval;
 
-    // 送信するパート
-    msg_len = 200;
-    msg_buf = kmalloc(msg_len, GFP_KERNEL);
-    if (!msg_buf) return retval;
+    siov.len = 100;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
 
-    msg_len = snprintf(msg_buf, msg_len, "50%c%d%c%d%c%d", SCLDA_DELIMITER,
-                       retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, backlog);
-    sclda_send_syscall_info(msg_buf, msg_len);
+    siov.len = snprintf(siov.str, siov.len, "32%c%d%c%u", SCLDA_DELIMITER,
+                        retval, SCLDA_DELIMITER, fildes);
+
+    sclda_send_syscall_info(siov.str, siov.len);
     return retval;
 }
 

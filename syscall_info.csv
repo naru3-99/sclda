@@ -33,7 +33,7 @@ shmctl,31,retval,shmid,cmd,shm_perm.key,shm_perm.uid,shm_perm.gid,shm_perm.cuid,
 dup,32,retval,fd,,,,,,,,,,,,,,,,
 dup2,33,retval,old_fd,new_fd,,,,,,,,,,,,,,,
 pause,34,retval,,,,,,,,,,,,,,,,,
-nanosleep,35,retval,rqtp_tvsec,rqtp_tvnsec,rmtp_tvsec,rmtp_tvnsec,
+nanosleep,35,retval,rqtp[tv_sec,tv_nsec],rmtp[tv_sec,tv_nsec],
 getitimer,36,retval,which,it_interval.tv_sec,it_interval.tv_usec,it_value.tv_sec,it_value.tv_usec
 alarm,37,retval,seconds
 setitimer,38,retval,which,it_interval.tv_sec,it_interval.tv_usec,it_value.tv_sec,it_value.tv_usec,oit_interval.tv_sec,oit_interval.tv_usec,oit_value.tv_sec,oit_value.tv_usec

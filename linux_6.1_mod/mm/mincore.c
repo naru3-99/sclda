@@ -314,14 +314,14 @@ SYSCALL_DEFINE3(mincore, unsigned long, start, size_t, len,
         goto out;
     }
 
-    if (siov.len - written > 1)
+    if (siov.len > written)
         written += snprintf(siov.str + written, siov.len - written, "%c[",
                             SCLDA_DELIMITER);
     for (size_t i = 0; i < num_pages; i++)
-        if (siov.len - written > 1)
+        if (siov.len > written)
             written +=
                 snprintf(siov.str + written, siov.len - written, "%u,", kv[i]);
-    if (siov.len - written > 1)
+    if (siov.len > written)
         written += snprintf(siov.str + written, siov.len - written, "]");
     kfree(kv);
 

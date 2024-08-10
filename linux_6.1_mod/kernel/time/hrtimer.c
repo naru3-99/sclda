@@ -2133,12 +2133,64 @@ out:
 	return ret;
 }
 
+SYSCALL_DEFINE2(nanosleep, struct __kernel_timespec __user *, rqtp,
+                struct __kernel_timespec __user *, rmtp) {
+    long retval;
+    int tu_ok = 0;
+    size_t written;
+    struct sclda_iov siov;
+    struct timespec64 tu;
+    struct __kernel_timespec krmtp;
+
+    if (get_timespec64(&tu, rqtp)) {
+        retval = -EFAULT;
+        goto sclda;
+    }
+    if (!timespec64_valid(&tu)) {
+        retval = -EINVAL;
+        goto sclda;
+    }
+    tu_ok = 1;
+
+    current->restart_block.fn = do_no_restart_syscall;
+    current->restart_block.nanosleep.type = rmtp ? TT_NATIVE : TT_NONE;
+    current->restart_block.nanosleep.rmtp = rmtp;
+    retval = hrtimer_nanosleep(timespec64_to_ktime(tu), HRTIMER_MODE_REL,
+                               CLOCK_MONOTONIC);
+
+sclda:
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 500;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    written = snprintf(siov.str, siov.len, "35%c%ld", SCLDA_DELIMITER, retval);
+    if (tu_ok)
+        if (siov.len > written)
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%crqtp.[%lld,%lld]", SCLDA_DELIMITER,
+                                tu.tv_sec, tu.tv_nsec);
+    if (!rmtp) goto out;
+    if (copy_from_user(&krmtp, rmtp, sizeof(struct __kernel_timespec)))
+        goto out;
+    if (siov.len > written)
+        written += snprintf(siov.str + written, siov.len - written,
+                            "%crmtp.[%lld,%lld]", SCLDA_DELIMITER, krmtp.tv_sec,
+                            krmtp.tv_nsec);
+
+out:
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
+}
+
 #ifdef CONFIG_64BIT
 
 SYSCALL_DEFINE2(nanosleep, struct __kernel_timespec __user *, rqtp,
 		struct __kernel_timespec __user *, rmtp)
 {
 	long retval;
+	int rok = 0;
 	struct timespec64 tu;
 
 	if (get_timespec64(&tu, rqtp)) {
@@ -2150,6 +2202,7 @@ SYSCALL_DEFINE2(nanosleep, struct __kernel_timespec __user *, rqtp,
 		retval = -EINVAL;
 		goto sclda;
 	}
+	int rok = 1;
 
 	current->restart_block.fn = do_no_restart_syscall;
 	current->restart_block.nanosleep.type = rmtp ? TT_NATIVE : TT_NONE;
