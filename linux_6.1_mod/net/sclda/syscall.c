@@ -115,7 +115,6 @@ static int scinfo_to_siov(int target_index) {
     curptr = sclda_syscall_heads[target_index].next;
     while (curptr != NULL) {
         for (i = 0; i < curptr->sc_iov_len; i++) {
-            ndelay(500);
             if (temp->data.len + curptr->pid_time.len + curptr->syscall[i].len <
                 SCLDA_CHUNKSIZE) {
                 // まだchunkに余裕がある場合
@@ -201,7 +200,6 @@ static int sclda_sendall_syscallinfo(void *data) {
     while (curptr != NULL) {
         send_ret = sclda_send_siov_mutex(
             &(curptr->data), &(sclda_syscall_client[cnt % SCLDA_PORT_NUMBER]));
-        ndelay(500);
 
         if (send_ret < 0) {
             dmtail->next = curptr;
@@ -216,6 +214,11 @@ static int sclda_sendall_syscallinfo(void *data) {
         curptr = next;
         cnt += 1;
     }
+
+    // siovの再初期化をする
+    dmtail->next = NULL;
+    siov_heads[target_index].next = dmhead.next;
+    siov_tails[target_index] = dmtail;
 
     mutex_unlock(&sclda_siov_mutex[target_index]);
     return 0;
@@ -282,7 +285,7 @@ static int sclda_wakeup_kthread(void) {
     arg = kmalloc(sizeof(int), GFP_KERNEL);
     if (!arg) return -ENOMEM;
     *arg = current_index;
-    newkthread = kthread_create(sclda_sendall_syscallinfo, arg, "sclda_thread");
+    newkthread = kthread_create(sclda_sendall_syscallinfo, (void *)arg, "sclda_thread");
     if (!IS_ERR(newkthread)) wake_up_process(newkthread);
 
 out:
