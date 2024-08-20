@@ -103,13 +103,11 @@ free_old:
 }
 
 int get_sigset_t(void){
-    sigset_len = snprintf(sigset_buf, sclda_sigbufsize, "[");
-    for (int i = 1; i < _NSIG; i++)
-        if (sigismember(&set, i))
-            sigset_len += snprintf(sigset_buf + sigset_len,
-                                   sclda_sigbufsize - sigset_len, "%d,", i);
-    sigset_len +=
-        snprintf(sigset_buf + sigset_len, sclda_sigbufsize - sigset_len, "]");
+        written += snprintf(siov.str + written, siov.len - written, "[");
+        for (int i = 1; i < _NSIG; i++)
+            if (sigismember(&temp, i))
+                sigset_len += snprintf(siov.str + written, siov.len - written, "%d,", i);
+        written += snprintf(siov.str + written, siov.len - written, "]");
 }
 
 SYSCALL_DEFINE4(rt_sigtimedwait) {

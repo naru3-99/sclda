@@ -3468,7 +3468,7 @@ SYSCALL_DEFINE4(rt_sigtimedwait, const sigset_t __user *, uthese,
                 siginfo_t __user *, uinfo,
                 const struct __kernel_timespec __user *, uts, size_t,
                 sigsetsize) {
-    sigset_t these;
+    sigset_t these,temp;
     struct timespec64 ts;
     kernel_siginfo_t info;
 
@@ -3482,6 +3482,7 @@ SYSCALL_DEFINE4(rt_sigtimedwait, const sigset_t __user *, uthese,
 
     retval = -EFAULT;
     if (copy_from_user(&these, uthese, sizeof(these))) goto out;
+    memset(&temp,&these,sizeof(these))
     these_ok = 1;
 
     if (uts) {
@@ -3504,9 +3505,12 @@ out:
     written = snprintf(siov.str, siov.len, "128%c%d%c%zu", SCLDA_DELIMITER,
                        retval, SCLDA_DELIMITER, sigsetsize);
 
-    if (these_ok && siov.len > written) {
-        written += snprintf(siov.str + written, siov.len - written, "%c%lu",
-                            SCLDA_DELIMITER, these);
+    if (these_ok && siov.len > written+100) {
+        written += snprintf(siov.str + written, siov.len - written, "[");
+        for (int i = 1; i < _NSIG; i++)
+            if (sigismember(&temp, i))
+                sigset_len += snprintf(siov.str + written, siov.len - written, "%d,", i);
+        written += snprintf(siov.str + written, siov.len - written, "]");
     } else {
         written += snprintf(siov.str + written, siov.len - written, "%cNULL",
                             SCLDA_DELIMITER);
@@ -4521,7 +4525,7 @@ SYSCALL_DEFINE2(rt_sigsuspend, sigset_t __user *, unewset, size_t, sigsetsize) {
 
     retval = -EFAULT;
     if (copy_from_user(&newset, unewset, sizeof(newset))) goto out;
-    memcpy(temp,newset,sizeof(newset));
+    memcpy(&temp,&newset,sizeof(newset));
     sigset_ok = 1;
 
     retval = sigsuspend(&newset);
@@ -4539,7 +4543,7 @@ out:
     if (sigset_ok && siov.len > written + 100) {
         written += snprintf(siov.str + written, siov.len - written, "[");
         for (int i = 1; i < _NSIG; i++)
-            if (sigismember(&set, i))
+            if (sigismember(&temp, i))
                 sigset_len += snprintf(siov.str + written, siov.len - written, "%d,", i);
         written += snprintf(siov.str + written, siov.len - written, "]");
     } else {
