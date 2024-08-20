@@ -2729,7 +2729,7 @@ SYSCALL_DEFINE6(sendto, int, fd, void __user *, buff, size_t, len, unsigned int,
 
     temp = sockaddr_to_str(&ss, sock_siov.str, sock_siov.len);
     if (temp < 0) {
-        kfree(sock_siov.str)
+        kfree(sock_siov.str);
 		goto out_buff;
     }
 
@@ -2745,7 +2745,7 @@ out_buff:
 		else{
 			buff_siov.len = SCLDA_SCDATA_BUFMAX - written;
 		}
-	buff_siov.str = kmalloc(buff_siov.len, GFPKERNEL);
+	buff_siov.str = kmalloc(buff_siov.len, GFP_KERNEL);
 	if (!buff_siov.str) goto out;
 
 	if (copy_from_user(buff_siov.str,buff, len))
