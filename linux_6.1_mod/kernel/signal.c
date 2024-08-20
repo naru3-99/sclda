@@ -3884,7 +3884,7 @@ out:
                             SCLDA_DELIMITER);
     }
 
-    sclda_send_syscall_info(siov.str, siov.len);
+    sclda_send_syscall_info(siov.str, written);
     return retval;
 }
 
@@ -4551,7 +4551,7 @@ out:
                             SCLDA_DELIMITER);
     }
 
-    sclda_send_syscall_info(siov.str, siov.len);
+    sclda_send_syscall_info(siov.str, written);
     return retval;
 }
 

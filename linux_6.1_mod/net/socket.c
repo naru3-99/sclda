@@ -3159,9 +3159,9 @@ SYSCALL_DEFINE2(shutdown, int, fd, int, how) {
     siov.str = kmalloc(siov.len, GFP_KERNEL);
     if (!(siov.str)) return retval;
 
-    msg_len = snprintf(siov.str, siov.len, "48%c%d%c%d%c%d", SCLDA_DELIMITER,
+    written = snprintf(siov.str, siov.len, "48%c%d%c%d%c%d", SCLDA_DELIMITER,
                        retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, how);
-    sclda_send_syscall_info(siov.str, siov.len);
+    sclda_send_syscall_info(siov.str, written);
     return retval;
 }
 
