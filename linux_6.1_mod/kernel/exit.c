@@ -1959,7 +1959,7 @@ out:
 
     if (siov.len > written) {
         written += snprintf(
-            buf, buf_size,
+            siov.str + written, siov.len - written,
             "[%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,"
             "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld]",
             r.ru_utime.tv_sec, r.ru_utime.tv_usec, r.ru_stime.tv_sec,
