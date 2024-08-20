@@ -883,7 +883,6 @@ static void __sock_release(struct socket *sock, struct inode *inode)
 {
 	if (sock->ops) {
 		struct module *owner = sock->ops->owner;
-out:
 
 		if (inode)
 			inode_lock(inode);
