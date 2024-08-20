@@ -3471,24 +3471,66 @@ SYSCALL_DEFINE4(rt_sigtimedwait, const sigset_t __user *, uthese,
     sigset_t these;
     struct timespec64 ts;
     kernel_siginfo_t info;
-    int ret;
+
+    struct sclda_iov siov;
+    int retval = -EINVAL;
+    int these_ok = 0, ts_ok = 0, info_ok = 0;
+    size_t written = 0;
 
     /* XXX: Don't preclude handling different sized sigset_t's.  */
-    if (sigsetsize != sizeof(sigset_t)) return -EINVAL;
+    if (sigsetsize != sizeof(sigset_t)) goto out;
 
-    if (copy_from_user(&these, uthese, sizeof(these))) return -EFAULT;
+    retval = -EFAULT;
+    if (copy_from_user(&these, uthese, sizeof(these))) goto out;
+    these_ok = 1;
 
     if (uts) {
-        if (get_timespec64(&ts, uts)) return -EFAULT;
+        if (get_timespec64(&ts, uts)) goto out;
+        ts_ok = 1;
     }
 
-    ret = do_sigtimedwait(&these, &info, uts ? &ts : NULL);
+    retval = do_sigtimedwait(&these, &info, uts ? &ts : NULL);
+    info_ok = 1;
+    if (retval > 0 && uinfo) {
+        if (copy_siginfo_to_user(uinfo, &info)) retval = -EFAULT;
+    }
+out:
+    if (!is_sclda_allsend_fin()) return retval;
 
-    if (ret > 0 && uinfo) {
-        if (copy_siginfo_to_user(uinfo, &info)) ret = -EFAULT;
+    siov.len = 500;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    written = snprintf(siov.str, siov.len, "128%c%d%c%zu", SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, sigsetsize);
+
+    if (these_ok && siov.len > written) {
+        written += snprintf(siov.str + written, siov.len - written, "%c%lu",
+                            SCLDA_DELIMITER, these);
+    } else {
+        written += snprintf(siov.str + written, siov.len - written, "%cNULL",
+                            SCLDA_DELIMITER);
     }
 
-    return ret;
+    if (ts_ok && siov.len > written) {
+        written += snprintf(siov.str + written, siov.len - written,
+                            "%c[%llu,%ld]", SCLDA_DELIMITER,
+                            (long long)ts.tv_sec, ts.tv_nsec);
+    } else {
+        written += snprintf(siov.str + written, siov.len - written, "%c[NULL]",
+                            SCLDA_DELIMITER);
+    }
+
+    if (info_ok && siov.len > written) {
+        written += snprintf(siov.str + written, siov.len - written,
+                            "%c[%d,%d,%d]", SCLDA_DELIMITER, info.si_code,
+                            info.si_errno, info.si_signo);
+    } else {
+        written += snprintf(siov.str + written, siov.len - written, "%c[NULL]",
+                            SCLDA_DELIMITER);
+    }
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
 #ifdef CONFIG_COMPAT_32BIT_TIME

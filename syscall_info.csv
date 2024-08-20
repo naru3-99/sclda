@@ -126,6 +126,7 @@ getsid,124,retval,pid
 capget,125,retval,version,pid,effective,permitted,inheritable
 capset,126,retval,version,pid,effective,permitted,inheritable
 rt_sigpending,127,retval,sigsetsize,[signals]
+rt_sigtimedwait,128,retval,sigsetsize,uthese,ts.[tv_sec,tv_nsec],info.[si_code,si_errno,si_signo]
 mknod,133,retval,mode,dev,filename
 statfs,137,retval,pathname,f_type,f_bsize,f_blocks,f_bfree,f_bavail,f_files,f_ffree,f_fsid.val[0],f_fsid.val[1],f_namelen,f_frsize,f_flags,f_spare[0],f_spare[1],f_spare[2],f_spare[3]
 getpriority,140,retval,which,who
