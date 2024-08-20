@@ -2696,60 +2696,61 @@ out:
 }
 
 SYSCALL_DEFINE6(sendto, int, fd, void __user *, buff, size_t, len, unsigned int,
-		flags, struct sockaddr __user *, addr, int, addr_len)
-{
-	// todo buffの使い方
+                flags, struct sockaddr __user *, addr, int, addr_len) {
+    // todo buffの使い方
     int retval, temp;
     size_t written;
     struct sclda_iov siov, sock_siov, buff_siov;
     struct sockaddr_storage ss;
 
-	retval = __sys_sendto(fd, buff, len, flags, addr, addr_len);
+    retval = __sys_sendto(fd, buff, len, flags, addr, addr_len);
     if (!is_sclda_allsend_fin()) return retval;
 
     siov.len = 500;
     siov.str = kmalloc(siov.len, GFP_KERNEL);
     if (!siov.str) return retval;
 
-    written = snprintf(siov.str, siov.len,
+    written =
+        snprintf(siov.str, siov.len,
                  "44%c%d%c%d"
                  "%c%zu%c%u%c%d",
                  SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER,
                  len, SCLDA_DELIMITER, flags, SCLDA_DELIMITER, addr_len);
 
     // check the length is in [0, sizeof(struct sockaddr_storage)]
-    if (!(0 < addr_len && addr_len <= sizeof(struct sockaddr_storage))) goto out;
+    if (!(0 < addr_len && addr_len <= sizeof(struct sockaddr_storage)))
+        goto out;
     if (copy_from_user(&ss, (struct sockaddr_storage *)addr, addr_len))
         goto out_buff;
 
-	sock_siov.len = 200;
+    sock_siov.len = 200;
     sock_siov.str = kmalloc(sock_siov.len, GFP_KERNEL);
     if (!siov.str) goto out_buff;
 
     temp = sockaddr_to_str(&ss, sock_siov.str, sock_siov.len);
     if (temp < 0) {
         kfree(sock_siov.str);
-		goto out_buff;
+        goto out_buff;
     }
 
     if (siov.len > written)
         written += snprintf(siov.str + written, siov.len - written, "%c[%s]",
                             SCLDA_DELIMITER, sock_siov.str);
-	kfree(sock_siov.str);
+    kfree(sock_siov.str);
 
 out_buff:
-	if (0 < len) goto out;
-	if (len + written < SCLDA_SCDATA_BUFMAX){
-		buff_siov.len = len;}
-		else{
-			buff_siov.len = SCLDA_SCDATA_BUFMAX - written;
-		}
-	buff_siov.str = kmalloc(buff_siov.len, GFP_KERNEL);
-	if (!buff_siov.str) goto out;
+    if (0 < len) goto out;
+    if (len + written < SCLDA_SCDATA_BUFMAX) {
+        buff_siov.len = len;
+    } else {
+        buff_siov.len = SCLDA_SCDATA_BUFMAX - written;
+    }
+    buff_siov.str = kmalloc(buff_siov.len, GFP_KERNEL);
+    if (!buff_siov.str) goto out;
 
-	if (copy_from_user(buff_siov.str,buff, len))
-out:
-	sclda_send_syscall_info(siov.str, written);
+    if (copy_from_user(buff_siov.str, buff, len))
+    out:
+        sclda_send_syscall_info(siov.str, written);
     return retval;
 }
 
