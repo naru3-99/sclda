@@ -4082,14 +4082,55 @@ static int do_sigaltstack(const stack_t *ss, stack_t *oss, unsigned long sp,
 
 SYSCALL_DEFINE2(sigaltstack, const stack_t __user *, uss, stack_t __user *,
                 uoss) {
+    struct sclda_iov siov;
+    size_t written = 0;
+
     stack_t new, old;
-    int err;
-    if (uss && copy_from_user(&new, uss, sizeof(stack_t))) return -EFAULT;
-    err = do_sigaltstack(uss ? &new : NULL, uoss ? &old : NULL,
-                         current_user_stack_pointer(), MINSIGSTKSZ);
-    if (!err && uoss && copy_to_user(uoss, &old, sizeof(stack_t)))
-        err = -EFAULT;
-    return err;
+    int new_ok = 0, old_ok = 0;
+    int retval = -EFAULT;
+
+    if (uss && copy_from_user(&new, uss, sizeof(stack_t))) goto out;
+    new_ok = 1;
+
+    retval = do_sigaltstack(uss ? &new : NULL, uoss ? &old : NULL,
+                            current_user_stack_pointer(), MINSIGSTKSZ);
+
+    if (!retval && uoss && copy_to_user(uoss, &old, sizeof(stack_t))) {
+        retval = -EFAULT;
+    } else {
+        old_ok = 1;
+    }
+out:
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 500;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    written = snprintf(siov.str, siov.len, "131%c%d", SCLDA_DELIMITER, retval);
+    if (siov.len > written) {
+        if (new_ok) {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%c[%p,%d,%zu]", SCLDA_DELIMITER, new.ss_sp,
+                                new.ss_flags, (size_t) new.ss_size);
+        } else {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%c[NULL]", SCLDA_DELIMITER);
+        }
+    }
+
+    if (siov.len > written) {
+        if (old_ok) {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%c[%p,%d,%zu]", SCLDA_DELIMITER, old.ss_sp,
+                                old.ss_flags, (size_t) old.ss_size);
+        } else {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%c[NULL]", SCLDA_DELIMITER);
+        }
+    }
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
 
 int restore_altstack(const stack_t __user *uss) {
