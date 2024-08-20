@@ -2078,50 +2078,45 @@ int __sys_bind(int fd, struct sockaddr __user *umyaddr, int addrlen)
 	return err;
 }
 
-SYSCALL_DEFINE3(bind, int, fd, struct sockaddr __user *, umyaddr, int, addrlen)
-{
-	int retval;
-	int sa_len, msg_len;
-	char *sa_buf, *msg_buf;
+SYSCALL_DEFINE3(bind, int, fd, struct sockaddr __user *, umyaddr, int,
+                addrlen) {
+    int retval;
+    int sa_len, msg_len;
+    char *sa_buf, *msg_buf;
+    struct sockaddr_storage ss;
 
-	retval = __sys_bind(fd, umyaddr, addrlen);
-	if (!is_sclda_allsend_fin())
-		return retval;
+    retval = __sys_bind(fd, umyaddr, addrlen);
+    if (!is_sclda_allsend_fin()) return retval;
 
-	// sockaddrを文字列にする
-	sa_len = 200;
-	sa_buf = kmalloc(sa_len, GFP_KERNEL);
-	if (!sa_buf)
-		return retval;
+    // sockaddrを文字列にする
+    sa_len = 200;
+    sa_buf = kmalloc(sa_len, GFP_KERNEL);
+    if (!sa_buf) return retval;
 
-	// sockaddrを文字列にする
-	struct sockaddr_storage ss;
-	if (copy_from_user(&ss, umyaddr, addrlen))
-		goto failed;
-	if (addrlen < 0 || addrlen > sizeof(struct sockaddr_storage))
-		goto failed;
-	sa_len = sockaddr_to_str(&ss, sa_buf, sa_len);
-	if (sa_len < 0)
-		goto failed;
-	goto sclda;
+    // sockaddrを文字列にする
+
+    if (copy_from_user(&ss, umyaddr, addrlen)) goto failed;
+    if (addrlen < 0 || addrlen > sizeof(struct sockaddr_storage)) goto failed;
+    sa_len = sockaddr_to_str(&ss, sa_buf, sa_len);
+    if (sa_len < 0) goto failed;
+    goto sclda;
 
 failed:
-	sa_len = 1;
-	sa_buf[0] = '\0';
+    sa_len = 1;
+    sa_buf[0] = '\0';
 
 sclda:
-	// 送信するパート
-	msg_len = 200 + sa_len;
-	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		goto free_sa;
-	msg_len = snprintf(msg_buf, msg_len, "49%c%d%c%d%c%d%c%s",
-			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
-			   SCLDA_DELIMITER, addrlen, SCLDA_DELIMITER, sa_buf);
-	sclda_send_syscall_info(msg_buf, msg_len);
+    // 送信するパート
+    msg_len = 200 + sa_len;
+    msg_buf = kmalloc(msg_len, GFP_KERNEL);
+    if (!msg_buf) goto free_sa;
+    msg_len = snprintf(msg_buf, msg_len, "49%c%d%c%d%c%d%c%s", SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, addrlen,
+                       SCLDA_DELIMITER, sa_buf);
+    sclda_send_syscall_info(msg_buf, msg_len);
 free_sa:
-	kfree(sa_buf);
-	return retval;
+    kfree(sa_buf);
+    return retval;
 }
 
 /*
@@ -3152,22 +3147,22 @@ int __sys_shutdown(int fd, int how)
 	return err;
 }
 
-SYSCALL_DEFINE2(shutdown, int, fd, int, how)
-{
-	int retval = __sys_shutdown(fd, how);
-	if (!is_sclda_allsend_fin())
-		return retval;
+SYSCALL_DEFINE2(shutdown, int, fd, int, how) {
+    int retval;
+    struct sclda_iov siov;
+    size_t written = 0;
 
-	// 送信するパート
-	int msg_len = 200;
-	char *msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		return retval;
+    retval = __sys_shutdown(fd, how);
+    if (!is_sclda_allsend_fin()) return retval;
 
-	msg_len = snprintf(msg_buf, msg_len, "48%c%d%c%d%c%d", SCLDA_DELIMITER,
-			   retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, how);
-	sclda_send_syscall_info(msg_buf, msg_len);
-	return retval;
+    siov.len = 200;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    msg_len = snprintf(siov.str, siov.len, "48%c%d%c%d%c%d", SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, how);
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
 /* A couple of helpful macros for getting the address of the 32/64 bit

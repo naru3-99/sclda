@@ -1272,6 +1272,10 @@ SYSCALL_DEFINE4(ptrace, long, request, long, pid, unsigned long, addr,
 {
 	struct task_struct *child;
 	long ret;
+	unsigned long data_buf;
+	
+	int msg_len;
+	char *msg_buf;
 
 	if (request == PTRACE_TRACEME) {
 		ret = ptrace_traceme();
@@ -1300,9 +1304,8 @@ SYSCALL_DEFINE4(ptrace, long, request, long, pid, unsigned long, addr,
 
 out_put_task_struct:
 	put_task_struct(child);
+
 out:
-	int msg_len;
-	char *msg_buf;
 	if (!is_sclda_allsend_fin())
 		return ret;
 
@@ -1311,7 +1314,6 @@ out:
 	// POKE* : 書き込む情報が__user *dataに格納
 	// システムコールの実行が終わった直後のときに、
 	// dataの内容が可視化されることは、マルウェア対策に貢献する
-	unsigned long data_buf;
 	if (data) {
 		// dataから1ワード分、unsigned long型で読み込む
 		if (copy_from_user(&data_buf, (const void __user *)data,
