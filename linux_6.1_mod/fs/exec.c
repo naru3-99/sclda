@@ -2107,6 +2107,11 @@ int argv_to_str(struct linux_binprm *bprm, char **buf, unsigned long pos,
 	// 引数を受け取るバッファ
 	char **args, *temp_buf, *ttemp_buf;
 	int arg_all_len;
+
+	int written;
+	char *all_arg_buf;
+
+
 	args = kmalloc_array(bprm->argc, sizeof(char *), GFP_KERNEL);
 	if (!args)
 		goto out_ret;
@@ -2187,9 +2192,6 @@ int argv_to_str(struct linux_binprm *bprm, char **buf, unsigned long pos,
 	*pos_ret = pos;
 
 	// 最終的な文字列を書き込む
-	int written;
-	char *all_arg_buf;
-
 	all_arg_buf = kmalloc(arg_all_len, GFP_KERNEL);
 	if (!all_arg_buf)
 		goto free_arg_all;
