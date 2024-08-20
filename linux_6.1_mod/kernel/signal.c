@@ -3482,7 +3482,7 @@ SYSCALL_DEFINE4(rt_sigtimedwait, const sigset_t __user *, uthese,
 
     retval = -EFAULT;
     if (copy_from_user(&these, uthese, sizeof(these))) goto out;
-    memset(&temp,&these,sizeof(these))
+    memcpy(&temp,&these,sizeof(these));
     these_ok = 1;
 
     if (uts) {
@@ -3509,7 +3509,7 @@ out:
         written += snprintf(siov.str + written, siov.len - written, "[");
         for (int i = 1; i < _NSIG; i++)
             if (sigismember(&temp, i))
-                sigset_len += snprintf(siov.str + written, siov.len - written, "%d,", i);
+                written += snprintf(siov.str + written, siov.len - written, "%d,", i);
         written += snprintf(siov.str + written, siov.len - written, "]");
     } else {
         written += snprintf(siov.str + written, siov.len - written, "%cNULL",
@@ -4544,7 +4544,7 @@ out:
         written += snprintf(siov.str + written, siov.len - written, "[");
         for (int i = 1; i < _NSIG; i++)
             if (sigismember(&temp, i))
-                sigset_len += snprintf(siov.str + written, siov.len - written, "%d,", i);
+                written += snprintf(siov.str + written, siov.len - written, "%d,", i);
         written += snprintf(siov.str + written, siov.len - written, "]");
     } else {
         written += snprintf(siov.str + written, siov.len - written, "%c[NULL]",
