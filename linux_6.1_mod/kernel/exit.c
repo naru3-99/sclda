@@ -1923,53 +1923,52 @@ int kernel_wait(pid_t pid, int *stat)
 }
 
 SYSCALL_DEFINE4(wait4, pid_t, upid, int __user *, stat_addr, int, options,
-		struct rusage __user *, ru)
-{
-	struct rusage r;
-	long err = kernel_wait4(upid, stat_addr, options, ru ? &r : NULL);
-	if (err > 0) {
-		if (ru && copy_to_user(ru, &r, sizeof(struct rusage))) {
-			err = -EFAULT;
-		}
-	}
+                struct rusage __user *, ru) {
+    int kaddr;
+    struct sclda_iov siov;
+    size_t written = 0;
 
-	int msg_len, rusage_len;
-	char *msg_buf, *rusage_buf;
-	if (!is_sclda_allsend_fin())
-		return err;
+    struct rusage r;
+    long err, retval = -EFAULT;
 
-	// stat_addrを取ってくる
-	int addr;
-	if (copy_from_user(&addr, stat_addr, sizeof(int)))
-		return err;
+    err = kernel_wait4(upid, stat_addr, options, ru ? &r : NULL);
+    if (err > 0)
+        if (ru && copy_to_user(ru, &r, sizeof(struct rusage))) goto out;
+    retval = err;
 
-	// rusageを文字列に変換する
-	rusage_len = 300;
-	rusage_buf = kmalloc(rusage_len, GFP_KERNEL);
-	if (!rusage_buf)
-		return err;
-	if (err > 0) {
-		rusage_len = rusage_to_str(&r, rusage_buf, rusage_len);
-	} else {
-		rusage_len = 1;
-		rusage_buf[0] = '\0';
-	}
+out:
+    if (!is_sclda_allsend_fin()) return retval;
 
-	// 送信するパート
-	msg_len = 200 + rusage_len;
-	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf) {
-		kfree(rusage_buf);
-		return err;
-	}
+    siov.len = 500;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
 
-	msg_len = snprintf(msg_buf, msg_len, "61%c%ld%c%d%c%d%c%d%c%s",
-			   SCLDA_DELIMITER, err, SCLDA_DELIMITER, (int)upid,
-			   SCLDA_DELIMITER, addr, SCLDA_DELIMITER, options,
-			   SCLDA_DELIMITER, rusage_buf);
-	sclda_send_syscall_info(msg_buf, msg_len);
-	kfree(rusage_buf);
-	return err;
+    written =
+        snprintf(siov.str, siov.len, "61%c%ld%c%d%c%d", SCLDA_DELIMITER, retval,
+                 SCLDA_DELIMITER, (int)upid, SCLDA_DELIMITER, options);
+
+    if (siov.len > written) {
+        if (!copy_from_user(&kaddr, stat_addr, sizeof(int))) {
+            written += snprintf(siov.str + written, siov.len - written, "%c%d",
+                                SCLDA_DELIMITER, kaddr);
+        } else {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%cNULL", SCLDA_DELIMITER);
+        }
+    }
+
+    if (siov.len > written) {
+        written += snprintf(
+            buf, buf_size,
+            "[%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,"
+            "%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld,%ld]",
+            r.ru_utime.tv_sec, r.ru_utime.tv_usec, r.ru_stime.tv_sec,
+            r.ru_stime.tv_usec, r.ru_maxrss, r.ru_ixrss, r.ru_idrss, r.ru_isrss,
+            r.ru_minflt, r.ru_majflt, r.ru_nswap, r.ru_inblock, r.ru_oublock,
+            r.ru_msgsnd, r.ru_msgrcv, r.ru_nsignals, r.ru_nvcsw, r.ru_nivcsw);
+    }
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
 #ifdef __ARCH_WANT_SYS_WAITPID

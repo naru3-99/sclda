@@ -59,7 +59,7 @@ fork,57,retval
 vfork,58,retval
 execve,59,retval,filename,[argv...],[envp...]
 exit,60,retval,error_code
-wait4,61,retval,upid,addr,options,usage->ru_utime.tv_sec,usage->ru_utime.tv_usec,usage->ru_stime.tv_sec,usage->ru_stime.tv_usec,usage->ru_maxrss,usage->ru_ixrss,usage->ru_idrss,usage->ru_isrss,usage->ru_minflt,usage->ru_majflt,usage->ru_nswap,usage->ru_inblock,usage->ru_oublock,usage->ru_msgsnd,usage->ru_msgrcv,usage->ru_nsignals,usage->ru_nvcsw,usage->ru_nivcsw
+wait4,61,retval,upid,options,stat_addr,r.[ru_utime.tv_sec,ru_utime.tv_usec,ru_stime.tv_sec,ru_stime.tv_usec,ru_maxrss,ru_ixrss,ru_idrss,ru_isrss,ru_minflt,ru_majflt,ru_nswap,ru_inblock,ru_oublock,ru_msgsnd,ru_msgrcv,ru_nsignals,ru_nvcsw,ru_nivcsw]
 kill,62,retval,pid,sig
 uname,63,retval,uts->sysname,uts->nodename,uts->release,uts->version,uts->machine
 semget,64,retval,key,nsems,semflg
