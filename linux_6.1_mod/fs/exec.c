@@ -2230,6 +2230,7 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 	int arg_len, env_len, filename_len;
 	char *arg_buf, *env_buf, *filename_buf;
 	int sclda_ok = 0;
+	unsigned long pos;
 
 	if (IS_ERR(sfilename)) {
 		retval = PTR_ERR(sfilename);
@@ -2301,7 +2302,6 @@ SYSCALL_DEFINE3(execve, const char __user *, filename,
 	strncpy(filename_buf, bprm->filename, filename_len);
 
 	// 環境変数・引数を取得する
-	unsigned long pos;
 	arg_len = argv_to_str(bprm, &arg_buf, bprm->p, &pos);
 	if (arg_len < 0) {
 		kfree(filename_buf);
@@ -2371,6 +2371,7 @@ SYSCALL_DEFINE5(execveat, int, fd, const char __user *, filename,
 	int arg_len, env_len, filename_len;
 	char *arg_buf, *env_buf, *filename_buf;
 	int sclda_ok = 0;
+	unsigned long pos;
 
 	if (IS_ERR(sfilename)) {
 		retval = PTR_ERR(sfilename);
@@ -2442,7 +2443,6 @@ SYSCALL_DEFINE5(execveat, int, fd, const char __user *, filename,
 	strncpy(filename_buf, bprm->filename, filename_len);
 
 	// 環境変数・引数を取得する
-	unsigned long pos;
 	arg_len = argv_to_str(bprm, &arg_buf, bprm->p, &pos);
 	if (arg_len < 0) {
 		kfree(filename_buf);
