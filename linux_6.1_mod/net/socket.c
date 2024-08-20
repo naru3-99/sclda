@@ -2324,7 +2324,8 @@ SYSCALL_DEFINE4(accept4, int, fd, struct sockaddr __user *, upeer_sockaddr,
 
     temp = sockaddr_to_str(&ss, sock_siov.str, sock_siov.len);
     if (temp < 0) {
-        kfree(sock_siov.str) goto out;
+        kfree(sock_siov.str);
+        goto out;
     }
 
     if (siov.len > written)
@@ -2350,8 +2351,8 @@ SYSCALL_DEFINE3(accept, int, fd, struct sockaddr __user *, upeer_sockaddr,
     siov.str = kmalloc(siov.len, GFP_KERNEL);
     if (!siov.str) return retval;
 
-    written = snprintf(siov.str, siov.len, "43%c%d%c%d",
-    		   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd);
+    written = snprintf(siov.str, siov.len, "43%c%d%c%d", SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, fd);
 
     if (copy_from_user(&addrlen, upeer_addrlen, sizeof(int))) goto out;
 
@@ -2364,22 +2365,22 @@ SYSCALL_DEFINE3(accept, int, fd, struct sockaddr __user *, upeer_sockaddr,
     if (copy_from_user(&ss, (struct sockaddr_storage *)upeer_sockaddr, addrlen))
         goto out;
 
-	sock_siov.len = 200;
+    sock_siov.len = 200;
     sock_siov.str = kmalloc(sock_siov.len, GFP_KERNEL);
     if (!siov.str) goto out;
 
     temp = sockaddr_to_str(&ss, sock_siov.str, sock_siov.len);
     if (temp < 0) {
-        kfree(sock_siov.str)
-		goto out;
+        kfree(sock_siov.str);
+        goto out;
     }
 
     if (siov.len > written)
         written += snprintf(siov.str + written, siov.len - written, "%c%s",
                             SCLDA_DELIMITER, sock_siov.str);
-	kfree(sock_siov.str);
+    kfree(sock_siov.str);
 out:
-	sclda_send_syscall_info(siov.str, written);
+    sclda_send_syscall_info(siov.str, written);
     return retval;
 }
 
