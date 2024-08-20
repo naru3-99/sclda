@@ -4510,13 +4510,45 @@ static int sigsuspend(sigset_t *set) {
  *  @sigsetsize: size of sigset_t type
  */
 SYSCALL_DEFINE2(rt_sigsuspend, sigset_t __user *, unewset, size_t, sigsetsize) {
-    sigset_t newset;
+    struct sclda_iov siov;
+    size_t written = 0;
+
+    int retval = -EINVAL, sigset_ok = 0;
+    sigset_t newset, temp;
 
     /* XXX: Don't preclude handling different sized sigset_t's.  */
-    if (sigsetsize != sizeof(sigset_t)) return -EINVAL;
+    if (sigsetsize != sizeof(sigset_t)) goto out;
 
-    if (copy_from_user(&newset, unewset, sizeof(newset))) return -EFAULT;
-    return sigsuspend(&newset);
+    retval = -EFAULT;
+    if (copy_from_user(&newset, unewset, sizeof(newset))) goto out;
+    memcpy(temp,newset,sizeof(newset));
+    sigset_ok = 1;
+
+    retval = sigsuspend(&newset);
+
+out:
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 500;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    written = snprintf(siov.str, siov.len, "130%c%d%c%zu", SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, sigsetsize);
+
+    if (sigset_ok && siov.len > written + 100) {
+        written += snprintf(siov.str + written, siov.len - written, "[");
+        for (int i = 1; i < _NSIG; i++)
+            if (sigismember(&set, i))
+                sigset_len += snprintf(siov.str + written, siov.len - written, "%d,", i);
+        written += snprintf(siov.str + written, siov.len - written, "]");
+    } else {
+        written += snprintf(siov.str + written, siov.len - written, "%c[NULL]",
+                            SCLDA_DELIMITER);
+    }
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
 #ifdef CONFIG_COMPAT

@@ -115,9 +115,9 @@ int get_sigset_t(void){
 SYSCALL_DEFINE4(rt_sigtimedwait) {
 
     struct sclda_iov siov;
+    size_t written = 0;
     int retval = -EINVAL;
     int these_ok = 0, ts_ok = 0, info_ok = 0;
-    size_t written = 0;
 
     if (!is_sclda_allsend_fin()) return retval;
 
