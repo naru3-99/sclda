@@ -101,3 +101,40 @@ free_old:
     kfree(old_buf);
     return retval;
 }
+
+int get_sigset_t(void){
+    sigset_len = snprintf(sigset_buf, sclda_sigbufsize, "[");
+    for (int i = 1; i < _NSIG; i++)
+        if (sigismember(&set, i))
+            sigset_len += snprintf(sigset_buf + sigset_len,
+                                   sclda_sigbufsize - sigset_len, "%d,", i);
+    sigset_len +=
+        snprintf(sigset_buf + sigset_len, sclda_sigbufsize - sigset_len, "]");
+}
+
+SYSCALL_DEFINE4(rt_sigtimedwait) {
+
+    struct sclda_iov siov;
+    int retval = -EINVAL;
+    int these_ok = 0, ts_ok = 0, info_ok = 0;
+    size_t written = 0;
+
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 500;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    written = snprintf(siov.str, siov.len, "128%c%d%c%zu", SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, sigsetsize);
+
+    if (these_ok && siov.len > written) {
+        written += snprintf(siov.str + written, siov.len - written, "%c%lu",
+                            SCLDA_DELIMITER, these);
+    } else {
+        written += snprintf(siov.str + written, siov.len - written, "%cNULL",
+                            SCLDA_DELIMITER);
+    }
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
+}

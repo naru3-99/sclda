@@ -3850,10 +3850,38 @@ static int do_rt_sigqueueinfo(pid_t pid, int sig, kernel_siginfo_t *info) {
  */
 SYSCALL_DEFINE3(rt_sigqueueinfo, pid_t, pid, int, sig, siginfo_t __user *,
                 uinfo) {
+    int retval, info_ok = 0;
+    size_t written;
+    struct sclda_iov siov;
+
     kernel_siginfo_t info;
-    int ret = __copy_siginfo_from_user(sig, &info, uinfo);
-    if (unlikely(ret)) return ret;
-    return do_rt_sigqueueinfo(pid, sig, &info);
+
+    retval = __copy_siginfo_from_user(sig, &info, uinfo);
+    if (unlikely(retval)) goto out;
+    info_ok = 1;
+    retval = do_rt_sigqueueinfo(pid, sig, &info);
+
+out:
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 300;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    written = snprintf(siov.str, siov.len, "129%c%d%c%d%c%d", SCLDA_DELIMITER, retval,
+                       SCLDA_DELIMITER, (int)pid, SCLDA_DELIMITER, sig);
+
+    if (info_ok && siov.len > written) {
+        written += snprintf(siov.str + written, siov.len - written,
+                            "%c[%d,%d,%d]", SCLDA_DELIMITER, info.si_code,
+                            info.si_errno, info.si_signo);
+    } else {
+        written += snprintf(siov.str + written, siov.len - written, "%c[NULL]",
+                            SCLDA_DELIMITER);
+    }
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
 #ifdef CONFIG_COMPAT
