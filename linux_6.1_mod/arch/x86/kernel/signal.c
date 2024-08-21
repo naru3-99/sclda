@@ -641,7 +641,7 @@ badframe:
 }
 
 SYSCALL_DEFINE0(rt_sigreturn) {
-    int retval;
+    unsigned long retval;
     int msg_len;
     char *msg_buf;
 
@@ -652,7 +652,7 @@ SYSCALL_DEFINE0(rt_sigreturn) {
     msg_buf = kmalloc(msg_len, GFP_KERNEL);
     if (!msg_buf) return retval;
 
-    msg_len = snprintf(msg_buf, msg_len, "15%c%d", SCLDA_DELIMITER, retval);
+    msg_len = snprintf(msg_buf, msg_len, "15%c%lu", SCLDA_DELIMITER, retval);
     sclda_send_syscall_info(msg_buf, msg_len);
     return retval;
 }
