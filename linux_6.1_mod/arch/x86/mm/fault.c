@@ -792,7 +792,7 @@ show_signal_msg(struct pt_regs *regs, unsigned long error_code,
 	const char *loglvl = task_pid_nr(tsk) > 1 ? KERN_INFO : KERN_EMERG;
 	/* This is a racy snapshot, but it's better than nothing. */
 	int cpu = raw_smp_processor_id();
-	int syscall_nr = tsk->thread.syscall_nr;
+	unsigned long syscall_nr = regs->orig_ax;
 
 	if (!unhandled_signal(tsk, SIGSEGV))
 		return;
@@ -813,7 +813,7 @@ show_signal_msg(struct pt_regs *regs, unsigned long error_code,
 	       topology_core_id(cpu), topology_physical_package_id(cpu));
 
 
-	printk(KERN_CONT "Syscall=%d\n",syscall_nr);
+	printk(KERN_CONT "Syscall=%lu\n",syscall_nr);
 
 	show_opcodes(regs, loglvl);
 }
