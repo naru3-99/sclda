@@ -119,7 +119,7 @@ bool path_noexec(const struct path *path)
  *
  * Also note that we take the address to load from the file itself.
  */
-SYSCALL_DEFINE1(uselib, const char __user *, library)
+int sclda_uselib(const char __user *library)
 {
 	struct linux_binfmt *fmt;
 	struct file *file;
@@ -174,6 +174,43 @@ exit:
 out:
 	return error;
 }
+
+SYSCALL_DEFINE1(uselib, const char __user *, library)
+{
+    struct sclda_iov siov, path_iov;
+    size_t written = 0;
+    int retval;
+
+	retval = sclda_uselib(library);
+	if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 500;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+    written = snprintf(siov.str, siov.len, "134%c%d", SCLDA_DELIMITER, retval);
+
+    path_iov.len = strnlen_user(library, PATH_MAX);
+    if (siov.len < written + path_iov.len) goto send_info;
+
+    path_iov.str = kmalloc(path_iov.len + 1, GFP_KERNEL);
+    if (!path_iov.str) goto give_up;
+    if (copy_from_user(path_iov.str, library, path_iov.len)) {
+        kfree(path_iov.str);
+        goto give_up;
+    }
+    written += snprintf(siov.str + written, siov.len - written, "%c%s",
+                        SCLDA_DELIMITER, path_iov.str);
+    kfree(path_iov.str);
+    goto send_info;
+
+give_up:
+    written += snprintf(siov.str + written, siov.len - written, "%cNULL",
+                        SCLDA_DELIMITER);
+send_info:
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
+}
+
 #endif /* #ifdef CONFIG_USELIB */
 
 #ifdef CONFIG_MMU

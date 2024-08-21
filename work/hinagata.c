@@ -25,3 +25,64 @@ int get_sigset_t(void){
                 sigset_len += snprintf(siov.str + written, siov.len - written, "%d,", i);
         written += snprintf(siov.str + written, siov.len - written, "]");
 }
+
+SYSCALL_DEFINE2(utime, char __user *, filename, struct utimbuf __user *,
+                times) {
+    struct sclda_iov siov, path_iov;
+    size_t written = 0;
+    long retval = -EFAULT;
+    struct timespec64 tv[2];
+    int tvok = 0;
+
+    if (times) {
+        if (get_user(tv[0].tv_sec, &times->actime) ||
+            get_user(tv[1].tv_sec, &times->modtime))
+            goto out;
+        tv[0].tv_nsec = 0;
+        tv[1].tv_nsec = 0;
+        tvok = 1;
+    }
+
+    retval = do_utimes(AT_FDCWD, filename, times ? tv : NULL, 0);
+
+out:
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 500;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    written = snprintf(siov.str, siov.len, "132%c%ld", SCLDA_DELIMITER, retval);
+    if (siov.len > written) {
+        if (tvok) {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%c[%lld,%ld][%lld,%ld]", SCLDA_DELIMITER,
+                                (long long)tv[0].tv_sec, tv[0].tv_nsec,
+                                (long long)tv[1].tv_sec, tv[1].tv_nsec);
+        } else {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%c[NULL][NULL]", SCLDA_DELIMITER);
+        }
+    }
+
+    path_iov.len = strnlen_user(filename, PATH_MAX);
+    if (siov.len < written + path_iov.len) goto send_info;
+
+    path_iov.str = kmalloc(path_iov.len + 1, GFP_KERNEL);
+    if (!path_iov.str) goto give_up;
+    if (copy_from_user(path_iov.str, filename, path_iov.len)) {
+        kfree(path_iov.str);
+        goto give_up;
+    }
+    written += snprintf(siov.str + written, siov.len - written, "%c%s",
+                        SCLDA_DELIMITER, path_iov.str);
+    kfree(path_iov.str);
+    goto send_info;
+
+give_up:
+    written += snprintf(siov.str + written, siov.len - written, "%cNULL",
+                        SCLDA_DELIMITER);
+send_info:
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
+}
