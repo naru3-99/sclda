@@ -755,6 +755,8 @@ struct task_struct {
 	 */
 	randomized_struct_fields_start
 
+	int sclda_syscall_nr;
+
 	void				*stack;
 	refcount_t			usage;
 	/* Per task flags (PF_*), defined further below: */

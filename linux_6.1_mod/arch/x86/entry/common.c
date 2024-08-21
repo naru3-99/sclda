@@ -44,6 +44,7 @@ static __always_inline bool do_syscall_x64(struct pt_regs *regs, int nr)
 	 * numbers for comparisons.
 	 */
 	unsigned int unr = nr;
+	current->sclda_syscall_nr = nr;
 
 	if (likely(unr < NR_syscalls)) {
 		unr = array_index_nospec(unr, NR_syscalls);
