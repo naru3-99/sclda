@@ -320,22 +320,52 @@ static int vfs_ustat(dev_t dev, struct kstatfs *sbuf)
 	return err;
 }
 
-SYSCALL_DEFINE2(ustat, unsigned, dev, struct ustat __user *, ubuf)
-{
-	struct ustat tmp;
-	struct kstatfs sbuf;
-	int err = vfs_ustat(new_decode_dev(dev), &sbuf);
-	if (err)
-		return err;
+SYSCALL_DEFINE2(ustat, unsigned, dev, struct ustat __user *, ubuf) {
+    struct sclda_iov siov;
+    size_t written = 0;
 
-	memset(&tmp, 0, sizeof(struct ustat));
-	tmp.f_tfree = sbuf.f_bfree;
-	if (IS_ENABLED(CONFIG_ARCH_32BIT_USTAT_F_TINODE))
-		tmp.f_tinode = min_t(u64, sbuf.f_ffree, UINT_MAX);
-	else
-		tmp.f_tinode = sbuf.f_ffree;
+    int err, retval, tmp_ok;
+    struct ustat tmp;
+    struct kstatfs sbuf;
+    tmp_ok = 0;
 
-	return copy_to_user(ubuf, &tmp, sizeof(struct ustat)) ? -EFAULT : 0;
+    err = vfs_ustat(new_decode_dev(dev), &sbuf);
+    retval = err;
+    if (err) goto out;
+
+    memset(&tmp, 0, sizeof(struct ustat));
+    tmp.f_tfree = sbuf.f_bfree;
+    if (IS_ENABLED(CONFIG_ARCH_32BIT_USTAT_F_TINODE))
+        tmp.f_tinode = min_t(u64, sbuf.f_ffree, UINT_MAX);
+    else
+        tmp.f_tinode = sbuf.f_ffree;
+    tmp_ok = 1;
+
+    retval = copy_to_user(ubuf, &tmp, sizeof(struct ustat)) ? -EFAULT : 0;
+
+out:
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 500;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    written = snprintf(siov.str, siov.len, "136%c%d%c%u", SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, dev);
+    if (siov.len > written) {
+        if (tmp_ok) {
+            written +=
+                snprintf(siov.str + written, siov.len - written,
+                         "%c[%d,%lu,%s,%s]", SCLDA_DELIMITER, (int)tmp.f_tfree,
+                         tmp.f_tinode, tmp.f_fname, tmp.f_fpack);
+        } else {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%c[NULL]", SCLDA_DELIMITER);
+        }
+    }
+
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
 
 #ifdef CONFIG_COMPAT

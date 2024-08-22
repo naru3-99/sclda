@@ -38,7 +38,7 @@ module_init(proc_execdomains_init);
 #endif
 
 SYSCALL_DEFINE1(personality, unsigned int, personality) {
-    struct sclda_iov siov, path_iov;
+    struct sclda_iov siov;
     size_t written = 0;
 
     unsigned int retval = current->personality;
