@@ -122,7 +122,7 @@ static int scinfo_to_siov(int target_index) {
                 temp->data.len +=
                     snprintf(temp->data.str + temp->data.len,
                              SCLDA_CHUNKSIZE - temp->data.len, "%s%c%s%c",
-                             curptr->pid_time.str, SCLDA_EACH_DLMT,
+                             curptr->pid_time.str, SCLDA_DELIMITER,
                              curptr->syscall[i].str, SCLDA_EACH_DLMT);
                 mutex_unlock(&snprintf_mutex);
             } else {
@@ -156,7 +156,7 @@ static int scinfo_to_siov(int target_index) {
                     temp->data.len += snprintf(
                         temp->data.str + temp->data.len,
                         SCLDA_CHUNKSIZE - temp->data.len, "%s%c%.*s%c",
-                        curptr->pid_time.str, SCLDA_EACH_DLMT, (int)chnk_remain,
+                        curptr->pid_time.str, SCLDA_DELIMITER, (int)chnk_remain,
                         curptr->syscall[i].str, SCLDA_EACH_DLMT);
                     mutex_unlock(&snprintf_mutex);
 
