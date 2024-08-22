@@ -133,6 +133,7 @@ sigaltstack,131,retval,uss.[sp,flag,size],uoss.[sp,flag,size]
 utime,132,retval,actime.[tv_sec,tv_nsec],modtime.[tv_sec,tv_nsec],filename
 mknod,133,retval,mode,dev,filename
 uselib,134,retval,library
+personality,135,retval,personality
 statfs,137,retval,pathname,f_type,f_bsize,f_blocks,f_bfree,f_bavail,f_files,f_ffree,f_fsid.val[0],f_fsid.val[1],f_namelen,f_frsize,f_flags,f_spare[0],f_spare[1],f_spare[2],f_spare[3]
 getpriority,140,retval,which,who
 setpriority,141,retval,which,who,niceval

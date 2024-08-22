@@ -8,6 +8,8 @@
  * 2001-05-06	Complete rewrite,  Christoph Hellwig (hch@infradead.org)
  */
 
+#include <net/sclda.h>
+
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/kmod.h>
@@ -35,12 +37,20 @@ static int __init proc_execdomains_init(void)
 module_init(proc_execdomains_init);
 #endif
 
-SYSCALL_DEFINE1(personality, unsigned int, personality)
-{
-	unsigned int old = current->personality;
+SYSCALL_DEFINE1(personality, unsigned int, personality) {
+    struct sclda_iov siov, path_iov;
+    size_t written = 0;
 
-	if (personality != 0xffffffff)
-		set_personality(personality);
+    unsigned int retval = current->personality;
+    if (personality != 0xffffffff) set_personality(personality);
 
-	return old;
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 100;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+    written = snprintf(siov.str, siov.len, "135%c%u%c%u", SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, personality);
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
