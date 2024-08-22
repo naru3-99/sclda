@@ -136,6 +136,7 @@ uselib,134,retval,library
 personality,135,retval,personality
 ustat,136,retval,dev,ustat.[f_tfree,f_tinode,f_fname,f_fpack]
 statfs,137,retval,pathname,f_type,f_bsize,f_blocks,f_bfree,f_bavail,f_files,f_ffree,f_fsid.val[0],f_fsid.val[1],f_namelen,f_frsize,f_flags,f_spare[0],f_spare[1],f_spare[2],f_spare[3]
+fstatfs,138,retval,fd,statfs.[f_type,f_bsize,f_blocks,f_bfree,f_bavail,f_files,f_ffree,f_namelen,f_frsize,f_flags]
 getpriority,140,retval,which,who
 setpriority,141,retval,which,who,niceval
 prctl,157,retval,option,arg2,arg3,arg4,arg5

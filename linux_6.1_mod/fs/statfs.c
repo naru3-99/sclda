@@ -284,13 +284,33 @@ SYSCALL_DEFINE3(statfs64, const char __user *, pathname, size_t, sz,
 	return error;
 }
 
-SYSCALL_DEFINE2(fstatfs, unsigned int, fd, struct statfs __user *, buf)
-{
-	struct kstatfs st;
-	int error = fd_statfs(fd, &st);
-	if (!error)
-		error = do_statfs_native(&st, buf);
-	return error;
+SYSCALL_DEFINE2(fstatfs, unsigned int, fd, struct statfs __user *, buf) {
+    struct sclda_iov siov;
+    size_t written = 0;
+    int retval;
+    struct kstatfs st;
+
+    retval = fd_statfs(fd, &st);
+    if (!retval) retval = do_statfs_native(&st, buf);
+
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 500;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    written = snprintf(siov.str, siov.len, "138%c%d%c%u", SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, fd);
+    if (siov.len > written) {
+        written += snprintf(siov.str + written, siov.len - written,
+                            "%c[%ld,%ld,%llu,%llu,%llu,%llu,%llu,%ld,%ld,%ld]",
+                            SCLDA_DELIMITER, st.f_type, st.f_bsize, st.f_blocks,
+                            st.f_bfree, st.f_bavail, st.f_files, st.f_ffree,
+                            st.f_namelen, st.f_frsize, st.f_flags);
+    }
+
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
 
 SYSCALL_DEFINE3(fstatfs64, unsigned int, fd, size_t, sz,
