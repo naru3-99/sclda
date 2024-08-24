@@ -8084,26 +8084,37 @@ SYSCALL_DEFINE3(sched_setattr, pid_t, pid, struct sched_attr __user *, uattr,
  * Return: On success, the policy of the thread. Otherwise, a negative error
  * code.
  */
-SYSCALL_DEFINE1(sched_getscheduler, pid_t, pid)
-{
-	struct task_struct *p;
-	int retval;
+SYSCALL_DEFINE1(sched_getscheduler, pid_t, pid) {
+    struct task_struct *p;
+    int retval = -EINVAL;
+    struct sclda_iov siov;
+    size_t written = 0;
 
-	if (pid < 0)
-		return -EINVAL;
+    if (pid < 0) goto out;
 
-	retval = -ESRCH;
-	rcu_read_lock();
-	p = find_process_by_pid(pid);
-	if (p) {
-		retval = security_task_getscheduler(p);
-		if (!retval)
-			retval = p->policy |
-				 (p->sched_reset_on_fork ? SCHED_RESET_ON_FORK :
-							   0);
-	}
-	rcu_read_unlock();
-	return retval;
+    retval = -ESRCH;
+    rcu_read_lock();
+    p = find_process_by_pid(pid);
+    if (p) {
+        retval = security_task_getscheduler(p);
+        if (!retval)
+            retval =
+                p->policy | (p->sched_reset_on_fork ? SCHED_RESET_ON_FORK : 0);
+    }
+    rcu_read_unlock();
+
+out:
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 200;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    written = snprintf(siov.str, siov.len, "145%c%d%c%d", SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, (int)pid);
+
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
 
 /**
