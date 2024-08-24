@@ -7961,12 +7961,40 @@ static void get_params(struct task_struct *p, struct sched_attr *attr)
  * Return: 0 on success. An error code otherwise.
  */
 SYSCALL_DEFINE3(sched_setscheduler, pid_t, pid, int, policy,
-		struct sched_param __user *, param)
-{
-	if (policy < 0)
-		return -EINVAL;
+                struct sched_param __user *, param) {
+    int retval = -EINVAL;
+    struct sclda_iov siov;
+    size_t written = 0;
+    struct sched_param sp;
 
-	return do_sched_setscheduler(pid, policy, param);
+    if (policy < 0) goto out;
+    retval = do_sched_setscheduler(pid, policy, param);
+
+out:
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 200;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    written = snprintf(siov.str, siov.len,
+                       "144%c%d%c%d"
+                       "%c%d",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, (int)pid,
+                       SCLDA_DELIMITER, policy);
+
+    if (siov.len > written) {
+        if (!copy_from_user(&sp, param, sizeof(struct sched_param))) {
+            written += snprintf(siov.str + written, siov.len - written, "%c%d",
+                                SCLDA_DELIMITER, sp.sched_priority);
+        } else {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%cNULL", SCLDA_DELIMITER);
+        }
+    }
+
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
 
 /**
@@ -8131,7 +8159,7 @@ out:
                                 "%cNULL", SCLDA_DELIMITER);
         }
     }
-	
+
     sclda_send_syscall_info(siov.str, written);
     return retval;
 }
