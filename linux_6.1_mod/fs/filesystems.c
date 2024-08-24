@@ -7,6 +7,7 @@
  *  table of configured filesystems
  */
 
+#include <net/sclda.h>
 #include <linux/syscalls.h>
 #include <linux/fs.h>
 #include <linux/proc_fs.h>
@@ -64,11 +65,11 @@ static struct file_system_type **find_filesystem(const char *name, unsigned len)
  *	is aware of for mount and other syscalls. Returns 0 on success,
  *	or a negative errno code on an error.
  *
- *	The &struct file_system_type that is passed is linked into the kernel 
+ *	The &struct file_system_type that is passed is linked into the kernel
  *	structures and must not be freed until the file system has been
  *	unregistered.
  */
- 
+
 int register_filesystem(struct file_system_type * fs)
 {
 	int res = 0;
@@ -100,11 +101,11 @@ EXPORT_SYMBOL(register_filesystem);
  *	Remove a file system that was previously successfully registered
  *	with the kernel. An error is returned if the file system is not found.
  *	Zero is returned on a success.
- *	
+ *
  *	Once this function has returned the &struct file_system_type structure
  *	may be freed or reused.
  */
- 
+
 int unregister_filesystem(struct file_system_type * fs)
 {
 	struct file_system_type ** tmp;
@@ -186,27 +187,82 @@ static int fs_maxindex(void)
 }
 
 /*
- * Whee.. Weird sysv syscall. 
+ * Whee.. Weird sysv syscall.
  */
-SYSCALL_DEFINE3(sysfs, int, option, unsigned long, arg1, unsigned long, arg2)
-{
-	int retval = -EINVAL;
+SYSCALL_DEFINE3(sysfs, int, option, unsigned long, arg1, unsigned long, arg2) {
+    struct sclda_iov siov, path_iov;
+    long temp;
+    unsigned long arg;
+    size_t written = 0;
+    int retval = -EINVAL, path_ok = 0;
 
-	switch (option) {
-		case 1:
-			retval = fs_index((const char __user *) arg1);
-			break;
+    switch (option) {
+        case 1:
+            retval = fs_index((const char __user *)arg1);
+            arg = arg1;
+            break;
 
-		case 2:
-			retval = fs_name(arg1, (char __user *) arg2);
-			break;
+        case 2:
+            retval = fs_name(arg1, (char __user *)arg2);
+            arg = arg2;
+            break;
 
-		case 3:
-			retval = fs_maxindex();
-			break;
-	}
-	return retval;
+        case 3:
+            retval = fs_maxindex();
+            arg = 0;
+            break;
+    }
+
+    if (!is_sclda_allsend_fin()) goto out;
+
+    if (arg == 0) {
+        siov.len = 0;
+        goto gather_info;
+    }
+
+    temp = strnlen_user((char __user *)arg, PATH_MAX);
+    if (temp <= 0) {
+        path_iov.len = 0;
+        goto gather_info;
+    } else {
+        path_iov.len = (size_t)temp;
+    }
+
+    path_iov.str = kmalloc(path_iov.len + 1, GFP_KERNEL);
+    if (!path_iov.str) goto gather_info;
+    if (copy_from_user(path_iov.str, (char __user *)arg, path_iov.len)) {
+        kfree(path_iov.str);
+    } else {
+        path_ok = 1;
+    }
+
+gather_info:
+    siov.len = 200 + path_iov.len;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!siov.str) goto out;
+    written = snprintf(siov.str, siov.len,
+                       "139%c%d%c%d"
+                       "%c%lu%c%lu",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, option,
+                       SCLDA_DELIMITER, arg1, SCLDA_DELIMITER, arg2);
+
+    if (path_ok) {
+        if (siov.len > written + path_iov.len) {
+            written += snprintf(siov.str + written, siov.len - written, "%c%s",
+                                SCLDA_DELIMITER, path_iov.str);
+        }
+    } else {
+        if (siov.len > written + 5) {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%cNULL", SCLDA_DELIMITER);
+        }
+    }
+    sclda_send_syscall_info(siov.str, written);
+out:
+    if (path_ok) kfree(path_iov.str);
+    return retval;
 }
+
 #endif
 
 int __init list_bdev_fs_names(char *buf, size_t size)
