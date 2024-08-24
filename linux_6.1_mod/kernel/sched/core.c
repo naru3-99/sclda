@@ -8002,7 +8002,7 @@ SYSCALL_DEFINE2(sched_setparam, pid_t, pid, struct sched_param __user *,
                                 "%cNULL", SCLDA_DELIMITER);
         }
     }
-    sclda_send_syscall_info(siov.str, siov.len);
+    sclda_send_syscall_info(siov.str, written);
 out:
     return retval;
 }
@@ -8086,39 +8086,54 @@ SYSCALL_DEFINE1(sched_getscheduler, pid_t, pid)
  * Return: On success, 0 and the RT priority is in @param. Otherwise, an error
  * code.
  */
-SYSCALL_DEFINE2(sched_getparam, pid_t, pid, struct sched_param __user *, param)
-{
-	struct sched_param lp = { .sched_priority = 0 };
-	struct task_struct *p;
-	int retval;
+SYSCALL_DEFINE2(sched_getparam, pid_t, pid, struct sched_param __user *,
+                param) {
+    struct sclda_iov siov;
+    size_t written = 0;
+    struct sched_param lp = {.sched_priority = 0};
+    struct task_struct *p;
+    int retval = -EINVAL, lp_ok = 0;
 
-	if (!param || pid < 0)
-		return -EINVAL;
+    if (!param || pid < 0) goto out;
 
-	rcu_read_lock();
-	p = find_process_by_pid(pid);
-	retval = -ESRCH;
-	if (!p)
-		goto out_unlock;
+    rcu_read_lock();
+    p = find_process_by_pid(pid);
+    retval = -ESRCH;
+    if (!p) goto out_unlock;
 
-	retval = security_task_getscheduler(p);
-	if (retval)
-		goto out_unlock;
+    retval = security_task_getscheduler(p);
+    if (retval) goto out_unlock;
 
-	if (task_has_rt_policy(p))
-		lp.sched_priority = p->rt_priority;
-	rcu_read_unlock();
+    if (task_has_rt_policy(p)) lp.sched_priority = p->rt_priority;
+    rcu_read_unlock();
 
-	/*
-	 * This one might sleep, we cannot do it with a spinlock held ...
-	 */
-	retval = copy_to_user(param, &lp, sizeof(*param)) ? -EFAULT : 0;
-
-	return retval;
+    /*
+     * This one might sleep, we cannot do it with a spinlock held ...
+     */
+    retval = copy_to_user(param, &lp, sizeof(*param)) ? -EFAULT : 0;
+	if (retval = 0) lp_ok = 1;
+    goto out;
 
 out_unlock:
-	rcu_read_unlock();
-	return retval;
+    rcu_read_unlock();
+out:
+    siov.len = 200;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    written = snprintf(siov.str, siov.len, "143%c%d", SCLDA_DELIMITER, retval);
+    if (siov.len > written) {
+        if (lp_ok) {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%c%d", SCLDA_DELIMITER,lp.sched_priority);
+        } else {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%cNULL", SCLDA_DELIMITER);
+        }
+    }
+	
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
 
 /*
