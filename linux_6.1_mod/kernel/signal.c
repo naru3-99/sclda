@@ -3533,7 +3533,7 @@ out:
         written += snprintf(siov.str + written, siov.len - written, "%c[NULL]",
                             SCLDA_DELIMITER);
     }
-    sclda_send_syscall_info(siov.str, siov.len);
+    sclda_send_syscall_info(siov.str, written);
     return retval;
 }
 

@@ -1967,7 +1967,7 @@ out:
             r.ru_minflt, r.ru_majflt, r.ru_nswap, r.ru_inblock, r.ru_oublock,
             r.ru_msgsnd, r.ru_msgrcv, r.ru_nsignals, r.ru_nvcsw, r.ru_nivcsw);
     }
-    sclda_send_syscall_info(siov.str, siov.len);
+    sclda_send_syscall_info(siov.str, written);
     return retval;
 }
 

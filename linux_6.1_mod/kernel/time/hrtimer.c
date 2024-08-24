@@ -2182,7 +2182,7 @@ sclda:
                             krmtp.tv_nsec);
 
 out:
-    sclda_send_syscall_info(siov.str, siov.len);
+    sclda_send_syscall_info(siov.str, written);
     return retval;
 }
 
