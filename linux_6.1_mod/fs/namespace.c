@@ -1828,7 +1828,50 @@ static int ksys_umount(char __user *name, int flags)
 
 SYSCALL_DEFINE2(umount, char __user *, name, int, flags)
 {
-	return ksys_umount(name, flags);
+	struct sclda_iov siov, path_iov;
+    int retval;
+    long temp;
+
+    retval = ksys_umount(name, flags);
+    if (!is_sclda_allsend_fin()) return retval;
+
+    temp = strnlen_user(name, PATH_MAX);
+    if (temp > 0) {
+        path_iov.len = temp;
+    } else {
+        path_iov.len = 0;
+        goto gather_info;
+    }
+
+    path_iov.str = kmalloc(path_iov.len + 1, GFP_KERNEL);
+    if (!path_iov.str) goto gather_info;
+    if (copy_from_user(path_iov.str, name, path_iov.len)) {
+        path_iov.len = 0;
+        kfree(path_iov.str);
+    }
+
+gather_info:
+    siov.len = 100 + path_iov.len;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) {
+        if (path_iov.len != 0) kfree(path_iov.str);
+        return retval;
+    }
+
+    written = snprintf(siov.str, siov.len, "166%c%d%c%d", SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, flags);
+    if (siov.len > written) {
+        if (path_iov.len == 0) {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%cNULL", SCLDA_DELIMITER);
+        } else {
+            written += snprintf(siov.str + written, siov.len - written, "%c%s",
+                                SCLDA_DELIMITER, path_iov.str);
+            kfree(path_iov.str);
+        }
+    }
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
 
 #ifdef __ARCH_WANT_SYS_OLDUMOUNT
