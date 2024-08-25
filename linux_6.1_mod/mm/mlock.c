@@ -788,15 +788,30 @@ SYSCALL_DEFINE1(mlockall, int, flags) {
     return retval;
 }
 
-SYSCALL_DEFINE0(munlockall)
-{
-	int ret;
+int sclda_munlockall(void) {
+    int ret;
 
-	if (mmap_write_lock_killable(current->mm))
-		return -EINTR;
-	ret = apply_mlockall_flags(0);
-	mmap_write_unlock(current->mm);
-	return ret;
+    if (mmap_write_lock_killable(current->mm)) return -EINTR;
+    ret = apply_mlockall_flags(0);
+    mmap_write_unlock(current->mm);
+    return ret;
+}
+
+SYSCALL_DEFINE0(munlockall) {
+    int retval;
+    struct sclda_iov siov;
+
+    retval = sclda_munlockall();
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 50;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    siov.len = snprintf(siov.str, siov.len, "152%c%d", SCLDA_DELIMITER, retval);
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
 /*
