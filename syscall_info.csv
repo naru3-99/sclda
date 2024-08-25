@@ -165,6 +165,7 @@ acct,163,retval,name
 settimeofday,164,retval,ts[tv_sec,tv_nsec],tz[tz_minuteswest,tz_dsttime]
 mount,165,retval,flags,kernel_dev,dir_name,type,options
 umount2,166,retval,flags,name
+swapon,167,retval,swap_flags,specialfile
 swapoff,168,retval,specialfile
 gettid,186,retval
 futex,202,retval,kaddr,op,val,kaddr2,val3,tv_sec,tv_nsec
