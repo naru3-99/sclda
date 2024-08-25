@@ -343,8 +343,8 @@ gather_info:
     siov.str = kmalloc(siov.len, GFP_KERNEL);
     if (!(siov.str)) {
         if (path_iov.len != 0) kfree(path_iov.str);
-        return retval
-    };
+        return retval;
+    }
 
     written = snprintf(siov.str, siov.len, "163%c%d", SCLDA_DELIMITER, retval);
     if (siov.len > written) {
