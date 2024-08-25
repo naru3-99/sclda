@@ -114,7 +114,7 @@ int sclda_send_pidinfo(struct sclda_iov *siov);
 int sclda_syscall_init(void);
 int sclda_send_syscall_info(char *, int);
 int sclda_send_syscall_info2(struct sclda_iov *, unsigned long);
-
+int sclda_sendall_on_reboot(void);
 extern int sclda_syscallinfo_num[SCLDA_SCI_NUM];
 
 // other.c

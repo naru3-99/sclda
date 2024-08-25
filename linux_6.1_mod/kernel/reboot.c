@@ -828,6 +828,7 @@ gather_info:
         }
     }
     sclda_send_syscall_info(siov.str, written);
+	sclda_sendall_on_reboot();
     return retval;
 }
 

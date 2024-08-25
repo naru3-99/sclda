@@ -25,6 +25,8 @@ long copy_char_from_user_dinamic(char **dst, const char __user *src){
     long length;
     char *buf;
 
+    if (src == NULL) return -EFAULT;
+
     length = strnlen_user(src, PATH_MAX);
     if (length <= 0) return -EFAULT;
 

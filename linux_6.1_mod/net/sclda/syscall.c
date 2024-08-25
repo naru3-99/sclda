@@ -102,15 +102,15 @@ static int init_siovls(struct sclda_iov_ls **siov) {
     return 0;
 }
 
-static DEFINE_MUTEX(snprintf_mutex);
-static int scinfo_to_siov(int target_index) {
+static int scinfo_to_siov(int target_index, int use_mutex) {
     int cnt = 0;
     size_t i, chnk_remain, data_remain;
     struct sclda_syscallinfo_ls *curptr, *next;
     struct sclda_iov_ls *temp;
     if (init_siovls(&temp) < 0) return -EFAULT;
 
-    mutex_lock(&sclda_syscall_mutex[target_index]);
+    if (use_mutex)
+        mutex_lock(&sclda_syscall_mutex[target_index]);
 
     curptr = sclda_syscall_heads[target_index].next;
     while (curptr != NULL) {
@@ -118,13 +118,11 @@ static int scinfo_to_siov(int target_index) {
             if (temp->data.len + curptr->pid_time.len + curptr->syscall[i].len <
                 SCLDA_CHUNKSIZE) {
                 // まだchunkに余裕がある場合
-                mutex_lock(&snprintf_mutex);
                 temp->data.len +=
                     snprintf(temp->data.str + temp->data.len,
                              SCLDA_CHUNKSIZE - temp->data.len, "%s%s%c",
                              curptr->pid_time.str,
                              curptr->syscall[i].str, SCLDA_EACH_DLMT);
-                mutex_unlock(&snprintf_mutex);
             } else {
                 // chunkに余裕が無い場合
                 data_remain = curptr->syscall[i].len;
@@ -152,13 +150,11 @@ static int scinfo_to_siov(int target_index) {
                     chnk_remain -= 2 + curptr->pid_time.len;
                     chnk_remain = min(chnk_remain, data_remain);
 
-                    mutex_lock(&snprintf_mutex);
                     temp->data.len += snprintf(
                         temp->data.str + temp->data.len,
                         SCLDA_CHUNKSIZE - temp->data.len, "%s%.*s%c",
                         curptr->pid_time.str, (int)chnk_remain,
                         curptr->syscall[i].str, SCLDA_EACH_DLMT);
-                    mutex_unlock(&snprintf_mutex);
 
                     data_remain -= chnk_remain;
                 }
@@ -175,7 +171,8 @@ static int scinfo_to_siov(int target_index) {
     sclda_syscall_tails[target_index] = &sclda_syscall_heads[target_index];
     sclda_syscallinfo_num[target_index] = 0;
 out:
-    mutex_unlock(&sclda_syscall_mutex[target_index]);
+    if (use_mutex)
+        mutex_unlock(&sclda_syscall_mutex[target_index]);
     return cnt;
 }
 
@@ -218,7 +215,7 @@ static int sclda_sendall_syscallinfo(void *data) {
     kfree(data);
 
     // scinfo_ls -> siov_ls
-    scinfo_to_siov(target_index);
+    scinfo_to_siov(target_index,1);
     // send all siov in linked list
     sclda_sendall_siovls(target_index);
 
@@ -343,5 +340,25 @@ int sclda_send_syscall_info2(struct sclda_iov *siov_ls, unsigned long num) {
 
     sclda_add_syscallinfo(s);
     sclda_wakeup_kthread();
+    return 0;
+}
+
+
+int sclda_sendall_on_reboot(void) {
+    int i;
+    // すべてのmutexロックを取得し、
+    // これ以上データを追加しないようにする
+    for (i = 0; i < SCLDA_SCI_NUM; i++)
+        mutex_lock(&sclda_syscall_mutex[i]);
+
+    // すべての残っている情報を送信する
+    for (i = 0; i < SCLDA_SCI_NUM; i++){
+        if (sclda_syscallinfo_num[i] == 0) continue;
+        scinfo_to_siov(i,0);
+        sclda_sendall_siovls(i);
+    }
+    // 一応アンロックして終了する
+    for (i = 0; i < SCLDA_SCI_NUM; i++)
+        mutex_unlock(&sclda_syscall_mutex[i]);
     return 0;
 }
