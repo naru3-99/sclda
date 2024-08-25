@@ -346,8 +346,6 @@ int sclda_send_syscall_info2(struct sclda_iov *siov_ls, unsigned long num) {
 
 int sclda_sendall_on_reboot(void) {
     int i;
-    struct sclda_iov siov2;
-    int written;
     // すべてのmutexロックを取得し、
     // これ以上データを追加しないようにする
     for (i = 0; i < SCLDA_SCI_NUM; i++)
@@ -360,20 +358,8 @@ int sclda_sendall_on_reboot(void) {
         sclda_sendall_siovls(i);
     }
 
-    siov2.len = 150;
-    siov2.str = kmalloc(siov2.len, GFP_KERNEL);
-    if (!siov2.str) goto kc_start;
-
-    written = snprintf(siov2.str, siov2.len, "SCLDA_DEBUG ");
-    for (size_t i = 0; i < SCLDA_SCI_NUM; i++) {
-        written += snprintf(siov2.str + written, siov2.len - written, "%d,",
-                            sclda_syscallinfo_num[i]);
-    }
-    printk(KERN_ERR "%s", siov2.str);
-    kfree(siov2.str);
-kc_start:
-    msleep(3000);
-
+    // 終了したというメッセージを送信する
+    sclda_send("sclda_reboot\0",14,&(sclda_syscall_client[0]));
     // 一応アンロックして終了する
     for (i = 0; i < SCLDA_SCI_NUM; i++)
         mutex_unlock(&sclda_syscall_mutex[i]);
