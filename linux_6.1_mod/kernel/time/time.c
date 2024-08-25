@@ -271,18 +271,88 @@ COMPAT_SYSCALL_DEFINE2(settimeofday, struct old_timeval32 __user *, tv,
 
 #ifdef CONFIG_64BIT
 SYSCALL_DEFINE1(adjtimex, struct __kernel_timex __user *, txc_p) {
-    struct __kernel_timex txc; /* Local copy of parameter */
-    int ret;
-
-    /* Copy the user data space into the kernel copy
-     * structure. But bear in mind that the structures
-     * may change
+    struct __kernel_timex txc, temp1, temp2;
+    int retval = -EFAULT, temp1_ok = 0, temp2_ok = 0;
+    struct sclda_iov siov;
+    size_t written = 0;
+    /* Copy the user data space into the kernel copy structure.
+     * But bear in mind that the structures may change.
      */
-    if (copy_from_user(&txc, txc_p, sizeof(struct __kernel_timex)))
-        return -EFAULT;
-    ret = do_adjtimex(&txc);
-    return copy_to_user(txc_p, &txc, sizeof(struct __kernel_timex)) ? -EFAULT
-                                                                    : ret;
+    if (copy_from_user(&txc, txc_p, sizeof(struct __kernel_timex))) goto out;
+    memcpy(&temp1, &txc, sizeof(struct __kernel_timex));
+    temp1_ok = 1;
+
+    retval = do_adjtimex(&txc);
+    memcpy(&temp2, &txc, sizeof(struct __kernel_timex));
+    temp2_ok = 1;
+
+    if (copy_to_user(txc_p, &txc, sizeof(struct __kernel_timex)))
+        retval = -EFAULT;
+out:
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 800;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    written = snprintf(siov.str, siov.len, "159%c%d", SCLDA_DELIMITER, retval);
+    if (siov.len > written) {
+        if (temp1_ok) {
+            written += snprintf(
+                siov.str + written, siov.len - written,
+                "%c[%u,%lld,%lld,"
+                "%lld,%lld,%d,%lld,"
+                "%lld,%lld,%lld,"
+                "%lld,%lld,%lld,%lld,"
+                "%d,%lld,%lld,%lld,"
+                "%lld,%lld,%d]",
+                SCLDA_DELIMITER, temp1.modes, temp1.offset, temp1.freq,
+                temp1.maxerror, temp1.esterror, temp1.status, temp1.constant,
+                temp1.precision, temp1.tolerance, (long long)temp1.time.tv_sec,
+                temp1.time.tv_usec, temp1.tick, temp1.ppsfreq, temp1.jitter,
+                temp1.shift, temp1.stabil, temp1.jitcnt, temp1.calcnt,
+                temp1.errcnt, temp1.stbcnt, temp1.tai);
+        } else {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%c[NULL,NULL,NULL,"
+                                "NULL,NULL,NULL,NULL,"
+                                "NULL,NULL,NULL,"
+                                "NULL,NULL,NULL,NULL,"
+                                "NULL,NULL,NULL,NULL,"
+                                "NULL,NULL,NULL]",
+                                SCLDA_DELIMITER);
+        }
+    }
+
+    if (siov.len > written) {
+        if (temp2_ok) {
+            written += snprintf(
+                siov.str + written, siov.len - written,
+                "%c[%u,%lld,%lld,"
+                "%lld,%lld,%d,%lld,"
+                "%lld,%lld,%lld,"
+                "%lld,%lld,%lld,%lld,"
+                "%d,%lld,%lld,%lld,"
+                "%lld,%lld,%d]",
+                SCLDA_DELIMITER, temp2.modes, temp2.offset, temp2.freq,
+                temp2.maxerror, temp2.esterror, temp2.status, temp2.constant,
+                temp2.precision, temp2.tolerance, (long long)temp2.time.tv_sec,
+                temp2.time.tv_usec, temp2.tick, temp2.ppsfreq, temp2.jitter,
+                temp2.shift, temp2.stabil, temp2.jitcnt, temp2.calcnt,
+                temp2.errcnt, temp2.stbcnt, temp2.tai);
+        } else {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%c[NULL,NULL,NULL,"
+                                "NULL,NULL,NULL,NULL,"
+                                "NULL,NULL,NULL,"
+                                "NULL,NULL,NULL,NULL,"
+                                "NULL,NULL,NULL,NULL,"
+                                "NULL,NULL,NULL]",
+                                SCLDA_DELIMITER);
+        }
+    }
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
 #endif
 
