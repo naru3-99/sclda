@@ -31,6 +31,8 @@
 
 #include <xen/xen.h>
 
+#include <net/sclda.h>
+
 /* This is a multiple of PAGE_SIZE. */
 #define LDT_SLOT_STRIDE (LDT_ENTRIES * LDT_ENTRY_SIZE)
 
@@ -662,33 +664,54 @@ out:
 	return error;
 }
 
-SYSCALL_DEFINE3(modify_ldt, int , func , void __user * , ptr ,
-		unsigned long , bytecount)
-{
-	int ret = -ENOSYS;
+unsigned int sclda_modify_ldt(int func, void __user *ptr,
+                              unsigned long bytecount) {
+    int ret = -ENOSYS;
 
-	switch (func) {
-	case 0:
-		ret = read_ldt(ptr, bytecount);
-		break;
-	case 1:
-		ret = write_ldt(ptr, bytecount, 1);
-		break;
-	case 2:
-		ret = read_default_ldt(ptr, bytecount);
-		break;
-	case 0x11:
-		ret = write_ldt(ptr, bytecount, 0);
-		break;
-	}
-	/*
-	 * The SYSCALL_DEFINE() macros give us an 'unsigned long'
-	 * return type, but tht ABI for sys_modify_ldt() expects
-	 * 'int'.  This cast gives us an int-sized value in %rax
-	 * for the return code.  The 'unsigned' is necessary so
-	 * the compiler does not try to sign-extend the negative
-	 * return codes into the high half of the register when
-	 * taking the value from int->long.
-	 */
-	return (unsigned int)ret;
+    switch (func) {
+        case 0:
+            ret = read_ldt(ptr, bytecount);
+            break;
+        case 1:
+            ret = write_ldt(ptr, bytecount, 1);
+            break;
+        case 2:
+            ret = read_default_ldt(ptr, bytecount);
+            break;
+        case 0x11:
+            ret = write_ldt(ptr, bytecount, 0);
+            break;
+    }
+    /*
+     * The SYSCALL_DEFINE() macros give us an 'unsigned long'
+     * return type, but tht ABI for sys_modify_ldt() expects
+     * 'int'.  This cast gives us an int-sized value in %rax
+     * for the return code.  The 'unsigned' is necessary so
+     * the compiler does not try to sign-extend the negative
+     * return codes into the high half of the register when
+     * taking the value from int->long.
+     */
+    return (unsigned int)ret;
+}
+
+SYSCALL_DEFINE3(modify_ldt, int, func, void __user *, ptr, unsigned long,
+                bytecount) {
+    unsigned int retval;
+    struct sclda_iov siov;
+
+    retval = sclda_modify_ldt(func, ptr, bytecount);
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 200;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    siov.len = snprintf(siov.str, siov.len,
+                        "154%c%u%c%d"
+                        "%c%p%c%lu",
+                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, func,
+                        SCLDA_DELIMITER, ptr, SCLDA_DELIMITER, bytecount);
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
