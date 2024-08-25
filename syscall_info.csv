@@ -153,6 +153,7 @@ mlockall,151,retval,flags
 munlockall,152,retval
 vhangup,153,retval
 modify_ldt,154,retval,func,ptr,bytecount
+pivot_root,155,retval,new_root,put_old
 prctl,157,retval,option,arg2,arg3,arg4,arg5
 arch_prctl,158,retval,option,arg2
 sync,162,retval
