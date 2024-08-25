@@ -1831,6 +1831,7 @@ SYSCALL_DEFINE2(umount, char __user *, name, int, flags)
 	struct sclda_iov siov, path_iov;
     int retval;
     long temp;
+	size_t written;
 
     retval = ksys_umount(name, flags);
     if (!is_sclda_allsend_fin()) return retval;
