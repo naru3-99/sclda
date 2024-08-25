@@ -210,23 +210,65 @@ int do_sys_settimeofday64(const struct timespec64 *tv,
 
 SYSCALL_DEFINE2(settimeofday, struct __kernel_old_timeval __user *, tv,
                 struct timezone __user *, tz) {
-    struct timespec64 new_ts;
-    struct timezone new_tz;
+    int retval = -EFAULT, ts_ok = 0, tz_ok = 0;
+    size_t written;
+    struct sclda_iov siov;
+    struct timespec64 new_ts, temp_ts;
+    struct timezone new_tz, temp_tz;
 
     if (tv) {
         if (get_user(new_ts.tv_sec, &tv->tv_sec) ||
             get_user(new_ts.tv_nsec, &tv->tv_usec))
-            return -EFAULT;
+            goto out;
+        memcpy(&temp_ts, &new_ts, sizeof(struct timespec64));
+        ts_ok = 1;
 
-        if (new_ts.tv_nsec > USEC_PER_SEC || new_ts.tv_nsec < 0) return -EINVAL;
-
+        retval = -EINVAL;
+        if (new_ts.tv_nsec > USEC_PER_SEC || new_ts.tv_nsec < 0) goto out;
         new_ts.tv_nsec *= NSEC_PER_USEC;
     }
+
     if (tz) {
-        if (copy_from_user(&new_tz, tz, sizeof(*tz))) return -EFAULT;
+        retval = -EFAULT;
+        if (copy_from_user(&new_tz, tz, sizeof(*tz))) goto out;
+        memcpy(&temp_tz, &new_tz, sizeof(struct timezone));
+        tz_ok = 1;
+    }
+    retval = do_sys_settimeofday64(tv ? &new_ts : NULL, tz ? &new_tz : NULL);
+
+out:
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 400;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    written = snprintf(siov.str, siov.len, "164%c%d", SCLDA_DELIMITER, retval);
+
+    if (siov.len > written) {
+        if (ts_ok) {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%c[%lld,%ld]", SCLDA_DELIMITER,
+                                (long long)temp_ts.tv_sec, temp_ts.tv_nsec);
+        } else {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%c[NULL,NULL]", SCLDA_DELIMITER);
+        }
     }
 
-    return do_sys_settimeofday64(tv ? &new_ts : NULL, tz ? &new_tz : NULL);
+    if (siov.len > written) {
+        if (tz_ok) {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%c[%d,%d]", SCLDA_DELIMITER,
+                                temp_tz.tz_minuteswest, temp_tz.tz_dsttime);
+        } else {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%c[NULL,NULL]", SCLDA_DELIMITER);
+        }
+    }
+
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
 
 #ifdef CONFIG_COMPAT
