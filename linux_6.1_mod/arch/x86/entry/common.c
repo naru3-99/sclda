@@ -7,6 +7,7 @@
  * in ptrace.c and signal.c.
  */
 
+#include <net/sclda.h>
 #include <linux/kernel.h>
 #include <linux/sched.h>
 #include <linux/sched/task_stack.h>
@@ -252,9 +253,20 @@ __visible noinstr long do_SYSENTER_32(struct pt_regs *regs)
 }
 #endif
 
-SYSCALL_DEFINE0(ni_syscall)
-{
-	return -ENOSYS;
+SYSCALL_DEFINE0(ni_syscall) {
+    int retval = -ENOSYS;
+    struct sclda_iov siov;
+
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 50;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    siov.len = snprintf(siov.str, siov.len, "156%c%d", SCLDA_DELIMITER, retval);
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
 #ifdef CONFIG_XEN_PV
