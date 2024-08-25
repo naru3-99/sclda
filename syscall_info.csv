@@ -147,6 +147,7 @@ sched_getscheduler,145,retval,pid
 sched_get_priority_max,146,retval,policy
 sched_get_priority_max,147,retval,policy
 sched_rr_get_interval,148,retval,pid,timespec.[tv_sec,tv_nsec]
+mlock,149,retval,start,len
 prctl,157,retval,option,arg2,arg3,arg4,arg5
 arch_prctl,158,retval,option,arg2
 sync,162,retval
@@ -197,6 +198,7 @@ prlimit64,302,retval,pid,resource,old_rlim_cur,old_rlim_max,new_rlim_cur,new_rli
 renameat2,316,retval,olddfd,newdfd,flags,oldname,newname
 getrandom,318,retval,len,flags,ubuf
 execveat,322,retval,flags,filename,[argv...],[envp...]
+mlock2,325,retval,start,len,flags
 preadv2,327,retval,fd,vlen,flags,[pos,pos_l,pos_h],vec
 pwritev2,328,retval,fd,vlen,flags,[pos,pos_l,pos_h],vec
 statx,332,retval,dfd,flags,mask,stx_mask,stx_blksize,stx_attributes,stx_nlink,stx_uid,stx_gid,stx_mode,stx_ino,stx_size,stx_blocks,stx_attributes_mask,stx_atime.tv_sec,stx_atime.tv_nsec,stx_btime.tv_sec,stx_btime.tv_nsec,stx_ctime.tv_sec,stx_ctime.tv_nsec,stx_mtime.tv_sec,stx_mtime.tv_nsec,stx_rdev_major,stx_rdev_minor,stx_dev_major,stx_dev_minor,stx_mnt_id,stx_dio_mem_align,stx_dio_offset_align,filename

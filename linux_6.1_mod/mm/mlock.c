@@ -6,6 +6,7 @@
  *  (C) Copyright 2002 Christoph Hellwig
  */
 
+#include <net/sclda.h>
 #include <linux/capability.h>
 #include <linux/mman.h>
 #include <linux/mm.h>
@@ -611,22 +612,54 @@ static __must_check int do_mlock(unsigned long start, size_t len, vm_flags_t fla
 	return 0;
 }
 
-SYSCALL_DEFINE2(mlock, unsigned long, start, size_t, len)
-{
-	return do_mlock(start, len, VM_LOCKED);
+SYSCALL_DEFINE2(mlock, unsigned long, start, size_t, len) {
+    int retval;
+    struct sclda_iov siov;
+
+    retval = do_mlock(start, len, VM_LOCKED);
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 200;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    siov.len = snprintf(siov.str, siov.len,
+                        "149%c%d%c%lu"
+                        "%c%zu",
+                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, start,
+                        SCLDA_DELIMITER, len);
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
-SYSCALL_DEFINE3(mlock2, unsigned long, start, size_t, len, int, flags)
-{
-	vm_flags_t vm_flags = VM_LOCKED;
+int sclda_mlock2(unsigned long start, size_t len, int flags) {
+    vm_flags_t vm_flags = VM_LOCKED;
+    if (flags & ~MLOCK_ONFAULT) return -EINVAL;
+    if (flags & MLOCK_ONFAULT) vm_flags |= VM_LOCKONFAULT;
 
-	if (flags & ~MLOCK_ONFAULT)
-		return -EINVAL;
+    return do_mlock(start, len, vm_flags);
+}
 
-	if (flags & MLOCK_ONFAULT)
-		vm_flags |= VM_LOCKONFAULT;
+SYSCALL_DEFINE3(mlock2, unsigned long, start, size_t, len, int, flags) {
+    int retval;
+    struct sclda_iov siov;
 
-	return do_mlock(start, len, vm_flags);
+    retval = sclda_mlock2(start, len, flags);
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 200;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    siov.len = snprintf(siov.str, siov.len,
+                        "325%c%d%c%lu"
+                        "%c%zu%c%d",
+                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, start,
+                        SCLDA_DELIMITER, len, SCLDA_DELIMITER, flags);
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
 SYSCALL_DEFINE2(munlock, unsigned long, start, size_t, len)
