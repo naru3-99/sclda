@@ -8983,23 +8983,33 @@ EXPORT_SYMBOL(io_schedule);
  * rt_priority that can be used by a given scheduling class.
  * On failure, a negative error code is returned.
  */
-SYSCALL_DEFINE1(sched_get_priority_max, int, policy)
-{
-	int ret = -EINVAL;
+SYSCALL_DEFINE1(sched_get_priority_max, int, policy) {
+    int retval = -EINVAL;
+    struct sclda_iov siov;
 
-	switch (policy) {
-	case SCHED_FIFO:
-	case SCHED_RR:
-		ret = MAX_RT_PRIO - 1;
-		break;
-	case SCHED_DEADLINE:
-	case SCHED_NORMAL:
-	case SCHED_BATCH:
-	case SCHED_IDLE:
-		ret = 0;
-		break;
-	}
-	return ret;
+    switch (policy) {
+        case SCHED_FIFO:
+        case SCHED_RR:
+            retval = MAX_RT_PRIO - 1;
+            break;
+        case SCHED_DEADLINE:
+        case SCHED_NORMAL:
+        case SCHED_BATCH:
+        case SCHED_IDLE:
+            retval = 0;
+            break;
+    }
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 150;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    siov.len = snprintf(siov.str, siov.len, "146%c%d%c%d", SCLDA_DELIMITER,
+                        retval, SCLDA_DELIMITER, policy);
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
 /**
@@ -9010,22 +9020,32 @@ SYSCALL_DEFINE1(sched_get_priority_max, int, policy)
  * rt_priority that can be used by a given scheduling class.
  * On failure, a negative error code is returned.
  */
-SYSCALL_DEFINE1(sched_get_priority_min, int, policy)
-{
-	int ret = -EINVAL;
+SYSCALL_DEFINE1(sched_get_priority_min, int, policy) {
+    int retval = -EINVAL;
+    struct sclda_iov siov;
 
-	switch (policy) {
-	case SCHED_FIFO:
-	case SCHED_RR:
-		ret = 1;
-		break;
-	case SCHED_DEADLINE:
-	case SCHED_NORMAL:
-	case SCHED_BATCH:
-	case SCHED_IDLE:
-		ret = 0;
-	}
-	return ret;
+    switch (policy) {
+        case SCHED_FIFO:
+        case SCHED_RR:
+            retval = 1;
+            break;
+        case SCHED_DEADLINE:
+        case SCHED_NORMAL:
+        case SCHED_BATCH:
+        case SCHED_IDLE:
+            retval = 0;
+    }
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 150;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    siov.len = snprintf(siov.str, siov.len, "147%c%d%c%d", SCLDA_DELIMITER,
+                        retval, SCLDA_DELIMITER, policy);
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
 static int sched_rr_get_interval(pid_t pid, struct timespec64 *t)

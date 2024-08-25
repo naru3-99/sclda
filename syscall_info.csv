@@ -144,6 +144,8 @@ sched_setparam,142,retval,pid,sched_priority
 sched_setparam,143,retval,pid,sched_priority
 sched_setscheduler,144,retval,pid,policy,sched_priority
 sched_getscheduler,145,retval,pid
+sched_get_priority_max,146,retval,policy
+sched_get_priority_max,147,retval,policy
 prctl,157,retval,option,arg2,arg3,arg4,arg5
 arch_prctl,158,retval,option,arg2
 sync,162,retval
