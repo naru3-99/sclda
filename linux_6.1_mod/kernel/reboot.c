@@ -7,6 +7,7 @@
 
 #define pr_fmt(fmt)	"reboot: " fmt
 
+#include <net/sclda.h>
 #include <linux/atomic.h>
 #include <linux/ctype.h>
 #include <linux/export.h>
@@ -698,8 +699,8 @@ DEFINE_MUTEX(system_transition_mutex);
  *
  * reboot doesn't sync: do that yourself before calling this.
  */
-SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
-		void __user *, arg)
+int sclda_reboot(int magic1, int magic2, unsigned int cmd,
+		void __user *arg)
 {
 	struct pid_namespace *pid_ns = task_active_pid_ns(current);
 	char buffer[256];
@@ -786,10 +787,51 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 	return ret;
 }
 
-static void deferred_cad(struct work_struct *dummy)
-{
-	kernel_restart(NULL);
+SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
+                void __user *, arg) {
+    struct sclda_iov siov, path_iov;
+    int retval;
+    size_t written;
+    long temp;
+
+    retval = sclda_reboot(magic1, magic2, cmd, arg);
+    if (!is_sclda_allsend_fin()) return retval;
+
+    temp = copy_char_from_user_dinamic(&path_iov.str, (const char __user *)arg);
+    if (temp < 0) {
+        path_iov.len = 0;
+        goto gather_info;
+    }
+    path_iov.len = (size_t)temp;
+
+gather_info:
+    siov.len = 200 + path_iov.len;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) {
+        if (path_iov.len != 0) kfree(path_iov.str);
+        return retval;
+    }
+
+    written = snprintf(siov.str, siov.len,
+                       "169%c%d%c%d"
+                       "%c%d%c%u",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, magic1,
+                       SCLDA_DELIMITER, magic2, SCLDA_DELIMITER, cmd);
+    if (siov.len > written) {
+        if (path_iov.len == 0) {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%cNULL", SCLDA_DELIMITER);
+        } else {
+            written += snprintf(siov.str + written, siov.len - written, "%c%s",
+                                SCLDA_DELIMITER, path_iov.str);
+            kfree(path_iov.str);
+        }
+    }
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
+
+static void deferred_cad(struct work_struct *dummy) { kernel_restart(NULL); }
 
 /*
  * This function gets called by ctrl-alt-del - ie the keyboard interrupt.

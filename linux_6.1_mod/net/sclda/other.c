@@ -21,6 +21,24 @@
 
 #include <net/sclda.h>
 
+long copy_char_from_user_dinamic(char **dst, const char __user *src){
+    long length;
+    char *buf;
+
+    length = strnlen_user(src, PATH_MAX);
+    if (length <= 0) return -EFAULT;
+
+    buf = kmalloc(length+1,GFP_KERNEL);
+    if (!buf) return -ENOMEM;
+
+    if (copy_from_user(buf, src, length)) {
+        kfree(buf);
+        return -EFAULT;
+    }
+    *dst = buf;
+    return length;
+};
+
 int sclda_get_current_pid(void) {
     return (int)pid_nr(get_task_pid(current, PIDTYPE_PID));
 }

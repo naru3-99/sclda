@@ -88,39 +88,36 @@ send_info:
 }
 
 
-SYSCALL_DEFINE1(chroot, const char __user *, filename) {
+SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
+                void __user *, arg) {
     struct sclda_iov siov, path_iov;
     int retval;
-    long temp;
     size_t written;
+    long temp;
 
-    retval = sclda_chroot(filename);
+    retval = sclda_reboot(magic1, magic2, cmd, arg);
     if (!is_sclda_allsend_fin()) return retval;
 
-    temp = strnlen_user(filename, PATH_MAX);
-    if (temp > 0) {
-        path_iov.len = temp;
-    } else {
+    temp = copy_char_from_user_dinamic(&path_iov.str, (const char __user *)arg);
+    if (temp < 0) {
         path_iov.len = 0;
         goto gather_info;
     }
-
-    path_iov.str = kmalloc(path_iov.len + 1, GFP_KERNEL);
-    if (!path_iov.str) goto gather_info;
-    if (copy_from_user(path_iov.str, filename, path_iov.len)) {
-        path_iov.len = 0;
-        kfree(path_iov.str);
-    }
+    path_iov.len = (size_t)temp;
 
 gather_info:
-    siov.len = 100 + path_iov.len;
+    siov.len = 200 + path_iov.len;
     siov.str = kmalloc(siov.len, GFP_KERNEL);
     if (!(siov.str)) {
         if (path_iov.len != 0) kfree(path_iov.str);
         return retval;
     }
 
-    written = snprintf(siov.str, siov.len, "161%c%d", SCLDA_DELIMITER, retval);
+    written = snprintf(siov.str, siov.len,
+                       "169%c%d%c%d"
+                       "%c%d%c%u",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, magic1,
+                       SCLDA_DELIMITER, magic2, SCLDA_DELIMITER, cmd);
     if (siov.len > written) {
         if (path_iov.len == 0) {
             written += snprintf(siov.str + written, siov.len - written,
