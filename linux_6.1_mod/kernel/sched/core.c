@@ -8150,7 +8150,7 @@ SYSCALL_DEFINE2(sched_getparam, pid_t, pid, struct sched_param __user *,
      * This one might sleep, we cannot do it with a spinlock held ...
      */
     retval = copy_to_user(param, &lp, sizeof(*param)) ? -EFAULT : 0;
-	if (retval = 0) lp_ok = 1;
+	if (retval == 0) lp_ok = 1;
     goto out;
 
 out_unlock:
