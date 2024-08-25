@@ -745,33 +745,47 @@ out:
 	return 0;
 }
 
-SYSCALL_DEFINE1(mlockall, int, flags)
-{
-	unsigned long lock_limit;
-	int ret;
+int sclda_mlockall(int flags) {
+    unsigned long lock_limit;
+    int ret;
 
-	if (!flags || (flags & ~(MCL_CURRENT | MCL_FUTURE | MCL_ONFAULT)) ||
-	    flags == MCL_ONFAULT)
-		return -EINVAL;
+    if (!flags || (flags & ~(MCL_CURRENT | MCL_FUTURE | MCL_ONFAULT)) ||
+        flags == MCL_ONFAULT)
+        return -EINVAL;
 
-	if (!can_do_mlock())
-		return -EPERM;
+    if (!can_do_mlock()) return -EPERM;
 
-	lock_limit = rlimit(RLIMIT_MEMLOCK);
-	lock_limit >>= PAGE_SHIFT;
+    lock_limit = rlimit(RLIMIT_MEMLOCK);
+    lock_limit >>= PAGE_SHIFT;
 
-	if (mmap_write_lock_killable(current->mm))
-		return -EINTR;
+    if (mmap_write_lock_killable(current->mm)) return -EINTR;
 
-	ret = -ENOMEM;
-	if (!(flags & MCL_CURRENT) || (current->mm->total_vm <= lock_limit) ||
-	    capable(CAP_IPC_LOCK))
-		ret = apply_mlockall_flags(flags);
-	mmap_write_unlock(current->mm);
-	if (!ret && (flags & MCL_CURRENT))
-		mm_populate(0, TASK_SIZE);
+    ret = -ENOMEM;
+    if (!(flags & MCL_CURRENT) || (current->mm->total_vm <= lock_limit) ||
+        capable(CAP_IPC_LOCK))
+        ret = apply_mlockall_flags(flags);
+    mmap_write_unlock(current->mm);
+    if (!ret && (flags & MCL_CURRENT)) mm_populate(0, TASK_SIZE);
 
-	return ret;
+    return ret;
+}
+
+SYSCALL_DEFINE1(mlockall, int, flags) {
+    int retval;
+    struct sclda_iov siov;
+
+    retval = sclda_mlockall(flags);
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 100;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    siov.len = snprintf(siov.str, siov.len, "151%c%d%c%d", SCLDA_DELIMITER,
+                        retval, SCLDA_DELIMITER, flags);
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
 SYSCALL_DEFINE0(munlockall)
