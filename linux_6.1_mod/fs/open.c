@@ -1811,12 +1811,29 @@ SYSCALL_DEFINE3(close_range, unsigned int, fd, unsigned int, max_fd,
  * This routine simulates a hangup on the tty, to arrange that users
  * are given clean terminals at login time.
  */
-SYSCALL_DEFINE0(vhangup) {
+int sclda_vhangup(void) {
     if (capable(CAP_SYS_TTY_CONFIG)) {
         tty_vhangup_self();
         return 0;
     }
     return -EPERM;
+}
+
+SYSCALL_DEFINE0(vhangup) {
+    int retval;
+    struct sclda_iov siov;
+
+    retval = sclda_vhangup();
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 50;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    siov.len = snprintf(siov.str, siov.len, "153%c%d", SCLDA_DELIMITER, retval);
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
 /*
