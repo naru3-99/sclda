@@ -9096,15 +9096,38 @@ out_unlock:
  * an error code.
  */
 SYSCALL_DEFINE2(sched_rr_get_interval, pid_t, pid,
-		struct __kernel_timespec __user *, interval)
-{
-	struct timespec64 t;
-	int retval = sched_rr_get_interval(pid, &t);
+                struct __kernel_timespec __user *, interval) {
+    struct timespec64 t;
+    size_t written;
+    struct sclda_iov siov;
+    int retval, t_ok = 0;
 
-	if (retval == 0)
-		retval = put_timespec64(&t, interval);
+    retval = sched_rr_get_interval(pid, &t);
+    if (retval == 0) {
+        retval = put_timespec64(&t, interval);
+        t_ok = 1;
+    }
 
-	return retval;
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 300;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    written = snprintf(siov.str, siov.len, "148%c%d%c%d", SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, (int)pid);
+    if (siov.len > written) {
+        if (t_ok) {
+            written +=
+                snprintf(siov.str + written, siov.len - written, "%c[%lld,%ld]",
+                         SCLDA_DELIMITER, (long long)t.tv_sec, t.tv_nsec);
+        } else {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%c[NULL,NULL]", SCLDA_DELIMITER);
+        }
+    }
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
 
 #ifdef CONFIG_COMPAT_32BIT_TIME
