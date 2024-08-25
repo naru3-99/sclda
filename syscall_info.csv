@@ -148,6 +148,7 @@ sched_get_priority_max,146,retval,policy
 sched_get_priority_max,147,retval,policy
 sched_rr_get_interval,148,retval,pid,timespec.[tv_sec,tv_nsec]
 mlock,149,retval,start,len
+munlock,150,retval,start,len
 prctl,157,retval,option,arg2,arg3,arg4,arg5
 arch_prctl,158,retval,option,arg2
 sync,162,retval

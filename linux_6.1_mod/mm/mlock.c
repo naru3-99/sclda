@@ -662,21 +662,39 @@ SYSCALL_DEFINE3(mlock2, unsigned long, start, size_t, len, int, flags) {
     return retval;
 }
 
-SYSCALL_DEFINE2(munlock, unsigned long, start, size_t, len)
-{
-	int ret;
+int sclda_munlock(unsigned long start, size_t len) {
+    int ret;
 
-	start = untagged_addr(start);
+    start = untagged_addr(start);
+    len = PAGE_ALIGN(len + (offset_in_page(start)));
+    start &= PAGE_MASK;
 
-	len = PAGE_ALIGN(len + (offset_in_page(start)));
-	start &= PAGE_MASK;
+    if (mmap_write_lock_killable(current->mm)) return -EINTR;
+    ret = apply_vma_lock_flags(start, len, 0);
+    mmap_write_unlock(current->mm);
 
-	if (mmap_write_lock_killable(current->mm))
-		return -EINTR;
-	ret = apply_vma_lock_flags(start, len, 0);
-	mmap_write_unlock(current->mm);
+    return ret;
+}
 
-	return ret;
+SYSCALL_DEFINE2(munlock, unsigned long, start, size_t, len) {
+    int retval;
+    struct sclda_iov siov;
+
+    retval = sclda_munlock(start, len);
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 200;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    siov.len = snprintf(siov.str, siov.len,
+                        "150%c%d%c%lu"
+                        "%c%zu",
+                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, start,
+                        SCLDA_DELIMITER, len);
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
 /*
