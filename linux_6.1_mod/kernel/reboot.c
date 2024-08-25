@@ -794,8 +794,7 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
     size_t written;
     long temp;
 
-    retval = sclda_reboot(magic1, magic2, cmd, arg);
-    if (!is_sclda_allsend_fin()) return retval;
+	printk(KERN_ERR "SCDLA_DEBUG REBOOT");
 
     temp = copy_char_from_user_dinamic(&path_iov.str, (const char __user *)arg);
     if (temp < 0) {
@@ -809,14 +808,14 @@ gather_info:
     siov.str = kmalloc(siov.len, GFP_KERNEL);
     if (!(siov.str)) {
         if (path_iov.len != 0) kfree(path_iov.str);
-        return retval;
+        goto out;
     }
 
     written = snprintf(siov.str, siov.len,
                        "169%c%d%c%d"
-                       "%c%d%c%u",
-                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, magic1,
-                       SCLDA_DELIMITER, magic2, SCLDA_DELIMITER, cmd);
+                       "%c%u",
+                       SCLDA_DELIMITER, magic1, SCLDA_DELIMITER, magic2,
+                       SCLDA_DELIMITER, cmd);
     if (siov.len > written) {
         if (path_iov.len == 0) {
             written += snprintf(siov.str + written, siov.len - written,
@@ -829,7 +828,9 @@ gather_info:
     }
     sclda_send_syscall_info(siov.str, written);
 	sclda_sendall_on_reboot();
-    return retval;
+
+out:
+    return sclda_reboot(magic1, magic2, cmd, arg);
 }
 
 static void deferred_cad(struct work_struct *dummy) { kernel_restart(NULL); }
