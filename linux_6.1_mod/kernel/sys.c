@@ -2346,13 +2346,39 @@ free_old_buf:
 	return retval;
 }
 
-SYSCALL_DEFINE2(setrlimit, unsigned int, resource, struct rlimit __user *, rlim)
-{
-	struct rlimit new_rlim;
+SYSCALL_DEFINE2(setrlimit, unsigned int, resource, struct rlimit __user *,
+                rlim) {
+    struct sclda_iov siov;
+    size_t written = 0;
+    int retval = -EFAULT, rlimok = 0;
+    struct rlimit new_rlim;
 
-	if (copy_from_user(&new_rlim, rlim, sizeof(*rlim)))
-		return -EFAULT;
-	return do_prlimit(current, resource, &new_rlim, NULL);
+    if (copy_from_user(&new_rlim, rlim, sizeof(*rlim))) goto out;
+    rlimok = 1;
+
+    retval = do_prlimit(current, resource, &new_rlim, NULL);
+
+out:
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 200;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    written = snprintf(siov.str, siov.len, "160%c%d%c%u", SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, resource);
+    if (siov.len > written) {
+        if (rlimok) {
+            written +=
+                snprintf(siov.str + written, siov.len - written, "%c[%lu,%lu]",
+                         SCLDA_DELIMITER, new_rlim.rlim_cur, new_rlim.rlim_max);
+        } else {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%c[NULL,NULL]", SCLDA_DELIMITER);
+        }
+    }
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
 
 /*

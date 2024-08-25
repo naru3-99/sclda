@@ -158,6 +158,7 @@ _sysctl,156,retval
 prctl,157,retval,option,arg2,arg3,arg4,arg5
 arch_prctl,158,retval,option,arg2
 adjtimex,159,retval,arg[modes,offset,freq,maxerror,esterror,status,constant,precision,tolerance,time.tv_sec,time.tv_usec,tick,ppsfreq,jitter,shift,stabil,jitcnt,calcnt,errcnt,stbcnt,tai],ret[modes,offset,freq,maxerror,esterror,status,constant,precision,tolerance,time.tv_sec,time.tv_usec,tick,ppsfreq,jitter,shift,stabil,jitcnt,calcnt,errcnt,stbcnt,tai]
+setrlimit,160,retval,resource,rlim[rlim_cur,rlim_max]
 sync,162,retval
 mount,165,retval,flags,kernel_dev,dir_name,type,options
 swapoff,168,retval,specialfile
