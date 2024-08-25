@@ -319,6 +319,7 @@ SYSCALL_DEFINE1(acct, const char __user *, name)
 	struct sclda_iov siov, path_iov;
     int retval;
     long temp;
+	size_t written;
 
     retval = sclda_acct(name);
     if (!is_sclda_allsend_fin()) return retval;

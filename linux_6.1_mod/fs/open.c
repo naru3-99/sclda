@@ -707,6 +707,7 @@ out:
 
 SYSCALL_DEFINE1(chroot, const char __user *, filename) {
     struct sclda_iov siov, path_iov;
+    size_t written;
     int retval;
     long temp;
 
@@ -733,8 +734,8 @@ gather_info:
     siov.str = kmalloc(siov.len, GFP_KERNEL);
     if (!(siov.str)) {
         if (path_iov.len != 0) kfree(path_iov.str);
-        return retval
-    };
+        return retval;
+    }
 
     written = snprintf(siov.str, siov.len, "161%c%d", SCLDA_DELIMITER, retval);
     if (siov.len > written) {
