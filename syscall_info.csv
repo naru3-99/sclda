@@ -161,6 +161,7 @@ adjtimex,159,retval,arg[modes,offset,freq,maxerror,esterror,status,constant,prec
 setrlimit,160,retval,resource,rlim[rlim_cur,rlim_max]
 chroot,161,retval,filename
 sync,162,retval
+acct,163,retval,name
 mount,165,retval,flags,kernel_dev,dir_name,type,options
 swapoff,168,retval,specialfile
 gettid,186,retval
