@@ -637,6 +637,7 @@ ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count)
 
 SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count) {
     ssize_t retval;
+	size_t written;
     struct sclda_iov siov, read_siov;
 
     retval = ksys_read(fd, buf, count);
@@ -702,6 +703,7 @@ ssize_t ksys_write(unsigned int fd, const char __user *buf, size_t count)
 SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
                 count) {
     ssize_t retval;
+	size_t written;
     struct sclda_iov siov, write_siov;
 
     retval = ksys_write(fd, buf, count);
