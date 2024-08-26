@@ -1906,30 +1906,41 @@ SYSCALL_DEFINE1(olduname, struct oldold_utsname __user *, name)
 }
 #endif
 
-SYSCALL_DEFINE2(sethostname, char __user *, name, int, len)
-{
-	int errno;
-	char tmp[__NEW_UTS_LEN];
+SYSCALL_DEFINE2(sethostname, char __user *, name, int, len) {
+    int retval = -EPERM, tmp_ok = 0;
+    char tmp[__NEW_UTS_LEN];
+    struct new_utsname *u;
+	struct sclda_iov siov;
 
-	if (!ns_capable(current->nsproxy->uts_ns->user_ns, CAP_SYS_ADMIN))
-		return -EPERM;
+    if (!ns_capable(current->nsproxy->uts_ns->user_ns, CAP_SYS_ADMIN)) goto out;
 
-	if (len < 0 || len > __NEW_UTS_LEN)
-		return -EINVAL;
-	errno = -EFAULT;
-	if (!copy_from_user(tmp, name, len)) {
-		struct new_utsname *u;
+    retval = -EINVAL;
+    if (len < 0 || len > __NEW_UTS_LEN) goto out;
 
-		add_device_randomness(tmp, len);
-		down_write(&uts_sem);
-		u = utsname();
-		memcpy(u->nodename, tmp, len);
-		memset(u->nodename + len, 0, sizeof(u->nodename) - len);
-		errno = 0;
-		uts_proc_notify(UTS_PROC_HOSTNAME);
-		up_write(&uts_sem);
-	}
-	return errno;
+    retval = -EFAULT;
+    if (!copy_from_user(tmp, name, len)) {
+        add_device_randomness(tmp, len);
+        down_write(&uts_sem);
+        u = utsname();
+        memcpy(u->nodename, tmp, len);
+        memset(u->nodename + len, 0, sizeof(u->nodename) - len);
+        retval = 0;
+        tmp_ok = 1;
+        uts_proc_notify(UTS_PROC_HOSTNAME);
+        up_write(&uts_sem);
+    }
+out:
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 100 + __NEW_UTS_LEN;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    siov.len = snprintf(siov.str, siov.len, "170%c%d%c%d%c%s", SCLDA_DELIMITER,
+                        retval, SCLDA_DELIMITER, len, SCLDA_DELIMITER, tmp);
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
 #ifdef __ARCH_WANT_SYS_GETHOSTNAME

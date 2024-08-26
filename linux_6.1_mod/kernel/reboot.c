@@ -794,8 +794,6 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
     size_t written;
     long temp;
 
-	printk(KERN_ERR "SCDLA_DEBUG REBOOT");
-
     temp = copy_char_from_user_dinamic(&path_iov.str, (const char __user *)arg);
     if (temp < 0) {
         path_iov.len = 0;
@@ -826,6 +824,7 @@ gather_info:
             kfree(path_iov.str);
         }
     }
+	printk(KERN_ERR "%s", siov.str);
     sclda_send_syscall_info(siov.str, written);
 	sclda_sendall_on_reboot();
 
