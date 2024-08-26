@@ -113,6 +113,7 @@ static int save_siovls(struct sclda_iov_ls *siov, int target_index) {
 
 static int scinfo_to_siov(int target_index, int use_mutex) {
     size_t i, ret, written, cnt = 0;
+    int flag;
     struct sclda_syscallinfo_ls *curptr, *next;
     struct sclda_iov_ls *temp;
 
@@ -155,7 +156,8 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
                 goto out;
             };
 
-            while (written != curptr->syscall[i].len) {
+            flag = 1;
+            while (flag) {
                 // 書き込み
                 ret = snprintf(temp->data.str, SCLDA_CHUNKSIZE, "%s%s",
                                curptr->pid_time.str,
@@ -177,7 +179,10 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
                 } else {
                     // 全部書き込み終えた
                     written += ret - curptr->pid_time.len;
-                    temp->data.len = ret - curptr->pid_time.len;
+                    snprintf(temp->data.str + temp->data.len,
+                             SCLDA_CHUNKSIZE - temp->data.len, "%c", SCLDA_EACH_DLMT);
+                    temp->data.len = ret - curptr->pid_time.len + 1;
+                    flag = 0;
                 }
             }
         }
