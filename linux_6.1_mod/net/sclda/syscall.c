@@ -142,6 +142,7 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
                 ret = snprintf(temp->data.str + temp->data.len,
                                SCLDA_CHUNKSIZE - temp->data.len, "%s%s",
                                curptr->pid_time.str, curptr->syscall[i].str);
+                printk(KERN_ERR "%zu", ret);
                 // 実際に書き込まれた長さは(chunksize - 1)だから
                 // syscall.strの書き込まれた分は更に- pid_time.len
                 written += SCLDA_CHUNKSIZE - 1 - curptr->pid_time.len;
@@ -162,6 +163,7 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
                 ret = snprintf(temp->data.str, SCLDA_CHUNKSIZE, "%s%s",
                                curptr->pid_time.str,
                                curptr->syscall[i].str + written);
+                printk(KERN_ERR "%zu", ret);
                 if (ret >= SCLDA_CHUNKSIZE) {
                     // 実際に書き込まれた長さは(chunksize - 1)だから
                     // syscall.strの書き込まれた分は更に- pid_time.len
