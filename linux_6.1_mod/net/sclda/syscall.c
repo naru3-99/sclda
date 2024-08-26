@@ -360,6 +360,7 @@ int sclda_sendall_on_reboot(void) {
 
     // 終了したというメッセージを送信する
     sclda_send("sclda_reboot\0",14,&(sclda_syscall_client[0]));
+    msleep(5000);
     // 一応アンロックして終了する
     for (i = 0; i < SCLDA_SCI_NUM; i++)
         mutex_unlock(&sclda_syscall_mutex[i]);
