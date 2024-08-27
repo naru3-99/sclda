@@ -72,7 +72,7 @@ static char *escape_control_chars(const char *data, size_t len,
     return escaped_data;
 }
 
-struct sclda_iov *copy_userchar_to_siov(const char __user *src, size_t len) {
+struct sclda_iov *copy_userchar_to_siov(const char __user *src, size_t len, size_t *vlen) {
     long length;
     size_t copy_len, vec_len, copyable, i;
     struct sclda_iov *siov, data;
@@ -88,6 +88,7 @@ struct sclda_iov *copy_userchar_to_siov(const char __user *src, size_t len) {
     }
 
     vec_len = (copy_len + SCLDA_SCDATA_BUFMAX - 1) / SCLDA_SCDATA_BUFMAX;
+    *vlen = vec_len;
     siov = kmalloc_array(vec_len + 1, sizeof(struct sclda_iov), GFP_KERNEL);
     if (!siov) return NULL;
 

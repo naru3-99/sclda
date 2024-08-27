@@ -635,50 +635,44 @@ ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count)
 	return ret;
 }
 
-SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t,
-                count) {
-    ssize_t retval;
-	size_t written;
-    struct sclda_iov siov, read_siov;
+SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count) {
+    ssize_t retval, vlen;
+    struct sclda_iov *siov_ls, siov;
 
     retval = ksys_read(fd, buf, count);
+
     if (!is_sclda_allsend_fin()) return retval;
+    if (retval <= 0) goto no_read;
 
-    if (retval <= 0) goto sclda_all;
+    siov_ls = copy_userchar_to_siov(buf, (size_t)retval, &vlen);
+    if (!siov_ls) goto no_read;
 
-    read_siov.len = (size_t) min(retval,(ssize_t)SCLDA_SCDATA_BUFMAX);
-    read_siov.str = kmalloc(read_siov.len + 1, GFP_KERNEL);
-    if (!siov.str) {
-        read_siov.len = 0;
-        goto sclda_all;
-    }
+    siov_ls[0].len = 150;
+    siov_ls[0].str = kmalloc(siov_ls[0].len, GFP_KERNEL);
+    if (!(siov_ls[0].str)) {
+        while (vlen > 0) kfree(siov[--vlen].str);
+        kfree(siov);
+        goto no_read;
+    };
+    siov_ls[0].len = snprintf(siov_ls[0].str, siov_ls[0].len,
+                              "0%c%zd%c%u"
+                              "%c%zu",
+                              SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+                              SCLDA_DELIMITER, count);
+    sclda_send_syscall_info2(siov_ls, vlen);
+    return retval;
 
-    if (copy_from_user(read_siov.str, buf, read_siov.len)) {
-        read_siov.len = 0;
-        kfree(read_siov.str);
-    }
-
-sclda_all:
-    siov.len = read_siov.len + 100;
+no_read:
+    // システムコール呼び出しに失敗した場合
+    // もしくは読み込んだ情報を取得できなかった場合
+    siov.len = 150;
     siov.str = kmalloc(siov.len, GFP_KERNEL);
-    if (!siov.str) {
-		if (read_siov.len != 0) kfree(read_siov.str);
-		return retval;
-	}
-
-    written = snprintf(siov.str, siov.len,
-                       "1%c%zd%c%u"
-                       "%c%zu",
-                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
-                       SCLDA_DELIMITER, count);
-    if (read_siov.len == 0) {
-        written += snprintf(siov.str + written, siov.len - written, "%cNULL",
-                            SCLDA_DELIMITER);
-    } else {
-        written += snprintf(siov.str + written, siov.len - written, "%c%s",
-                            SCLDA_DELIMITER, read_siov.str);
-		kfree(read_siov.str);
-    }
+    if (!(siov.str)) return retval;
+    siov.len = snprintf(siov.str, siov.len,
+                        "0%c%zd%c%u"
+                        "%c%zu%cNULL",
+                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+                        SCLDA_DELIMITER, count, SCLDA_DELIMITER);
     sclda_send_syscall_info(siov.str, written);
     return retval;
 }

@@ -120,7 +120,7 @@ extern int sclda_syscallinfo_num[SCLDA_SCI_NUM];
 // other.c
 int sclda_get_current_pid(void);
 long copy_char_from_user_dinamic(char **dst, const char __user *src);
-struct sclda_iov *copy_userchar_to_siov(const char __user *src, size_t len);
+struct sclda_iov *copy_userchar_to_siov(const char __user *src, size_t len, size_t *vlen);
 
 int kernel_timespec_to_str(const struct __kernel_timespec __user *, char *,
                            int);
