@@ -112,7 +112,7 @@ static int save_siovls(struct sclda_iov_ls *siov, int target_index) {
 }
 
 static int scinfo_to_siov(int target_index, int use_mutex) {
-    size_t i, ret, written, cnt = 0;
+    size_t i, writable, written, cnt = 0;
     int flag;
     struct sclda_syscallinfo_ls *curptr, *next;
     struct sclda_iov_ls *temp;
@@ -137,56 +137,47 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
 
             // chunkに余裕が無い場合
             // chunkの残りが30%以上なら利用
-            written = 0;
+            written = 0; // curptr->syscall[i].strについて書き込んだバイト数
             if (temp->data.len < SCLDA_CHUNKSIZE * 7 / 10) {
-                ret = snprintf(temp->data.str + temp->data.len,
-                               SCLDA_CHUNKSIZE - temp->data.len, "%s%s",
-                               curptr->pid_time.str, curptr->syscall[i].str);
-                printk(KERN_ERR "%zu", ret);
-                // 実際に書き込まれた長さは(chunksize - 1)だから
-                // syscall.strの書き込まれた分は更に- pid_time.len
-                written += SCLDA_CHUNKSIZE - 1 - curptr->pid_time.len;
-                temp->data.len = SCLDA_CHUNKSIZE;
+                temp->data.len += snprintf(temp->data.str + temp->data.len,
+                                           SCLDA_CHUNKSIZE - temp->data.len,
+                                           "%s", curptr->pid_time.str);
+                writable = SCLDA_CHUNKSIZE - temp->data.len - 1;
+                memcpy(temp->data.str + temp->data.len, curptr->syscall[i].str,
+                       writable);
+                written += writable;
+                temp->data.len += writable;
+                temp->data.str[temp->data.len] = '\0';
             }
-            // 保存 + 初期化
-            save_siovls(temp, target_index);
-            if (init_siovls(&temp) < 0) {
-                // 失敗したため、引き継ぎを行う
-                sclda_syscall_heads[target_index].next = curptr;
-                sclda_syscallinfo_num[target_index] -= cnt;
-                goto out;
-            };
 
-            flag = 1;
-            while (flag) {
+            while (written != curptr->syscall[i].len) {
+                // 保存 + 初期化
+                save_siovls(temp, target_index);
+                if (init_siovls(&temp) < 0) {
+                    // 失敗したため、引き継ぎを行う
+                    sclda_syscall_heads[target_index].next = curptr;
+                    sclda_syscallinfo_num[target_index] -= cnt;
+                    goto out;
+                };
+
                 // 書き込み
-                ret = snprintf(temp->data.str, SCLDA_CHUNKSIZE, "%s%s",
-                               curptr->pid_time.str,
-                               curptr->syscall[i].str + written);
-                printk(KERN_ERR "%zu", ret);
-                if (ret >= SCLDA_CHUNKSIZE) {
-                    // 実際に書き込まれた長さは(chunksize - 1)だから
-                    // syscall.strの書き込まれた分は更に- pid_time.len
-                    written += SCLDA_CHUNKSIZE - 1 - curptr->pid_time.len;
-                    temp->data.len = SCLDA_CHUNKSIZE;
-
-                    // 保存 + 初期化
-                    save_siovls(temp, target_index);
-                    if (init_siovls(&temp) < 0) {
-                        // 失敗したため、引き継ぎを行う
-                        sclda_syscall_heads[target_index].next = curptr;
-                        sclda_syscallinfo_num[target_index] -= cnt;
-                        goto out;
-                    };
-                } else {
-                    // 全部書き込み終えた
-                    written += ret - curptr->pid_time.len;
-                    snprintf(temp->data.str + temp->data.len,
-                             SCLDA_CHUNKSIZE - temp->data.len, "%c", SCLDA_EACH_DLMT);
-                    temp->data.len = ret - curptr->pid_time.len + 1;
-                    flag = 0;
-                }
+                temp->data.len += snprintf(temp->data.str + temp->data.len,
+                                           SCLDA_CHUNKSIZE - temp->data.len,
+                                           "%s", curptr->pid_time.str);
+                writable = min(SCLDA_CHUNKSIZE - temp->data.len - 1,
+                               curptr->syscall[i].len - written);
+                memcpy(temp->data.str + temp->data.len,
+                       curptr->syscall[i].str + written, writable);
+                written += writable;
+                temp->data.len += writable;
+                temp->data.str[temp->data.len] = '\0';
             }
+            // 最後のバッファにはデリミタが必要
+            // ただし、全バッファ使い切っている場合は不要
+            if (SCLDA_CHUNKSIZE > temp->data.len)
+                snprintf(temp->data.str + temp->data.len,
+                         SCLDA_CHUNKSIZE - temp->data.len, "%c",
+                         SCLDA_EACH_DLMT);
         }
         next = curptr->next;
         kfree_scinfo_ls(curptr);
