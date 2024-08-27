@@ -98,6 +98,7 @@ static int init_siovls(struct sclda_iov_ls **siov) {
         kfree(temp);
         return -EFAULT;
     }
+    memset(temp->data.str, 0, SCLDA_CHUNKSIZE);
     *siov = temp;
     return 0;
 }
