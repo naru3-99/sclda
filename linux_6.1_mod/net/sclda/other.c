@@ -47,8 +47,10 @@ int sclda_get_current_pid(void) {
 
 char *escape_control_chars(const char *data, size_t len, size_t *new_len) {
     size_t i, j;
+    size_t estimated_len = len * 4;
     char *escaped_data;
-    size_t estimated_len = len * 4;  // 最悪の場合、各バイトがエスケープされると仮定
+    unsigned char ch;
+
     escaped_data = kmalloc(estimated_len + 1, GFP_KERNEL);
     if (!escaped_data) {
         *new_len = 0;
@@ -56,8 +58,8 @@ char *escape_control_chars(const char *data, size_t len, size_t *new_len) {
     }
 
     for (i = 0, j = 0; i < len; i++) {
-        unsigned char ch = data[i];
-        if (ch < 0x20 || ch == 0x7F) {  // 制御文字およびDEL
+        ch = data[i];
+        if (ch < 0x20 || ch == 0x7F) {
             j += snprintf(escaped_data + j, estimated_len - j, "\\x%02x", ch);
         } else {
             escaped_data[j++] = ch;

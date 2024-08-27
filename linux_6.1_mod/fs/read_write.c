@@ -637,39 +637,39 @@ ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count)
 
 SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count) {
     ssize_t retval;
-	size_t written;
-    struct sclda_iov siov, read_siov, escaped_siov;
+    size_t written;
+    struct sclda_iov siov, read_siov, escaped_siov = {0, NULL};
 
     retval = ksys_read(fd, buf, count);
     if (!is_sclda_allsend_fin()) return retval;
 
     if (retval <= 0) goto sclda_all;
 
-    read_siov.len = (size_t) min(retval,(ssize_t)SCLDA_SCDATA_BUFMAX);
+    read_siov.len = (size_t)min(retval, (ssize_t)SCLDA_SCDATA_BUFMAX);
     read_siov.str = kmalloc(read_siov.len + 1, GFP_KERNEL);
-    if (!siov.str) {
+    if (!(siov.str)) {
         read_siov.len = 0;
         goto sclda_all;
     }
 
-    if (copy_from_user(read_siov.str, buf, retval)) {
+    if (copy_from_user(read_siov.str, buf, read_siov.len)) {
         read_siov.len = 0;
         kfree(read_siov.str);
-		goto sclda_all;
+        goto sclda_all;
     }
 
     escaped_siov.str =
         escape_control_chars(read_siov.str, read_siov.len, &escaped_siov.len);
-	if (!escaped_siov.str){
-		escaped_siov.len = 0;
-		goto sclda_all;
-	}
-	kfree(read_siov.str);
+    if (!(escaped_siov.str)) {
+        escaped_siov.len = 0;
+        goto sclda_all;
+    }
+    kfree(read_siov.str);
 
 sclda_all:
     siov.len = escaped_siov.len + 100;
     siov.str = kmalloc(siov.len, GFP_KERNEL);
-    if (!siov.str) goto free;
+    if (!(siov.str)) goto free;
 
     written = snprintf(siov.str, siov.len,
                        "0%c%zd%c%u"
@@ -682,10 +682,10 @@ sclda_all:
     } else {
         written += snprintf(siov.str + written, siov.len - written, "%c%s",
                             SCLDA_DELIMITER, escaped_siov.str);
+		kfree(escaped_siov.str);
     }
+
     sclda_send_syscall_info(siov.str, written);
-free:
-    if (escaped_siov.len != 0) kfree(escaped_siov.str);
     return retval;
 }
 
@@ -727,7 +727,7 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
         goto sclda_all;
     }
 
-    if (copy_from_user(write_siov.str, buf, retval)) {
+    if (copy_from_user(write_siov.str, buf, write_siov.len)) {
         write_siov.len = 0;
         kfree(write_siov.str);
     }
