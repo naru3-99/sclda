@@ -669,7 +669,10 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count) {
 sclda_all:
     siov.len = escaped_siov.len + 100;
     siov.str = kmalloc(siov.len, GFP_KERNEL);
-    if (!(siov.str)) goto free;
+    if (!(siov.str)) {
+        if (escaped_siov.len != 0)kfree(escaped_siov);
+        return retval;
+    }
 
     written = snprintf(siov.str, siov.len,
                        "0%c%zd%c%u"
@@ -735,7 +738,10 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
 sclda_all:
     siov.len = write_siov.len + 100;
     siov.str = kmalloc(siov.len, GFP_KERNEL);
-    if (!siov.str) goto free;
+    if (!siov.str) {
+		if (write_siov.len != 0) kfree(write_siov.str);
+		return retval;
+	}
 
     written = snprintf(siov.str, siov.len,
                        "1%c%zd%c%u"
@@ -748,10 +754,9 @@ sclda_all:
     } else {
         written += snprintf(siov.str + written, siov.len - written, "%c%s",
                             SCLDA_DELIMITER, write_siov.str);
+		kfree(write_siov.str);
     }
     sclda_send_syscall_info(siov.str, written);
-free:
-    if (write_siov.len != 0) kfree(write_siov.str);
     return retval;
 }
 

@@ -60,7 +60,7 @@
 #define SCLDA_SCI_NUM ((int)16)
 // max size of the buffer
 // to prevent the do_sys_write
-#define SCLDA_SCDATA_BUFMAX ((int)8192)
+#define SCLDA_SCDATA_BUFMAX ((int)4096)
 
 // client struct
 struct sclda_client_struct {
