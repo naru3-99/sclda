@@ -650,8 +650,8 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count) {
     siov_ls[0].len = 150;
     siov_ls[0].str = kmalloc(siov_ls[0].len, GFP_KERNEL);
     if (!(siov_ls[0].str)) {
-        while (vlen > 0) kfree(siov[--vlen].str);
-        kfree(siov);
+        while (vlen > 0) kfree(siov_ls[--vlen].str);
+        kfree(siov_ls);
         goto no_read;
     };
     siov_ls[0].len = snprintf(siov_ls[0].str, siov_ls[0].len,
@@ -673,7 +673,7 @@ no_read:
                         "%c%zu%cNULL",
                         SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
                         SCLDA_DELIMITER, count, SCLDA_DELIMITER);
-    sclda_send_syscall_info(siov.str, written);
+    sclda_send_syscall_info(siov.str, siov.len);
     return retval;
 }
 
