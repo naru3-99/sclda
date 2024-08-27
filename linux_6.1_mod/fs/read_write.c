@@ -660,7 +660,6 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count) {
                               SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
                               SCLDA_DELIMITER, count);
     sclda_send_syscall_info2(siov_ls, vlen);
-	printk(KERN_ERR "SCLDA_DEBUG vlen = %zu %s",vlen, siov_ls[1].str);
     return retval;
 
 no_read:
