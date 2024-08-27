@@ -670,7 +670,7 @@ sclda_all:
     siov.len = escaped_siov.len + 100;
     siov.str = kmalloc(siov.len, GFP_KERNEL);
     if (!(siov.str)) {
-        if (escaped_siov.len != 0)kfree(escaped_siov);
+        if (escaped_siov.len != 0)kfree(escaped_siov.str);
         return retval;
     }
 
