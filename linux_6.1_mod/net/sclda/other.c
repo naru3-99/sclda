@@ -21,7 +21,11 @@
 
 #include <net/sclda.h>
 
-long copy_char_from_user_dinamic(char **dst, const char __user *src){
+int sclda_get_current_pid(void) {
+    return (int)pid_nr(get_task_pid(current, PIDTYPE_PID));
+}
+
+long copy_char_from_user_dinamic(char **dst, const char __user *src) {
     long length;
     char *buf;
 
@@ -30,7 +34,7 @@ long copy_char_from_user_dinamic(char **dst, const char __user *src){
     length = strnlen_user(src, PATH_MAX);
     if (length <= 0) return -EFAULT;
 
-    buf = kmalloc(length+1,GFP_KERNEL);
+    buf = kmalloc(length + 1, GFP_KERNEL);
     if (!buf) return -ENOMEM;
 
     if (copy_from_user(buf, src, length)) {
@@ -41,11 +45,8 @@ long copy_char_from_user_dinamic(char **dst, const char __user *src){
     return length;
 };
 
-int sclda_get_current_pid(void) {
-    return (int)pid_nr(get_task_pid(current, PIDTYPE_PID));
-}
-
-char *escape_control_chars(const char *data, size_t len, size_t *new_len) {
+static char *escape_control_chars(const char *data, size_t len,
+                                  size_t *new_len) {
     size_t i, j;
     size_t estimated_len = len * 4;
     char *escaped_data;
@@ -69,6 +70,57 @@ char *escape_control_chars(const char *data, size_t len, size_t *new_len) {
     escaped_data[j] = '\0';
     *new_len = j;
     return escaped_data;
+}
+
+struct sclda_iov *copy_userchar_to_siov(const char __user *src, size_t len) {
+    long length;
+    size_t copy_len, vec_len, copyable, i;
+    struct sclda_iov *siov, data;
+
+    if (src == NULL) return NULL;
+
+    if (len == 0) {
+        length = strnlen_user(src, PATH_MAX);
+        if (length <= 0) return NULL;
+        copy_len = (size_t)length;
+    } else {
+        copy_len = len;
+    }
+
+    vec_len = (copy_len + SCLDA_SCDATA_BUFMAX - 1) / SCLDA_SCDATA_BUFMAX;
+    siov = kmalloc_array(vec_len + 1, sizeof(struct sclda_iov), GFP_KERNEL);
+    if (!siov) return NULL;
+
+    copyable = SCLDA_SCDATA_BUFMAX - 1;
+    for (i = 0; i < vec_len; i++) {
+        data.len = min(copy_len - copyable * i, copyable);
+        data.str = kmalloc(data.len, GFP_KERNEL);
+        if (!(data.str)) {
+            while (i > 0) kfree(siov[--i].str);
+            kfree(siov);
+            return NULL;
+        }
+
+        if (copy_from_user(data.str, src + copyable * i, data.len)) {
+            while (i > 0) kfree(siov[--i].str);
+            kfree(siov);
+            kfree(data.str);
+            return NULL;
+        }
+
+        siov[i + 1].str =
+            escape_control_chars(data.str, data.len, &(siov[i + 1].len));
+        if (!(siov[i + 1].str)) {
+            while (i > 0) kfree(siov[--i].str);
+            kfree(siov);
+            kfree(data.str);
+            return NULL;
+        }
+        kfree(data.str);
+        data.str = NULL;
+    }
+
+    return siov;
 }
 
 int kernel_timespec_to_str(const struct __kernel_timespec __user *uptr,

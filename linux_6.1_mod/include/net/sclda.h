@@ -60,7 +60,7 @@
 #define SCLDA_SCI_NUM ((int)16)
 // max size of the buffer
 // to prevent the do_sys_write
-#define SCLDA_SCDATA_BUFMAX ((int)4096)
+#define SCLDA_SCDATA_BUFMAX ((int)2048)
 
 // client struct
 struct sclda_client_struct {
@@ -118,9 +118,10 @@ int sclda_sendall_on_reboot(void);
 extern int sclda_syscallinfo_num[SCLDA_SCI_NUM];
 
 // other.c
-long copy_char_from_user_dinamic(char **dst, const char __user *src);
 int sclda_get_current_pid(void);
-char *escape_control_chars(const char *data, size_t len, size_t *new_len);
+long copy_char_from_user_dinamic(char **dst, const char __user *src);
+struct sclda_iov *copy_userchar_to_siov(const char __user *src, size_t len);
+
 int kernel_timespec_to_str(const struct __kernel_timespec __user *, char *,
                            int);
 #endif  // SCLDA_H
