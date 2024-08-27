@@ -112,7 +112,8 @@ static int save_siovls(struct sclda_iov_ls *siov, int target_index) {
 }
 
 static int scinfo_to_siov(int target_index, int use_mutex) {
-    size_t i, writable, written, cnt = 0;
+    int cnt = 0;
+    size_t i, chnk_remain, data_remain;
     struct sclda_syscallinfo_ls *curptr, *next;
     struct sclda_iov_ls *temp;
 
@@ -129,54 +130,38 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
                 temp->data.len +=
                     snprintf(temp->data.str + temp->data.len,
                              SCLDA_CHUNKSIZE - temp->data.len, "%s%s%c",
-                             curptr->pid_time.str, curptr->syscall[i].str,
-                             SCLDA_EACH_DLMT);
-                continue;
-            }
+                             curptr->pid_time.str,
+                             curptr->syscall[i].str, SCLDA_EACH_DLMT);
+            } else {
+                // chunkに余裕が無い場合
+                data_remain = curptr->syscall[i].len;
+                while (data_remain != 0) {
+                    chnk_remain = SCLDA_CHUNKSIZE - temp->data.len - 1;
+                    if (chnk_remain < curptr->pid_time.len) {
+                        // これ以上書き込めないため、
+                        // データを保存 + tempを再初期化
+                        save_siovls(temp, target_index);
+                        if (init_siovls(&temp) < 0) {
+                            // 失敗したため、引き継ぎを行う
+                            sclda_syscall_heads[target_index].next = curptr;
+                            sclda_syscallinfo_num[target_index] -= cnt;
+                            goto out;
+                        };
+                        chnk_remain = SCLDA_CHUNKSIZE - 1;
+                    }
+                    // 分割して書き込む
+                    chnk_remain -= curptr->pid_time.len;
+                    chnk_remain = min(chnk_remain, data_remain);
 
-            // chunkに余裕が無い場合
-            // chunkの残りが30%以上なら利用
-            written = 0; // curptr->syscall[i].strについて書き込んだバイト数
-            if (temp->data.len < SCLDA_CHUNKSIZE * 7 / 10) {
-                temp->data.len += snprintf(temp->data.str + temp->data.len,
-                                           SCLDA_CHUNKSIZE - temp->data.len,
-                                           "%s", curptr->pid_time.str);
-                writable = SCLDA_CHUNKSIZE - temp->data.len - 1;
-                memcpy(temp->data.str + temp->data.len, curptr->syscall[i].str,
-                       writable);
-                written += writable;
-                temp->data.len += writable;
-                temp->data.str[temp->data.len] = '\0';
-            }
+                    temp->data.len += snprintf(
+                        temp->data.str + temp->data.len,
+                        SCLDA_CHUNKSIZE - temp->data.len, "%s%.*s%c",
+                        curptr->pid_time.str, (int)chnk_remain,
+                        curptr->syscall[i].str, SCLDA_EACH_DLMT);
 
-            while (written != curptr->syscall[i].len) {
-                // 保存 + 初期化
-                save_siovls(temp, target_index);
-                if (init_siovls(&temp) < 0) {
-                    // 失敗したため、引き継ぎを行う
-                    sclda_syscall_heads[target_index].next = curptr;
-                    sclda_syscallinfo_num[target_index] -= cnt;
-                    goto out;
-                };
-
-                // 書き込み
-                temp->data.len += snprintf(temp->data.str + temp->data.len,
-                                           SCLDA_CHUNKSIZE - temp->data.len,
-                                           "%s", curptr->pid_time.str);
-                writable = min(SCLDA_CHUNKSIZE - temp->data.len - 1,
-                               curptr->syscall[i].len - written);
-                memcpy(temp->data.str + temp->data.len,
-                       curptr->syscall[i].str + written, writable);
-                written += writable;
-                temp->data.len += writable;
-                temp->data.str[temp->data.len] = '\0';
+                    data_remain -= chnk_remain;
+                }
             }
-            // 最後のバッファにはデリミタが必要
-            // ただし、全バッファ使い切っている場合は不要
-            if (SCLDA_CHUNKSIZE > temp->data.len)
-                snprintf(temp->data.str + temp->data.len,
-                         SCLDA_CHUNKSIZE - temp->data.len, "%c",
-                         SCLDA_EACH_DLMT);
         }
         next = curptr->next;
         kfree_scinfo_ls(curptr);
@@ -189,7 +174,8 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
     sclda_syscall_tails[target_index] = &sclda_syscall_heads[target_index];
     sclda_syscallinfo_num[target_index] = 0;
 out:
-    if (use_mutex) mutex_unlock(&sclda_syscall_mutex[target_index]);
+    if (use_mutex)
+        mutex_unlock(&sclda_syscall_mutex[target_index]);
     return cnt;
 }
 
@@ -232,7 +218,7 @@ static int sclda_sendall_syscallinfo(void *data) {
     kfree(data);
 
     // scinfo_ls -> siov_ls
-    scinfo_to_siov(target_index, 1);
+    scinfo_to_siov(target_index,1);
     // send all siov in linked list
     sclda_sendall_siovls(target_index);
 
@@ -360,23 +346,26 @@ int sclda_send_syscall_info2(struct sclda_iov *siov_ls, unsigned long num) {
     return 0;
 }
 
+
 int sclda_sendall_on_reboot(void) {
     int i;
     // すべてのmutexロックを取得し、
     // これ以上データを追加しないようにする
-    for (i = 0; i < SCLDA_SCI_NUM; i++) mutex_lock(&sclda_syscall_mutex[i]);
+    for (i = 0; i < SCLDA_SCI_NUM; i++)
+        mutex_lock(&sclda_syscall_mutex[i]);
 
     // すべての残っている情報を送信する
-    for (i = 0; i < SCLDA_SCI_NUM; i++) {
+    for (i = 0; i < SCLDA_SCI_NUM; i++){
         if (sclda_syscallinfo_num[i] == 0) continue;
-        scinfo_to_siov(i, 0);
+        scinfo_to_siov(i,0);
         sclda_sendall_siovls(i);
     }
 
     // 終了したというメッセージを送信する
-    sclda_send("sclda_reboot\0", 14, &(sclda_syscall_client[0]));
+    sclda_send("sclda_reboot\0",14,&(sclda_syscall_client[0]));
     msleep(5000);
     // 一応アンロックして終了する
-    for (i = 0; i < SCLDA_SCI_NUM; i++) mutex_unlock(&sclda_syscall_mutex[i]);
+    for (i = 0; i < SCLDA_SCI_NUM; i++)
+        mutex_unlock(&sclda_syscall_mutex[i]);
     return 0;
 }
