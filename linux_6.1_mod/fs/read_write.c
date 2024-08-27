@@ -635,7 +635,7 @@ ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count)
 	return ret;
 }
 
-SYSCALL_DEFINE3(read, unsigned int, fd, const char __user *, buf, size_t,
+SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t,
                 count) {
     ssize_t retval;
 	size_t written;
