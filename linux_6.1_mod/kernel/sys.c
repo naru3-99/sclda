@@ -1971,30 +1971,51 @@ SYSCALL_DEFINE2(gethostname, char __user *, name, int, len)
  * Only setdomainname; getdomainname can be implemented by calling
  * uname()
  */
-SYSCALL_DEFINE2(setdomainname, char __user *, name, int, len)
-{
-	int errno;
-	char tmp[__NEW_UTS_LEN];
+SYSCALL_DEFINE2(setdomainname, char __user *, name, int, len) {
+    int retval = -EPERM, tmp_ok = 0;
+    size_t written = 0;
+    struct sclda_iov siov;
+    char tmp[__NEW_UTS_LEN];
+    struct new_utsname *u;
 
-	if (!ns_capable(current->nsproxy->uts_ns->user_ns, CAP_SYS_ADMIN))
-		return -EPERM;
-	if (len < 0 || len > __NEW_UTS_LEN)
-		return -EINVAL;
+    if (!ns_capable(current->nsproxy->uts_ns->user_ns, CAP_SYS_ADMIN)) goto out;
 
-	errno = -EFAULT;
-	if (!copy_from_user(tmp, name, len)) {
-		struct new_utsname *u;
+    retval = -EINVAL;
+    if (len < 0 || len > __NEW_UTS_LEN) goto out;
 
-		add_device_randomness(tmp, len);
-		down_write(&uts_sem);
-		u = utsname();
-		memcpy(u->domainname, tmp, len);
-		memset(u->domainname + len, 0, sizeof(u->domainname) - len);
-		errno = 0;
-		uts_proc_notify(UTS_PROC_DOMAINNAME);
-		up_write(&uts_sem);
-	}
-	return errno;
+    retval = -EFAULT;
+    if (!copy_from_user(tmp, name, len)) {
+        add_device_randomness(tmp, len);
+        down_write(&uts_sem);
+        u = utsname();
+        memcpy(u->domainname, tmp, len);
+        memset(u->domainname + len, 0, sizeof(u->domainname) - len);
+        retval = 0;
+        tmp_ok = 1;
+        uts_proc_notify(UTS_PROC_DOMAINNAME);
+        up_write(&uts_sem);
+    }
+out:
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 100 + __NEW_UTS_LEN;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    written = snprintf(siov.str, siov.len, "171%c%d%c%d", SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, len);
+    if (siov.len > written) {
+        if (tmp_ok) {
+            written += snprintf(siov.str + written, siov.len - written, "%c%s",
+                                SCLDA_DELIMITER, tmp);
+        } else {
+            written += snprintf(siov.str + written, siov.len - written,
+                                "%cNULL", SCLDA_DELIMITER);
+        }
+    }
+
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
 
 /* make sure you are allowed to change @tsk limits before calling this */
