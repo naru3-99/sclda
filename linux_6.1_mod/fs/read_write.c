@@ -645,7 +645,7 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count) {
 
     if (retval <= 0) goto sclda_all;
 
-    read_siov.len = (size_t) min(retval,(ssize_t)INT_MAX);
+    read_siov.len = (size_t) min(retval,(ssize_t)INT_MAX - 1);
     read_siov.str = kmalloc(read_siov.len + 1, GFP_KERNEL);
     if (!siov.str) {
         read_siov.len = 0;
@@ -711,7 +711,7 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf, size_t,
 
     if (retval <= 0) goto sclda_all;
 
-    write_siov.len = (size_t) min(retval,(ssize_t)INT_MAX);
+    write_siov.len = (size_t) min(retval,(ssize_t)INT_MAX - 1);
     write_siov.str = kmalloc(write_siov.len + 1, GFP_KERNEL);
     if (!siov.str) {
         write_siov.len = 0;
