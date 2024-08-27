@@ -638,7 +638,7 @@ ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count)
 SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count) {
     ssize_t retval;
 	size_t written;
-    struct sclda_iov siov, read_siov;
+    struct sclda_iov siov, read_siov, escaped_siov;
 
     retval = ksys_read(fd, buf, count);
     if (!is_sclda_allsend_fin()) return retval;
@@ -655,10 +655,19 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count) {
     if (copy_from_user(read_siov.str, buf, retval)) {
         read_siov.len = 0;
         kfree(read_siov.str);
+		goto sclda_all;
     }
 
+    escaped_siov.str =
+        escape_control_chars(read_siov.str, read_siov.len, &escaped_siov.len);
+	if (!escaped_siov.str){
+		escaped_siov.len = 0;
+		goto sclda_all;
+	}
+	kfree(read_siov.str);
+
 sclda_all:
-    siov.len = read_siov.len + 100;
+    siov.len = escaped_siov.len + 100;
     siov.str = kmalloc(siov.len, GFP_KERNEL);
     if (!siov.str) goto free;
 
@@ -667,16 +676,16 @@ sclda_all:
                        "%c%zu",
                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
                        SCLDA_DELIMITER, count);
-    if (read_siov.len == 0) {
+    if (escaped_siov.len == 0) {
         written += snprintf(siov.str + written, siov.len - written, "%cNULL",
                             SCLDA_DELIMITER);
     } else {
         written += snprintf(siov.str + written, siov.len - written, "%c%s",
-                            SCLDA_DELIMITER, read_siov.str);
+                            SCLDA_DELIMITER, escaped_siov.str);
     }
     sclda_send_syscall_info(siov.str, written);
 free:
-    if (read_siov.len != 0) kfree(read_siov.str);
+    if (escaped_siov.len != 0) kfree(escaped_siov.str);
     return retval;
 }
 

@@ -45,6 +45,30 @@ int sclda_get_current_pid(void) {
     return (int)pid_nr(get_task_pid(current, PIDTYPE_PID));
 }
 
+char *escape_control_chars(const char *data, size_t len, size_t *new_len) {
+    size_t i, j;
+    char *escaped_data;
+    size_t estimated_len = len * 4;  // 最悪の場合、各バイトがエスケープされると仮定
+    escaped_data = kmalloc(estimated_len + 1, GFP_KERNEL);
+    if (!escaped_data) {
+        *new_len = 0;
+        return NULL;
+    }
+
+    for (i = 0, j = 0; i < len; i++) {
+        unsigned char ch = data[i];
+        if (ch < 0x20 || ch == 0x7F) {  // 制御文字およびDEL
+            j += snprintf(escaped_data + j, estimated_len - j, "\\x%02x", ch);
+        } else {
+            escaped_data[j++] = ch;
+        }
+    }
+
+    escaped_data[j] = '\0';
+    *new_len = j;
+    return escaped_data;
+}
+
 int kernel_timespec_to_str(const struct __kernel_timespec __user *uptr,
                            char *msg_buf, int msg_len) {
     struct __kernel_timespec kptr;

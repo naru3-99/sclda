@@ -120,6 +120,7 @@ extern int sclda_syscallinfo_num[SCLDA_SCI_NUM];
 // other.c
 long copy_char_from_user_dinamic(char **dst, const char __user *src);
 int sclda_get_current_pid(void);
+char *escape_control_chars(const char *data, size_t len, size_t *new_len);
 int kernel_timespec_to_str(const struct __kernel_timespec __user *, char *,
                            int);
 #endif  // SCLDA_H
