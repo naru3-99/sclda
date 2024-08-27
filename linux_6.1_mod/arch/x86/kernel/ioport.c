@@ -151,7 +151,24 @@ long ksys_ioperm(unsigned long from, unsigned long num, int turn_on)
 
 SYSCALL_DEFINE3(ioperm, unsigned long, from, unsigned long, num, int, turn_on)
 {
-	return ksys_ioperm(from, num, turn_on);
+    int retval;
+    struct sclda_iov siov;
+
+	retval = ksys_ioperm(from, num, turn_on);
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 150;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    siov.len = snprintf(siov.str, siov.len,
+                        "173%c%d%c%lu"
+                        "%c%lu%c%d",
+                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, from,
+                        SCLDA_DELIMITER, num, SCLDA_DELIMITER, turn_on);
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
 /*
@@ -219,7 +236,23 @@ long ksys_ioperm(unsigned long from, unsigned long num, int turn_on)
 }
 SYSCALL_DEFINE3(ioperm, unsigned long, from, unsigned long, num, int, turn_on)
 {
-	return -ENOSYS;
+    int retval = -ENOSYS;
+    struct sclda_iov siov;
+
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 150;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    siov.len = snprintf(siov.str, siov.len,
+                        "173%c%d%c%lu"
+                        "%c%lu%c%d",
+                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, from,
+                        SCLDA_DELIMITER, num, SCLDA_DELIMITER, turn_on);
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
 SYSCALL_DEFINE1(iopl, unsigned int, level) {

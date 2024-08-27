@@ -171,6 +171,7 @@ reboot,169,retval,magic1,magic2,cmd,arg
 sethostname,170,retval,len,name
 setdomainname,171,retval,len,name
 iopl,172,retval,level
+ioperm,173,retval,from,num,turn_on
 gettid,186,retval
 futex,202,retval,kaddr,op,val,kaddr2,val3,tv_sec,tv_nsec
 sched_getaffinity,204,retval,pid,len,user_mask
