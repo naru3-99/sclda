@@ -10,7 +10,7 @@
 #include <linux/ioport.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
-
+#include <net/sclda.h>
 #include <asm/io_bitmap.h>
 #include <asm/desc.h>
 #include <asm/syscalls.h>
@@ -170,31 +170,45 @@ SYSCALL_DEFINE3(ioperm, unsigned long, from, unsigned long, num, int, turn_on)
  *
  * IOPL is strictly per thread and inherited on fork.
  */
-SYSCALL_DEFINE1(iopl, unsigned int, level)
-{
-	struct thread_struct *t = &current->thread;
-	unsigned int old;
+int sclda_iopl(unsigned int level) {
+    struct thread_struct *t = &current->thread;
+    unsigned int old;
 
-	if (level > 3)
-		return -EINVAL;
+    if (level > 3) return -EINVAL;
 
-	old = t->iopl_emul;
+    old = t->iopl_emul;
 
-	/* No point in going further if nothing changes */
-	if (level == old)
-		return 0;
+    /* No point in going further if nothing changes */
+    if (level == old) return 0;
 
-	/* Trying to gain more privileges? */
-	if (level > old) {
-		if (!capable(CAP_SYS_RAWIO) ||
-		    security_locked_down(LOCKDOWN_IOPORT))
-			return -EPERM;
-	}
+    /* Trying to gain more privileges? */
+    if (level > old) {
+        if (!capable(CAP_SYS_RAWIO) || security_locked_down(LOCKDOWN_IOPORT))
+            return -EPERM;
+    }
 
-	t->iopl_emul = level;
-	task_update_io_bitmap(current);
+    t->iopl_emul = level;
+    task_update_io_bitmap(current);
 
-	return 0;
+    return 0;
+}
+
+SYSCALL_DEFINE1(iopl, unsigned int, level) {
+    int retval;
+    struct sclda_iov siov;
+
+    retval = sclda_iopl(level);
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 100;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    siov.len = snprintf(siov.str, siov.len, "172%c%d%c%u", SCLDA_DELIMITER,
+                        retval, SCLDA_DELIMITER, level);
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
 #else /* CONFIG_X86_IOPL_IOPERM */
@@ -208,8 +222,21 @@ SYSCALL_DEFINE3(ioperm, unsigned long, from, unsigned long, num, int, turn_on)
 	return -ENOSYS;
 }
 
-SYSCALL_DEFINE1(iopl, unsigned int, level)
-{
-	return -ENOSYS;
+SYSCALL_DEFINE1(iopl, unsigned int, level) {
+    int retval = -ENOSYS;
+    struct sclda_iov siov;
+
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 100;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    siov.len = snprintf(siov.str, siov.len, "172%c%d%c%u", SCLDA_DELIMITER,
+                        retval, SCLDA_DELIMITER, level);
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
+
 #endif
