@@ -150,7 +150,7 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
                         chnk_remain = SCLDA_CHUNKSIZE - 1;
                     }
                     // 分割して書き込む
-                    chnk_remain -= curptr->pid_time.len;
+                    chnk_remain -= 1 + curptr->pid_time.len;
                     chnk_remain = min(chnk_remain, data_remain);
 
                     temp->data.len += snprintf(
