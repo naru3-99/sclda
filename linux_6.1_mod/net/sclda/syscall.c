@@ -113,7 +113,6 @@ static int save_siovls(struct sclda_iov_ls *siov, int target_index) {
 
 static int scinfo_to_siov(int target_index, int use_mutex) {
     size_t i, writable, written, cnt = 0;
-    int flag;
     struct sclda_syscallinfo_ls *curptr, *next;
     struct sclda_iov_ls *temp;
 

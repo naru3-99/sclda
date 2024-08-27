@@ -790,7 +790,6 @@ int sclda_reboot(int magic1, int magic2, unsigned int cmd,
 SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
                 void __user *, arg) {
     struct sclda_iov siov, path_iov;
-    int retval;
     size_t written;
     long temp;
 
