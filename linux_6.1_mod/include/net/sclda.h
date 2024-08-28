@@ -122,6 +122,7 @@ int sclda_send_pidinfo(struct sclda_iov *siov);
 
 // syscall.c
 int sclda_syscall_init(void);
+int kfree_scinfo_ls(struct sclda_syscallinfo_ls *);
 int sclda_send_syscall_info(char *, int);
 int sclda_send_syscall_info2(struct sclda_iov *, unsigned long);
 int sclda_sendall_syscallinfo(void *data);

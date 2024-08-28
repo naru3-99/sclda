@@ -118,6 +118,16 @@ static int sclda_add_syscallinfo(struct sclda_syscallinfo_ls *ptr) {
     return 0;
 }
 
+int kfree_scinfo_ls(struct sclda_syscallinfo_ls *scinfo_ptr) {
+    size_t i;
+    kfree(scinfo_ptr->pid_time.str);
+    for (i = 0; i < scinfo_ptr->sc_iov_len; i++)
+        kfree(scinfo_ptr->syscall[i].str);
+    kfree(scinfo_ptr->syscall);
+    kfree(scinfo_ptr);
+    return 0;
+}
+
 // this function starts to send the data
 // in current sclda_sci_index list
 // if the number in list >= SCLDA_NUM_TO_SEND_SINFO

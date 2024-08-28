@@ -120,18 +120,17 @@ int sclda_sendall_syscallinfo_tcp(int target_index) {
             curptr->syscall[i].str = siov.str;
             curptr->syscall[i].len = siov.len;
         }
-        send_ret = sclda_send_vec_mutex(curptr->syscall, curptr->sc_iov_len,
-                             &(sclda_syscall_client[cnt % SCLDA_PORT_NUMBER]));
+        send_ret = sclda_send_vec_mutex(
+            curptr->syscall, curptr->sc_iov_len,
+            &(sclda_syscall_client[cnt % SCLDA_PORT_NUMBER]));
         if (send_ret < 0) {
             temp_tail->next = curptr;
             temp_tail = temp_tail->next;
             failed += 1;
         }
         next = curptr->next;
-        if (send_ret >= 0) {
-            kfree(curptr->data.str);
-            kfree(curptr);
-        }
+        if (send_ret >= 0) kfree_scinfo_ls(curptr);
+
         curptr = next;
         cnt += 1;
     }

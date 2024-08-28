@@ -53,16 +53,6 @@ int init_sclda_client_udp(struct sclda_client_struct *sclda_cs_ptr, int port) {
     return 0;
 }
 
-static int kfree_scinfo_ls(struct sclda_syscallinfo_ls *scinfo_ptr) {
-    size_t i;
-    kfree(scinfo_ptr->pid_time.str);
-    for (i = 0; i < scinfo_ptr->sc_iov_len; i++)
-        kfree(scinfo_ptr->syscall[i].str);
-    kfree(scinfo_ptr->syscall);
-    kfree(scinfo_ptr);
-    return 0;
-}
-
 static int init_siovls(struct sclda_iov_ls **siov) {
     struct sclda_iov_ls *temp;
 
@@ -169,8 +159,9 @@ static int sclda_sendall_siovls(int target_index) {
     siov_tails[target_index] = &siov_heads[target_index];
 
     while (curptr != NULL) {
-        send_ret = sclda_send_siov_mutex(
-            &(curptr->data), &(sclda_syscall_client[cnt % SCLDA_PORT_NUMBER]));
+        send_ret =
+            sclda_send_mutex(curptr->data.str, curptr->data.len,
+                             &(sclda_syscall_client[cnt % SCLDA_PORT_NUMBER]));
         if (send_ret < 0) {
             siov_tails[target_index]->next = curptr;
             siov_tails[target_index] = siov_tails[target_index]->next;
