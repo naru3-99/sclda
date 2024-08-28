@@ -42,10 +42,12 @@ int init_sclda_client_tcp(struct sclda_client_struct *sclda_cs_ptr, int port) {
 
     // サーバーに接続
     retval = -1;
-    while (retval != 0)
+    while (retval != 0) {
         retval = kernel_connect(sclda_cs_ptr->sock,
                                 (struct sockaddr *)(&(sclda_cs_ptr->addr)),
                                 sizeof(struct sockaddr_in), 0);
+        msleep(1000);
+    }
 
     // if (retval < 0) {
     //     printk(KERN_ERR "SCLDA_ERR connect, retval = %d port = %d\n", retval,
