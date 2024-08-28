@@ -60,10 +60,9 @@ int sclda_send_mutex(char *buf, int len,
 }
 
 int init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port) {
-#ifdef USE_TCP
+#ifdef SCLDA_USE_TCP
     return init_sclda_client_tcp(sclda_cs_ptr, port);
 #else
     return init_sclda_client_udp(sclda_cs_ptr, port);
 #endif
 }
-

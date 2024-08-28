@@ -2,5 +2,5 @@
 #
 # Makefile for the sclda
 
-ccflags-y := -DUSE_TCP
+ccflags-y := -DSCLDA_USE_TCP
 obj-y := common.o other.o pid.o syscall.o tcp.o udp.o

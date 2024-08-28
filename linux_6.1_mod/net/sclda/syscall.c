@@ -208,7 +208,7 @@ int sclda_send_syscall_info2(struct sclda_iov *siov_ls, unsigned long num) {
 }
 
 static int __sendall_scinfo(int target_index) {
-#ifdef USE_TCP
+#ifdef SCLDA_USE_TCP
     return sclda_sendall_syscallinfo_tcp(target_index);
 #else
     return sclda_sendall_syscallinfo_udp(target_index);
