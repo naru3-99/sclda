@@ -47,8 +47,8 @@ int init_sclda_client_tcp(struct sclda_client_struct *sclda_cs_ptr, int port) {
                             sizeof(struct sockaddr_in), 0);
 
     if (retval < 0) {
-        printk(KERN_ERR "SCLDA_ERR init_sclda_client_tcp connect, port = %d\n",
-               port);
+        printk(KERN_ERR "SCLDA_ERR connect, retval = %d port = %d\n",
+               retval, port);
         sock_release(sclda_cs_ptr->sock);
         return retval;
     }
