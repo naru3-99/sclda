@@ -30,12 +30,11 @@ int init_sclda_client_tcp(struct sclda_client_struct *sclda_cs_ptr, int port) {
     // ソケットの作成
     retval = sock_create_kern(&init_net, PF_INET, SOCK_STREAM, IPPROTO_TCP,
                               &(sclda_cs_ptr->sock));
-    if (retval < 0) {
+    if (retval < 0)
         printk(KERN_ERR
                "SCLDA_ERR init_sclda_client_tcp socket_create, port = %d\n",
                port);
-        return retval;
-    }
+
 
     // サーバーのアドレス設定
     sclda_cs_ptr->addr.sin_family = PF_INET;
@@ -45,7 +44,7 @@ int init_sclda_client_tcp(struct sclda_client_struct *sclda_cs_ptr, int port) {
     // サーバーに接続
     retval = kernel_connect(sclda_cs_ptr->sock,
                             (struct sockaddr *)(&(sclda_cs_ptr->addr)),
-                            sizeof(struct sockaddr_in), O_WRONLY);
+                            sizeof(struct sockaddr_in), 0);
 
     if (retval < 0) {
         printk(KERN_ERR "SCLDA_ERR init_sclda_client_tcp connect, port = %d\n",
