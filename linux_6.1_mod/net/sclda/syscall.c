@@ -216,7 +216,7 @@ int sclda_sendall_syscallinfo(void *data) {
 int sclda_sendall_on_reboot(void) {
     size_t i;
     // すべての残っている情報を送信する
-    for (i = 0; i < count; i++) __sendall_scinfo(i);
+    for (i = 0; i < SCLDA_SCI_NUM; i++) __sendall_scinfo(i);
     // 終了したというメッセージを送信する
     sclda_send_mutex("sclda_reboot\0", 14, &(sclda_syscall_client[0]));
     return 0;

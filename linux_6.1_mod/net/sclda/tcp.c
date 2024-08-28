@@ -80,7 +80,7 @@ int sclda_send_vec(struct sclda_iov *siov_ls, size_t vlen,
     for (i = 0; i < vlen; i++) total_len += iov[i].iov_len;
 
     return kernel_sendmsg(sclda_struct_ptr->sock, &(sclda_struct_ptr->hdr), iov,
-                          vlen, len);
+                          vlen, total_len);
 }
 
 int sclda_send_vec_mutex(struct sclda_iov *siov_ls, size_t vlen,
@@ -95,15 +95,18 @@ int sclda_send_vec_mutex(struct sclda_iov *siov_ls, size_t vlen,
 
 int sclda_sendall_syscallinfo_tcp(int target_index) {
     size_t i, cnt = 0;
+    int send_ret, failed = 0;
     struct sclda_iov siov;
-    struct sclda_syscallinfo_ls *curptr, *next;
+    struct sclda_syscallinfo_ls *curptr, *next, temp_head, *temp_tail;
+
+    temp_tail = temp_head.next;
 
     mutex_lock(&sclda_syscall_mutex[target_index]);
     curptr = sclda_syscall_heads[target_index].next;
     while (curptr != NULL) {
         for (i = 0; i < curptr->sc_iov_len; i++) {
             siov.str = NULL;
-            siov.len = curptr->pid_time.len + curptr->syscall[i] + 1;
+            siov.len = curptr->pid_time.len + curptr->syscall[i].len + 1;
             siov.str = kmalloc(siov.len, GFP_KERNEL);
             if (!siov.str) {
                 // 失敗したため、引き継ぎを行う
@@ -117,14 +120,26 @@ int sclda_sendall_syscallinfo_tcp(int target_index) {
             curptr->syscall[i].str = siov.str;
             curptr->syscall[i].len = siov.len;
         }
-        sclda_send_vec_mutex(curptr->syscall, curptr->sc_iov_len,
+        send_ret = sclda_send_vec_mutex(curptr->syscall, curptr->sc_iov_len,
                              &(sclda_syscall_client[cnt % SCLDA_PORT_NUMBER]));
+        if (send_ret < 0) {
+            temp_tail->next = curptr;
+            temp_tail = temp_tail->next;
+            failed += 1;
+        }
+        next = curptr->next;
+        if (send_ret >= 0) {
+            kfree(curptr->data.str);
+            kfree(curptr);
+        }
+        curptr = next;
         cnt += 1;
     }
     // scinfoのhead, tailを再初期化する
-    sclda_syscall_heads[target_index].next = NULL;
-    sclda_syscall_tails[target_index] = &sclda_syscall_heads[target_index];
-    sclda_syscallinfo_num[target_index] = 0;
+    sclda_syscall_heads[target_index].next = temp_head.next;
+    temp_tail->next = NULL;
+    sclda_syscall_tails[target_index] = temp_tail;
+    sclda_syscallinfo_num[target_index] = failed;
 out:
     mutex_unlock(&sclda_syscall_mutex[target_index]);
     return cnt;
