@@ -35,23 +35,24 @@ int init_sclda_client_tcp(struct sclda_client_struct *sclda_cs_ptr, int port) {
                "SCLDA_ERR init_sclda_client_tcp socket_create, port = %d\n",
                port);
 
-
     // サーバーのアドレス設定
     sclda_cs_ptr->addr.sin_family = PF_INET;
     sclda_cs_ptr->addr.sin_port = htons(port);
     sclda_cs_ptr->addr.sin_addr.s_addr = htonl(SCLDA_SERVER_IP);
 
     // サーバーに接続
-    retval = kernel_connect(sclda_cs_ptr->sock,
-                            (struct sockaddr *)(&(sclda_cs_ptr->addr)),
-                            sizeof(struct sockaddr_in), 0);
+    retval = -1;
+    while (retval != 0)
+        retval = kernel_connect(sclda_cs_ptr->sock,
+                                (struct sockaddr *)(&(sclda_cs_ptr->addr)),
+                                sizeof(struct sockaddr_in), 0);
 
-    if (retval < 0) {
-        printk(KERN_ERR "SCLDA_ERR connect, retval = %d port = %d\n",
-               retval, port);
-        sock_release(sclda_cs_ptr->sock);
-        return retval;
-    }
+    // if (retval < 0) {
+    //     printk(KERN_ERR "SCLDA_ERR connect, retval = %d port = %d\n", retval,
+    //            port);
+    //     sock_release(sclda_cs_ptr->sock);
+    //     return retval;
+    // }
 
     // メッセージヘッダーの設定
     sclda_cs_ptr->hdr.msg_name = &(sclda_cs_ptr->addr);
