@@ -27,11 +27,14 @@ int is_sclda_init_fin(void) { return sclda_init_fin; }
 
 // This function will invoked once in init/main.c
 int sclda_init(void) {
+    int retval;
     // init pid.c code
-    sclda_pid_init();
+    retval = sclda_pid_init();
+    if (retval < 0) return retval;
 
     // init syscall.c code
-    sclda_syscall_init();
+    retval = sclda_syscall_init();
+    if (retval < 0) return retval;
 
     sclda_init_fin = 1;
     return 0;

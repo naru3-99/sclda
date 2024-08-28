@@ -58,6 +58,7 @@ static void add_sclda_sci_index(void) {
 
 // for common.c: init
 int sclda_syscall_init(void) {
+    int retval;
     size_t i;
     // init syscallinfo linked list
     for (i = 0; i < SCLDA_SCI_NUM; i++) {
@@ -71,8 +72,11 @@ int sclda_syscall_init(void) {
     }
 
     // init sclda_client_struct
-    for (i = 0; i < SCLDA_PORT_NUMBER; i++)
-        init_sclda_client(&sclda_syscall_client[i], SCLDA_SYSCALL_BASEPORT + i);
+    for (i = 0; i < SCLDA_PORT_NUMBER; i++){
+        retval = init_sclda_client(&sclda_syscall_client[i],
+                                   SCLDA_SYSCALL_BASEPORT + i);
+        if(retval < 0) return retval;
+    }
     return 0;
 }
 

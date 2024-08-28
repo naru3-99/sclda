@@ -2698,7 +2698,6 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	pid_t nr;
 
 	struct sclda_iov siov;
-
 	/*
 	 * For legacy clone() calls, CLONE_PIDFD uses the parent_tid argument
 	 * to return the pidfd. Hence, CLONE_PIDFD and CLONE_PARENT_SETTID are
@@ -2776,6 +2775,9 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	put_pid(pid);
 
 	// sclda
+#ifdef SCLDA_USE_TCP
+	if(!is_sclda_init_fin()) sclda_init()
+#endif
 	siov.len = 50;
 	siov.str = kmalloc(siov.len, GFP_KERNEL);
 	if (!siov.str)
