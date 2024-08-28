@@ -31,6 +31,7 @@ struct sclda_pidinfo_ls sclda_pidinfo_head = {
 struct sclda_pidinfo_ls *sclda_pidinfo_tail = &sclda_pidinfo_head;
 
 int sclda_pid_init(void) {
+    // tcp or udp ?
     return init_sclda_client(&sclda_pid_client, SCLDA_PIDPPID_PORT);
 }
 
@@ -76,7 +77,7 @@ int sclda_send_pidinfo(struct sclda_iov *siov) {
     }
     // 初期化され、allsendも終わった場合
     if (is_sclda_allsend_fin()) {
-        sclda_send_siov_mutex(siov, &sclda_pid_client);
+        sclda_send_mutex(siov->str, siov->len, &sclda_pid_client);
         kfree(siov->str);
         return 0;
     }
@@ -84,7 +85,7 @@ int sclda_send_pidinfo(struct sclda_iov *siov) {
     if (sclda_send_mutex("sclda\0", 6, &sclda_pid_client) == 6) {
         // 送信可能-> sendall
         sclda_sendall_pidinfo();
-        sclda_send_siov_mutex(siov, &sclda_pid_client);
+        sclda_send_mutex(siov->str, siov->len, &sclda_pid_client);
         kfree(siov->str);
     } else {
         // まだ送信できない

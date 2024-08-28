@@ -2,4 +2,5 @@
 #
 # Makefile for the sclda
 
-obj-y := common.o other.o pid.o syscall.o
+ccflags-y := -DUSE_TCP
+obj-y := common.o other.o pid.o syscall.o tcp.o udp.o

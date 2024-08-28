@@ -59,7 +59,6 @@
 // num for head of syscall_info struct
 #define SCLDA_SCI_NUM ((int)16)
 // max size of the buffer
-// to prevent the do_sys_write
 #define SCLDA_SCDATA_BUFMAX ((int)2048)
 
 // client struct
@@ -72,8 +71,8 @@ struct sclda_client_struct {
 
 // char + len struct
 struct sclda_iov {
-    size_t len;
     char *str;
+    size_t len;
 };
 
 // linked list for sclda_iov struct
@@ -98,12 +97,23 @@ struct sclda_syscallinfo_ls {
 
 // common.c
 int sclda_init(void);
-int init_sclda_client(struct sclda_client_struct *, int);
 int is_sclda_init_fin(void);
+int init_sclda_client(struct sclda_client_struct *, int);
 
+
+// udp.c
+int init_sclda_client_udp(struct sclda_client_struct *, int);
 int sclda_send(char *, int, struct sclda_client_struct *);
 int sclda_send_mutex(char *, int, struct sclda_client_struct *);
-int sclda_send_siov_mutex(struct sclda_iov *, struct sclda_client_struct *);
+int sclda_sendall_syscallinfo_udp(void *data);
+
+// tcp.c
+int init_sclda_client_tcp(struct sclda_client_struct *, int);
+int sclda_send_vec(struct sclda_iov *siov_ls, size_t vlen,
+                   struct sclda_client_struct *sclda_struct_ptr);
+int sclda_send_vec_mutex(struct sclda_iov *siov_ls, size_t vlen,
+                         struct sclda_client_struct *sclda_struct_ptr);
+int sclda_sendall_syscallinfo_tcp(void *data);
 
 // pid.c
 int sclda_pid_init(void);
@@ -114,13 +124,23 @@ int sclda_send_pidinfo(struct sclda_iov *siov);
 int sclda_syscall_init(void);
 int sclda_send_syscall_info(char *, int);
 int sclda_send_syscall_info2(struct sclda_iov *, unsigned long);
+int sclda_sendall_syscallinfo(void *data);
 int sclda_sendall_on_reboot(void);
+
+extern struct sclda_client_struct sclda_syscall_client[SCLDA_PORT_NUMBER];
+extern struct mutex sclda_siov_mutex[SCLDA_SCI_NUM];
+extern struct sclda_iov_ls siov_heads[SCLDA_SCI_NUM];
+extern struct sclda_iov_ls *siov_tails[SCLDA_SCI_NUM];
+extern struct mutex sclda_syscall_mutex[SCLDA_SCI_NUM];
+extern struct sclda_syscallinfo_ls sclda_syscall_heads[SCLDA_SCI_NUM];
+extern struct sclda_syscallinfo_ls *sclda_syscall_tails[SCLDA_SCI_NUM];
 extern int sclda_syscallinfo_num[SCLDA_SCI_NUM];
 
 // other.c
 int sclda_get_current_pid(void);
 long copy_char_from_user_dinamic(char **dst, const char __user *src);
-struct sclda_iov *copy_userchar_to_siov(const char __user *src, size_t len, size_t *vlen);
+struct sclda_iov *copy_userchar_to_siov(const char __user *src, size_t len,
+                                        size_t *vlen);
 
 int kernel_timespec_to_str(const struct __kernel_timespec __user *, char *,
                            int);
