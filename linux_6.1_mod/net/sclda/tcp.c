@@ -99,7 +99,7 @@ int sclda_sendall_syscallinfo_tcp(int target_index) {
     struct sclda_iov siov;
     struct sclda_syscallinfo_ls *curptr, *next, temp_head, *temp_tail;
 
-    temp_head = {0};
+    memset(&temp_head, 0, sizeof(struct sclda_syscallinfo_ls));
     temp_tail = temp_head.next;
 
     mutex_lock(&sclda_syscall_mutex[target_index]);
