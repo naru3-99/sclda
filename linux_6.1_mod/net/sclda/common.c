@@ -25,11 +25,19 @@ int sclda_init_fin = 0;
 // getter for int sclda_init_fin
 int is_sclda_init_fin(void) { return sclda_init_fin; }
 
+int init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port) {
+#ifdef SCLDA_USE_TCP
+    return init_sclda_client_tcp(sclda_cs_ptr, port);
+#else
+    return init_sclda_client_udp(sclda_cs_ptr, port);
+#endif
+}
+
 // This function will invoked once in init/main.c
 int sclda_init(void) {
     int retval;
 
-    if(is_sclda_init_fin()) return 0;
+    if (is_sclda_init_fin()) return 0;
 
     // init pid.c code
     retval = sclda_pid_init();
@@ -65,10 +73,25 @@ int sclda_send_mutex(char *buf, int len,
     return ret;
 }
 
-int init_sclda_client(struct sclda_client_struct *sclda_cs_ptr, int port) {
-#ifdef SCLDA_USE_TCP
-    return init_sclda_client_tcp(sclda_cs_ptr, port);
-#else
-    return init_sclda_client_udp(sclda_cs_ptr, port);
-#endif
+int sclda_send_vec(struct sclda_iov *siov_ls, size_t vlen,
+                   struct sclda_client_struct *sclda_struct_ptr) {
+    // this is for tcp only
+    struct kvec *iov;
+    size_t i, total_len = 0;
+
+    iov = (struct kvec *)siov_ls;
+    for (i = 0; i < vlen; i++) total_len += iov[i].iov_len;
+
+    return kernel_sendmsg(sclda_struct_ptr->sock, &(sclda_struct_ptr->hdr), iov,
+                          vlen, total_len);
+}
+
+int sclda_send_vec_mutex(struct sclda_iov *siov_ls, size_t vlen,
+                         struct sclda_client_struct *sclda_struct_ptr) {
+    int ret;
+
+    mutex_lock(&(sclda_struct_ptr->mtx));
+    ret = sclda_send_vec(siov_ls, vlen, sclda_struct_ptr);
+    mutex_unlock(&(sclda_struct_ptr->mtx));
+    return ret;
 }

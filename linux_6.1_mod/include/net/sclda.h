@@ -100,20 +100,20 @@ int sclda_init(void);
 int is_sclda_init_fin(void);
 int init_sclda_client(struct sclda_client_struct *, int);
 
+int sclda_send(char *, int, struct sclda_client_struct *);
+int sclda_send_mutex(char *, int, struct sclda_client_struct *);
+int sclda_send_vec(struct sclda_iov *siov_ls, size_t vlen,
+                   struct sclda_client_struct *sclda_struct_ptr);
+int sclda_send_vec_mutex(struct sclda_iov *siov_ls, size_t vlen,
+                         struct sclda_client_struct *sclda_struct_ptr);
 
 // udp.c
 int init_sclda_client_udp(struct sclda_client_struct *, int);
-int sclda_send(char *, int, struct sclda_client_struct *);
-int sclda_send_mutex(char *, int, struct sclda_client_struct *);
 int sclda_sendall_syscallinfo_udp(int);
 
 // tcp.c
 int sclda_tcp_init(void);
 int init_sclda_client_tcp(struct sclda_client_struct *, int);
-int sclda_send_vec(struct sclda_iov *siov_ls, size_t vlen,
-                   struct sclda_client_struct *sclda_struct_ptr);
-int sclda_send_vec_mutex(struct sclda_iov *siov_ls, size_t vlen,
-                         struct sclda_client_struct *sclda_struct_ptr);
 int sclda_sendall_syscallinfo_tcp(int);
 
 // pid.c
@@ -123,20 +123,11 @@ int sclda_send_pidinfo(struct sclda_iov *siov);
 
 // syscall.c
 int sclda_syscall_init(void);
-int kfree_scinfo_ls(struct sclda_syscallinfo_ls *);
 int sclda_send_syscall_info(char *, int);
 int sclda_send_syscall_info2(struct sclda_iov *, unsigned long);
+
 int sclda_sendall_syscallinfo(void *data);
 int sclda_sendall_on_reboot(void);
-
-extern struct sclda_client_struct sclda_syscall_client[SCLDA_PORT_NUMBER];
-extern struct mutex sclda_siov_mutex[SCLDA_SCI_NUM];
-extern struct sclda_iov_ls siov_heads[SCLDA_SCI_NUM];
-extern struct sclda_iov_ls *siov_tails[SCLDA_SCI_NUM];
-extern struct mutex sclda_syscall_mutex[SCLDA_SCI_NUM];
-extern struct sclda_syscallinfo_ls sclda_syscall_heads[SCLDA_SCI_NUM];
-extern struct sclda_syscallinfo_ls *sclda_syscall_tails[SCLDA_SCI_NUM];
-extern int sclda_syscallinfo_num[SCLDA_SCI_NUM];
 
 // other.c
 int sclda_get_current_pid(void);
