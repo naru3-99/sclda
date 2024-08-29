@@ -24,7 +24,7 @@
 // this file is an additional impl for common.c
 
 static int sclda_tcp_init_thread(void *data) {
-    while (sclda_init());
+    while (sclda_init()) msleep(1000);
     return 0;
 }
 
@@ -44,11 +44,7 @@ int init_sclda_client_tcp(struct sclda_client_struct *sclda_cs_ptr, int port) {
     // ソケットの作成
     retval = sock_create_kern(&init_net, PF_INET, SOCK_STREAM, IPPROTO_TCP,
                               &(sclda_cs_ptr->sock));
-    if (retval < 0) {
-        printk(KERN_DEBUG "SCLDA sock_create, ret = %d, port = %d\n", retval,
-               port);
-        return retval;
-    }
+    if (retval < 0) return retval;
 
     // サーバーのアドレス設定
     sclda_cs_ptr->addr.sin_family = PF_INET;
@@ -61,8 +57,6 @@ int init_sclda_client_tcp(struct sclda_client_struct *sclda_cs_ptr, int port) {
                             sizeof(struct sockaddr_in), 0);
 
     if (retval < 0) {
-        printk(KERN_DEBUG "SCLDA sock_connect, ret = %d port = %d\n", retval,
-               port);
         sock_release(sclda_cs_ptr->sock);
         return retval;
     }
@@ -80,7 +74,6 @@ int init_sclda_client_tcp(struct sclda_client_struct *sclda_cs_ptr, int port) {
 
     // ミューテックスの初期化
     mutex_init(&sclda_cs_ptr->mtx);
-    printk(KERN_DEBUG "SCLDA init_tcp %d\n", port);
     return 0;
 }
 
