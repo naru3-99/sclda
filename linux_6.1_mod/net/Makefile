@@ -6,7 +6,6 @@
 # Rewritten to use lists instead of if-statements.
 #
 
-ccflags-y := -DSCLDA_USE_TCP
 obj-y				:= devres.o socket.o core/ sclda/
 obj-$(CONFIG_COMPAT)		+= compat.o
 
