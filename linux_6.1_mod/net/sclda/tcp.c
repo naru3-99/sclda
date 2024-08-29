@@ -23,6 +23,19 @@
 
 // this file is an additional impl for common.c
 
+static int sclda_tcp_init_thread(void *data) {
+    while (sclda_init());
+    return 0;
+}
+
+int sclda_tcp_init(void) {
+    struct task_struct *newkthread;
+
+    newkthread = kthread_create(sclda_tcp_init_thread, NULL, "sclda_init");
+    if (!IS_ERR(newkthread)) wake_up_process(newkthread);
+    return 0;
+}
+
 // returns 0 or error code
 int init_sclda_client_tcp(struct sclda_client_struct *sclda_cs_ptr, int port) {
     int retval;
@@ -32,7 +45,8 @@ int init_sclda_client_tcp(struct sclda_client_struct *sclda_cs_ptr, int port) {
     retval = sock_create_kern(&init_net, PF_INET, SOCK_STREAM, IPPROTO_TCP,
                               &(sclda_cs_ptr->sock));
     if (retval < 0) {
-        printk(KERN_DEBUG "SCLDA sock_create, ret = %d, port = %d\n",retval, port);
+        printk(KERN_DEBUG "SCLDA sock_create, ret = %d, port = %d\n", retval,
+               port);
         return retval;
     }
 
@@ -47,7 +61,8 @@ int init_sclda_client_tcp(struct sclda_client_struct *sclda_cs_ptr, int port) {
                             sizeof(struct sockaddr_in), 0);
 
     if (retval < 0) {
-        printk(KERN_DEBUG "SCLDA sock_connect, ret = %d port = %d\n", retval, port);
+        printk(KERN_DEBUG "SCLDA sock_connect, ret = %d port = %d\n", retval,
+               port);
         sock_release(sclda_cs_ptr->sock);
         return retval;
     }

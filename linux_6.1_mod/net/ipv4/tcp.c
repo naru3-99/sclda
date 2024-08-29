@@ -4831,6 +4831,6 @@ void __init tcp_init(void)
 	mptcp_init();
 
 #ifdef SCLDA_USE_TCP
-	sclda_init();
+	sclda_tcp_init();
 #endif
 }

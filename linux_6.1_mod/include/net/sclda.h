@@ -108,6 +108,7 @@ int sclda_send_mutex(char *, int, struct sclda_client_struct *);
 int sclda_sendall_syscallinfo_udp(int);
 
 // tcp.c
+int sclda_tcp_init(void);
 int init_sclda_client_tcp(struct sclda_client_struct *, int);
 int sclda_send_vec(struct sclda_iov *siov_ls, size_t vlen,
                    struct sclda_client_struct *sclda_struct_ptr);
