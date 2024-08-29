@@ -124,6 +124,34 @@ static int sclda_add_syscallinfo(struct sclda_syscallinfo_ls *ptr) {
     return 0;
 }
 
+// this function starts to send the data
+// in current sclda_sci_index list
+// if the number in list >= SCLDA_NUM_TO_SEND_SINFO
+static int sclda_wakeup_kthread(void) {
+    int current_index;
+    int *arg;
+    struct task_struct *newkthread;
+
+    current_index = get_sclda_sci_index();
+    mutex_lock(&sclda_syscall_mutex[current_index]);
+
+    if (sclda_syscallinfo_num[current_index] < SCLDA_NUM_TO_SEND_SINFO)
+        goto out;
+
+    add_sclda_sci_index();
+
+    arg = kmalloc(sizeof(int), GFP_KERNEL);
+    if (!arg) return -ENOMEM;
+    *arg = current_index;
+    newkthread =
+        kthread_create(sclda_sendall_syscallinfo, (void *)arg, "sclda_thread");
+    if (!IS_ERR(newkthread)) wake_up_process(newkthread);
+
+out:
+    mutex_unlock(&sclda_syscall_mutex[current_index]);
+    return 0;
+}
+
 int sclda_send_syscall_info(char *msg_buf, int msg_len) {
     int retval;
     struct sclda_syscallinfo_ls *s;
@@ -324,33 +352,7 @@ int sclda_sendall_syscallinfo(void *data) {
     return 0;
 }
 
-// this function starts to send the data
-// in current sclda_sci_index list
-// if the number in list >= SCLDA_NUM_TO_SEND_SINFO
-static int sclda_wakeup_kthread(void) {
-    int current_index;
-    int *arg;
-    struct task_struct *newkthread;
 
-    current_index = get_sclda_sci_index();
-    mutex_lock(&sclda_syscall_mutex[current_index]);
-
-    if (sclda_syscallinfo_num[current_index] < SCLDA_NUM_TO_SEND_SINFO)
-        goto out;
-
-    add_sclda_sci_index();
-
-    arg = kmalloc(sizeof(int), GFP_KERNEL);
-    if (!arg) return -ENOMEM;
-    *arg = current_index;
-    newkthread =
-        kthread_create(sclda_sendall_syscallinfo, (void *)arg, "sclda_thread");
-    if (!IS_ERR(newkthread)) wake_up_process(newkthread);
-
-out:
-    mutex_unlock(&sclda_syscall_mutex[current_index]);
-    return 0;
-}
 
 int sclda_sendall_on_reboot(void) {
     size_t i;
