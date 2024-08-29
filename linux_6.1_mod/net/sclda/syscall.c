@@ -382,7 +382,7 @@ int print_sclda_debug(void) {
     if (!siov.str) return 0;
 
     written = snprintf(siov.str, siov.len, "SCLDA_DEBUG ");
-    for (size_t i = 0; i < SCLDA_SCI_NUM; i++)
+    for (i = 0; i < SCLDA_SCI_NUM; i++)
         written += snprintf(siov.str + written, siov.len - written, "%d,",
                             sclda_syscallinfo_num[i]);
 
