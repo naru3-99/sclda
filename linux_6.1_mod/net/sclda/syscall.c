@@ -253,13 +253,13 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
     while (curptr != NULL) {
         for (i = 0; i < curptr->sc_iov_len; i++) {
             // まだchunkに余裕がある場合
-            if (temp->data.len + curptr->pid_time.len + curptr->syscall[i].len <
+            if (temp->data.len + curptr->pid_time.len + curptr->syscall[i].len + 2 <
                 SCLDA_CHUNKSIZE) {
                 temp->data.len +=
                     snprintf(temp->data.str + temp->data.len,
-                             SCLDA_CHUNKSIZE - temp->data.len, "%s%s%c",
-                             curptr->pid_time.str, curptr->syscall[i].str,
-                             SCLDA_EACH_DLMT);
+                             SCLDA_CHUNKSIZE - temp->data.len, "%c%s%s%c",
+                             SCLDA_EACH_DLMT, curptr->pid_time.str,
+                             curptr->syscall[i].str, SCLDA_EACH_DLMT);
             } else {
                 // chunkに余裕が無い場合
                 data_remain = curptr->syscall[i].len;
@@ -279,14 +279,14 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
                         chnk_remain = SCLDA_CHUNKSIZE - 1;
                     }
                     // 分割して書き込む
-                    chnk_remain -= 2 + curptr->pid_time.len;
+                    chnk_remain -= 3 + curptr->pid_time.len;
                     chnk_remain = min(chnk_remain, data_remain);
 
-                    temp->data.len +=
-                        snprintf(temp->data.str + temp->data.len,
-                                 SCLDA_CHUNKSIZE - temp->data.len, "%s%.*s%c",
-                                 curptr->pid_time.str, (int)chnk_remain,
-                                 curptr->syscall[i].str, SCLDA_EACH_DLMT);
+                    temp->data.len += snprintf(
+                        temp->data.str + temp->data.len,
+                        SCLDA_CHUNKSIZE - temp->data.len, "%c%s%.*s%c",
+                        SCLDA_EACH_DLMT, curptr->pid_time.str, (int)chnk_remain,
+                        curptr->syscall[i].str, SCLDA_EACH_DLMT);
 
                     data_remain -= chnk_remain;
                 }

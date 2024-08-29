@@ -2781,10 +2781,11 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	if (!siov.str)
 		return nr;
 	// basic : pid, ppid, executable name
-	siov.len = snprintf(siov.str, siov.len, "%d%c%d%c%s", (int)nr,
-			   SCLDA_DELIMITER, sclda_get_current_pid(),
-			   SCLDA_DELIMITER, p->comm);
-	sclda_send_pidinfo(&siov);
+        siov.len =
+            snprintf(siov.str, siov.len, "%c%d%c%d%c%s%c", SCLDA_EACH_DLMT,
+                     (int)nr, SCLDA_DELIMITER, sclda_get_current_pid(),
+                     SCLDA_DELIMITER, p->comm, SCLDA_EACH_DLMT);
+        sclda_send_pidinfo(&siov);
 	return nr;
 }
 
