@@ -12,8 +12,6 @@
 
 #define DEBUG /* Enable initcall_debug */
 
-#include <net/sclda.h>
-
 #include <linux/types.h>
 #include <linux/extable.h>
 #include <linux/module.h>
@@ -737,8 +735,6 @@ noinline void __ref rest_init(void)
 	system_state = SYSTEM_SCHEDULING;
 
 	complete(&kthreadd_done);
-
-	sclda_init();
 
 	/*
 	 * The boot idle thread must execute schedule()

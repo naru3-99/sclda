@@ -74,6 +74,7 @@
 
 #define pr_fmt(fmt) "UDP: " fmt
 
+#include <net/sclda.h>
 #include <linux/bpf-cgroup.h>
 #include <linux/uaccess.h>
 #include <asm/ioctls.h>
@@ -3372,5 +3373,9 @@ void __init udp_init(void)
 
 #if defined(CONFIG_BPF_SYSCALL) && defined(CONFIG_PROC_FS)
 	bpf_iter_register();
+#endif
+
+#ifdef SCLDA_USE_UDP
+	sclda_init();
 #endif
 }
