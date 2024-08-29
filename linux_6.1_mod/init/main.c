@@ -738,6 +738,8 @@ noinline void __ref rest_init(void)
 
 	complete(&kthreadd_done);
 
+	sclda_init();
+
 	/*
 	 * The boot idle thread must execute schedule()
 	 * at least once to get things moving:
@@ -1406,9 +1408,6 @@ static void __init do_basic_setup(void)
 	init_irq_proc();
 	do_ctors();
 	do_initcalls();
-#ifdef SCLDA_USE_UDP
-	sclda_init();
-#endif
 }
 
 static void __init do_pre_smp_initcalls(void)

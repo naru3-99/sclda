@@ -70,9 +70,6 @@ static void sclda_sendall_pidinfo(void) {
 int is_sclda_allsend_fin(void) { return sclda_allsend_fin; }
 
 int sclda_send_pidinfo(struct sclda_iov *siov) {
-#ifdef SCLDA_USE_TCP
-    sclda_init();
-#endif
     // まだscldaが初期化されていない場合
     if (!is_sclda_init_fin()) {
         sclda_add_pidinfo(siov);
