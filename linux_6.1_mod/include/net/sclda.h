@@ -128,6 +128,7 @@ int sclda_send_syscall_info2(struct sclda_iov *, unsigned long);
 
 int sclda_sendall_syscallinfo(void *data);
 int sclda_sendall_on_reboot(void);
+int print_sclda_debug(void);
 
 // other.c
 int sclda_get_current_pid(void);

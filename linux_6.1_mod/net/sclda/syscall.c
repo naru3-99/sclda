@@ -352,8 +352,6 @@ int sclda_sendall_syscallinfo(void *data) {
     return 0;
 }
 
-
-
 int sclda_sendall_on_reboot(void) {
     size_t i;
     // すべてのmutexロックを取得し、
@@ -372,5 +370,23 @@ int sclda_sendall_on_reboot(void) {
 
     // 一応アンロックして終了する
     for (i = 0; i < SCLDA_SCI_NUM; i++) mutex_unlock(&sclda_syscall_mutex[i]);
+    return 0;
+}
+
+int print_sclda_debug(void) {
+    struct sclda_iov siov;
+    size_t i, written = 0;
+
+    siov.len = 150;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!siov.str) return 0;
+
+    written = snprintf(siov.str, siov.len, "SCLDA_DEBUG ");
+    for (size_t i = 0; i < SCLDA_SCI_NUM; i++)
+        written += snprintf(siov.str + written, siov.len - written, "%d,",
+                            sclda_syscallinfo_num[i]);
+
+    printk(KERN_ERR "%s", siov.str);
+    kfree(siov.str);
     return 0;
 }
