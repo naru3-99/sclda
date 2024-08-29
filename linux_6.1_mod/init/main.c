@@ -1406,8 +1406,9 @@ static void __init do_basic_setup(void)
 	init_irq_proc();
 	do_ctors();
 	do_initcalls();
-
+#ifdef SCLDA_USE_UDP
 	sclda_init();
+#endif
 }
 
 static void __init do_pre_smp_initcalls(void)
