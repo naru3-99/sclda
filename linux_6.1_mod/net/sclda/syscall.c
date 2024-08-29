@@ -60,6 +60,7 @@ static void add_sclda_sci_index(void) {
 int sclda_syscall_init(void) {
     int retval;
     size_t i;
+    
     // init syscallinfo linked list
     for (i = 0; i < SCLDA_SCI_NUM; i++) {
         mutex_init(&sclda_siov_mutex[i]);

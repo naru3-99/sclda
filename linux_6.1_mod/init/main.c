@@ -1407,9 +1407,7 @@ static void __init do_basic_setup(void)
 	do_ctors();
 	do_initcalls();
 
-#ifndef SCLDA_USE_TCP
 	sclda_init();
-#endif
 }
 
 static void __init do_pre_smp_initcalls(void)

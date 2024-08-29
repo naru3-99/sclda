@@ -2775,9 +2775,6 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	put_pid(pid);
 
 	// sclda
-#ifdef SCLDA_USE_TCP
-	if(!is_sclda_init_fin()) sclda_init()
-#endif
 	siov.len = 50;
 	siov.str = kmalloc(siov.len, GFP_KERNEL);
 	if (!siov.str)

@@ -30,8 +30,8 @@ struct sclda_pidinfo_ls sclda_pidinfo_head = {
     .next = NULL, .pid_info.len = 0, .pid_info.str = NULL};
 struct sclda_pidinfo_ls *sclda_pidinfo_tail = &sclda_pidinfo_head;
 
+// returns 0 on success, minus value on failed
 int sclda_pid_init(void) {
-    // tcp or udp ?
     return init_sclda_client(&sclda_pid_client, SCLDA_PIDPPID_PORT);
 }
 
@@ -72,6 +72,7 @@ int is_sclda_allsend_fin(void) { return sclda_allsend_fin; }
 int sclda_send_pidinfo(struct sclda_iov *siov) {
     // まだscldaが初期化されていない場合
     if (!is_sclda_init_fin()) {
+        sclda_init()
         sclda_add_pidinfo(siov);
         return 0;
     }
