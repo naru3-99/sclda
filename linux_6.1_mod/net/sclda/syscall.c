@@ -343,33 +343,33 @@ out:
     return cnt;
 }
 
+#define SCLDA_SCIOV_BLOCK 8
 static int sclda_sendall_siovls(int target_index) {
-    int send_ret;
-    size_t cnt;
+    size_t i, cnt = 0, index = 0;
+    struct sclda_iov siov[SCLDA_SCIOV_BLOCK];
     struct sclda_iov_ls *curptr, *next;
 
     mutex_lock(&sclda_siov_mutex[target_index]);
 
-    cnt = 0;
     curptr = siov_heads[target_index].next;
     siov_tails[target_index] = &siov_heads[target_index];
 
     while (curptr != NULL) {
-        send_ret =
-            sclda_send_mutex(curptr->data.str, SCLDA_CHUNKSIZE,
-                             &(sclda_syscall_client[cnt % SCLDA_PORT_NUMBER]));
-        if (send_ret < 0) {
-            siov_tails[target_index]->next = curptr;
-            siov_tails[target_index] = siov_tails[target_index]->next;
-        }
+        siov[index].str = curptr->data.str;
+        siov[index].len = SCLDA_CHUNKSIZE;
+        index += 1;
 
-        next = curptr->next;
-        if (send_ret >= 0) {
-            kfree(curptr->data.str);
-            kfree(curptr);
+        if (index == SCLDA_SCIOV_BLOCK) {
+            sclda_send_vec_mutex(
+                siov, SCLDA_SCIOV_BLOCK,
+                &(sclda_syscall_client[cnt % SCLDA_PORT_NUMBER]));
+            for (i = 0; i < count; i++) kfree(siov[i].str);
+            cnt += 1;
+            index = 0;
         }
+        next = curptr->next;
+        kfree(curptr);
         curptr = next;
-        cnt += 1;
     }
     siov_tails[target_index]->next = NULL;
     mutex_unlock(&sclda_siov_mutex[target_index]);
