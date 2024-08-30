@@ -24,6 +24,10 @@
 // struct for communication
 struct sclda_client_struct sclda_syscall_client[SCLDA_PORT_NUMBER];
 
+// id for system call
+static DEFINE_MUTEX(sclda_scid_mutex);
+unsigned long long sclda_scid = 0;
+
 // linked list for siov, to store failed data
 struct mutex sclda_siov_mutex[SCLDA_SCI_NUM];
 struct sclda_iov_ls siov_heads[SCLDA_SCI_NUM];
@@ -54,6 +58,16 @@ static void add_sclda_sci_index(void) {
     mutex_lock(&sclda_sci_index_mutex);
     sclda_sci_index = (sclda_sci_index + 1) % SCLDA_SCI_NUM;
     mutex_unlock(&sclda_sci_index_mutex);
+}
+
+static unsigned long long get_scid(void){
+    unsigned long long ret;
+
+    mutex_lock(&sclda_scid_mutex);
+    ret = sclda_sci_index;
+    sclda_sci_index += 1;
+    mutex_unlock(&sclda_scid_mutex);
+    return ret;
 }
 
 // for common.c: init
@@ -94,9 +108,10 @@ static int sclda_syscallinfo_init(struct sclda_syscallinfo_ls **ptr) {
     if (!(s->pid_time.str)) goto free_scinfo;
 
     s->next = NULL;
-    s->pid_time.len = snprintf(s->pid_time.str, SCLDA_PID_CLOCK_SIZE,
-                               "%d%c%llu%c", sclda_get_current_pid(),
-                               SCLDA_DELIMITER, sched_clock(), SCLDA_DELIMITER);
+    s->pid_time.len =
+        snprintf(s->pid_time.str, SCLDA_PID_CLOCK_SIZE, "%llu%c%d%c%llu%c",
+                 get_scid(), SCLDA_DELIMITER, sclda_get_current_pid(),
+                 SCLDA_DELIMITER, sched_clock(), SCLDA_DELIMITER);
 
     *ptr = s;
     return 0;
