@@ -52,6 +52,8 @@
 #define SCLDA_SYSCALL_BASEPORT ((int)15002)
 // chunksize for spliting data
 #define SCLDA_CHUNKSIZE ((size_t)1000)
+// 30% of chunksize
+#define SCLDA_30P_CHUNKSIZE ((size_t) 300)
 // bufsize for utime, PID
 #define SCLDA_PID_CLOCK_SIZE ((int)50)
 // bufsize for syscall_info struct
