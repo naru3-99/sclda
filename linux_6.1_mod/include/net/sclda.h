@@ -48,7 +48,7 @@
 // pid-ppid relationship server port
 #define SCLDA_PIDPPID_PORT ((int)15001)
 // syscall server port, BASEPORT + i
-#define SCLDA_PORT_NUMBER ((int)16)
+#define SCLDA_PORT_NUMBER ((int)1)
 #define SCLDA_SYSCALL_BASEPORT ((int)15002)
 // chunksize for spliting data
 #define SCLDA_CHUNKSIZE ((size_t)1000)
