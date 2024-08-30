@@ -62,6 +62,8 @@
 #define SCLDA_SCI_NUM ((int)16)
 // max size of the buffer
 #define SCLDA_SCDATA_BUFMAX ((int)2048)
+// PID_PPID_COMM msg buffer size
+#define SCLDA_PID_PPID_BUFSIZE ((int)50)
 
 // client struct
 struct sclda_client_struct {

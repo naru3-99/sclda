@@ -70,6 +70,7 @@ static void sclda_sendall_pidinfo(void) {
 int is_sclda_allsend_fin(void) { return sclda_allsend_fin; }
 
 int sclda_send_pidinfo(struct sclda_iov *siov) {
+    siov->len = SCLDA_PID_PPID_BUFSIZE;
     // まだscldaが初期化されていない場合
     if (!is_sclda_init_fin()) {
         sclda_add_pidinfo(siov);

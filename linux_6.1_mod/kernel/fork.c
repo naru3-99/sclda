@@ -2776,10 +2776,11 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	put_pid(pid);
 
 	// sclda
-	siov.len = 50;
+	siov.len = SCLDA_PID_PPID_BUFSIZE;
 	siov.str = kmalloc(siov.len, GFP_KERNEL);
 	if (!siov.str)
 		return nr;
+	memset(siov.str,0,SCLDA_PID_PPID_BUFSIZE);
 	// basic : pid, ppid, executable name
         siov.len =
             snprintf(siov.str, siov.len, "%c%d%c%d%c%s%c", SCLDA_EACH_DLMT,

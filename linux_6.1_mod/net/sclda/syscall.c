@@ -235,6 +235,7 @@ static int init_siovls(struct sclda_iov_ls **siov) {
 
 static int save_siovls(struct sclda_iov_ls *siov, int target_index) {
     // データを保存
+    siov->data.len = SCLDA_CHUNKSIZE;
     mutex_lock(&sclda_siov_mutex[target_index]);
     siov_tails[target_index]->next = siov;
     siov_tails[target_index] = siov_tails[target_index]->next;
@@ -331,6 +332,8 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
         curptr = next;
         cnt += 1;
     }
+    // 残っているやつがあれば保存する
+    if (temp->data.len != 0) save_siovls(temp, target_index);
 
     // scinfoのhead, tailを再初期化する
     sclda_syscall_heads[target_index].next = NULL;
