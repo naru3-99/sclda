@@ -367,7 +367,7 @@ static int sclda_sendall_siovls(int target_index) {
     curptr = siov_heads[target_index].next;
     while (curptr != NULL) {
         sclda_send_mutex(curptr->data.str, curptr->data.len,
-                         &(sclda_syscall_client[cnt % SCLDA_PORT_NUMBER]));
+                         &(sclda_syscall_client[target_index]));
         cnt += 1;
         next = curptr->next;
         kfree(curptr->data.str);
