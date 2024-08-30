@@ -99,10 +99,7 @@ int sclda_syscall_init(void) {
 // this is a helper function which init the single link list
 // if return -ENOMEM, init was failed
 static int sclda_syscallinfo_init(struct sclda_syscallinfo_ls **ptr) {
-    unsigned long long scid;
     struct sclda_syscallinfo_ls *s;
-
-    scid = get_scid();
 
     s = kmalloc(sizeof(struct sclda_syscallinfo_ls), GFP_KERNEL);
     if (!s) goto out;
@@ -113,7 +110,7 @@ static int sclda_syscallinfo_init(struct sclda_syscallinfo_ls **ptr) {
     s->next = NULL;
     s->pid_time.len =
         snprintf(s->pid_time.str, SCLDA_PID_CLOCK_SIZE, "%llu%c%d%c%llu%c",
-                 scid, SCLDA_DELIMITER, sclda_get_current_pid(),
+                 get_scid(), SCLDA_DELIMITER, sclda_get_current_pid(),
                  SCLDA_DELIMITER, sched_clock(), SCLDA_DELIMITER);
 
     *ptr = s;
