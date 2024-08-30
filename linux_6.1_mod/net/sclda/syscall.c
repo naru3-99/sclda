@@ -235,7 +235,6 @@ static int init_siovls(struct sclda_iov_ls **siov) {
 
 static int save_siovls(struct sclda_iov_ls *siov, int target_index) {
     // データを保存
-    siov->data.len = SCLDA_CHUNKSIZE;
     mutex_lock(&sclda_siov_mutex[target_index]);
     siov_tails[target_index]->next = siov;
     siov_tails[target_index] = siov_tails[target_index]->next;
@@ -357,7 +356,7 @@ static int sclda_sendall_siovls(int target_index) {
 
     while (curptr != NULL) {
         send_ret =
-            sclda_send_mutex(curptr->data.str, curptr->data.len,
+            sclda_send_mutex(curptr->data.str, SCLDA_CHUNKSIZE,
                              &(sclda_syscall_client[cnt % SCLDA_PORT_NUMBER]));
         if (send_ret < 0) {
             siov_tails[target_index]->next = curptr;
