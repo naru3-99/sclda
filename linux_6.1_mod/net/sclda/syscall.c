@@ -64,8 +64,8 @@ static unsigned long long get_scid(void){
     unsigned long long ret;
 
     mutex_lock(&sclda_scid_mutex);
-    ret = sclda_sci_index;
-    sclda_sci_index += 1;
+    ret = sclda_scid;
+    sclda_scid += 1;
     mutex_unlock(&sclda_scid_mutex);
     return ret;
 }
