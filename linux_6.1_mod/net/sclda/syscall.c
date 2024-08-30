@@ -265,7 +265,7 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
                 data_remain = curptr->syscall[i].len;
                 while (data_remain != 0) {
                     chnk_remain = SCLDA_CHUNKSIZE - temp->data.len - 1;
-                    if (chnk_remain < curptr->pid_time.len ||
+                    if (chnk_remain < curptr->pid_time.len + 100 ||
                         temp->data.len > SCLDA_CHUNKSIZE) {
                         // これ以上書き込めないため、
                         // データを保存 + tempを再初期化

@@ -70,6 +70,7 @@ int sclda_send_mutex(char *buf, int len,
     mutex_lock(&(sclda_struct_ptr->mtx));
     ret = sclda_send(buf, len, sclda_struct_ptr);
     mutex_unlock(&(sclda_struct_ptr->mtx));
+    msleep(50);
     return ret;
 }
 
