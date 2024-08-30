@@ -62,15 +62,25 @@ int init_sclda_client_tcp(struct sclda_client_struct *sclda_cs_ptr, int port) {
     }
 
     // メッセージヘッダーの設定
-    sclda_cs_ptr->hdr.msg_name = &(sclda_cs_ptr->addr);
-    sclda_cs_ptr->hdr.msg_namelen = sizeof(struct sockaddr_in);
+    // sclda_cs_ptr->hdr.msg_name = &(sclda_cs_ptr->addr);
+    // sclda_cs_ptr->hdr.msg_namelen = sizeof(struct sockaddr_in);
+    // sclda_cs_ptr->hdr.msg_control = NULL;
+    // sclda_cs_ptr->hdr.msg_controllen = 0;
+    // sclda_cs_ptr->hdr.msg_flags = 0;
+    // sclda_cs_ptr->hdr.msg_control_is_user = false;
+    // sclda_cs_ptr->hdr.msg_get_inq = false;
+    // sclda_cs_ptr->hdr.msg_iocb = NULL;
+    // sclda_cs_ptr->hdr.msg_ubuf = NULL;
+
+    sclda_cs_ptr->hdr.msg_name = NULL;
+    sclda_cs_ptr->hdr.msg_namelen = 0;
     sclda_cs_ptr->hdr.msg_control = NULL;
     sclda_cs_ptr->hdr.msg_controllen = 0;
-    sclda_cs_ptr->hdr.msg_flags = 0;
-    sclda_cs_ptr->hdr.msg_control_is_user = false;
-    sclda_cs_ptr->hdr.msg_get_inq = false;
-    sclda_cs_ptr->hdr.msg_iocb = NULL;
-    sclda_cs_ptr->hdr.msg_ubuf = NULL;
+    // sclda_cs_ptr->hdr.msg_flags = 0;
+    // sclda_cs_ptr->hdr.msg_control_is_user = false;
+    // sclda_cs_ptr->hdr.msg_get_inq = false;
+    // sclda_cs_ptr->hdr.msg_iocb = NULL;
+    // sclda_cs_ptr->hdr.msg_ubuf = NULL;
 
     // ミューテックスの初期化
     mutex_init(&sclda_cs_ptr->mtx);

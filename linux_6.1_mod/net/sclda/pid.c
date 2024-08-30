@@ -58,7 +58,6 @@ static void sclda_sendall_pidinfo(void) {
     while (curptr != NULL) {
         sclda_send_mutex(curptr->pid_info.str, curptr->pid_info.len,
                          &sclda_pid_client);
-        udelay(50);
         next = curptr->next;
         kfree(curptr->pid_info.str);
         kfree(curptr);
