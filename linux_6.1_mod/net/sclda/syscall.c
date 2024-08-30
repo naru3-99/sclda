@@ -359,7 +359,7 @@ out:
 }
 
 static int sclda_sendall_siovls(int target_index) {
-    size_t i, cnt = 0;
+    size_t cnt = 0;
     struct sclda_iov_ls *curptr, *next;
 
     mutex_lock(&sclda_siov_mutex[target_index]);
