@@ -40,9 +40,9 @@
 #include <linux/uaccess.h>
 
 // splitting syscall data by this delimiter
-#define SCLDA_DELIMITER ((char)0x05)
+#define SCLDA_DELIMITER ((char)7)
 // splitting each infomation by this
-#define SCLDA_EACH_DLMT ((char)0x06)
+#define SCLDA_EACH_DLMT ((char)18)
 // server ip address, Virtualbox's Hostonly adaptor
 #define SCLDA_SERVER_IP ((unsigned long int)0xc0a83801)
 // pid-ppid relationship server port
