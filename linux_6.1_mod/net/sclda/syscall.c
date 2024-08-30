@@ -363,7 +363,7 @@ static int sclda_sendall_siovls(int target_index) {
             sclda_send_vec_mutex(
                 siov, SCLDA_SCIOV_BLOCK,
                 &(sclda_syscall_client[cnt % SCLDA_PORT_NUMBER]));
-            for (i = 0; i < count; i++) kfree(siov[i].str);
+            for (i = 0; i < SCLDA_SCIOV_BLOCK; i++) kfree(siov[i].str);
             cnt += 1;
             index = 0;
         }
