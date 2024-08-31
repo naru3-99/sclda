@@ -338,16 +338,13 @@ out:
 }
 
 static int sclda_sendall_siovls(int target_index) {
-    size_t cnt = 0;
     struct sclda_iov_ls *curptr, *next;
+    struct sclda_client_struct *target = &sclda_syscall_client[target_index];
 
     mutex_lock(&sclda_siov_mutex[target_index]);
-
     curptr = siov_heads[target_index].next;
     while (curptr != NULL) {
-        sclda_send_mutex(curptr->data.str, curptr->data.len,
-                         &(sclda_syscall_client[target_index]));
-        cnt += 1;
+        sclda_send_mutex(curptr->data.str, curptr->data.len, target);
         next = curptr->next;
         kfree(curptr->data.str);
         kfree(curptr);
