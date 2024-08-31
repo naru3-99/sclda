@@ -41,8 +41,11 @@
 
 // splitting syscall data by this delimiter
 #define SCLDA_DELIMITER ((char)7)
-// splitting each infomation by this
-#define SCLDA_EACH_DLMT ((char)18)
+// msg must start with this
+#define SCLDA_MSG_START ((char)18)
+// msg must finish with this
+#define SCLDA_MSG_END ((char)20)
+
 // server ip address, Virtualbox's Hostonly adaptor
 #define SCLDA_SERVER_IP ((unsigned long int)0xc0a83801)
 // pid-ppid relationship server port
@@ -50,16 +53,18 @@
 // syscall server port, BASEPORT + i
 #define SCLDA_PORT_NUMBER ((int)16)
 #define SCLDA_SYSCALL_BASEPORT ((int)15002)
-// chunksize for spliting data
-#define SCLDA_CHUNKSIZE ((size_t) 1460)
-// 30% of chunksize
-#define SCLDA_30P_CHUNKSIZE SCLDA_CHUNKSIZE / 10 * 3
-// bufsize for utime, PID
-#define SCLDA_PID_CLOCK_SIZE ((int)80)
+
 // bufsize for syscall_info struct
 #define SCLDA_NUM_TO_SEND_SINFO ((int)8192)
 // num for head of syscall_info struct
 #define SCLDA_SCI_NUM SCLDA_PORT_NUMBER
+
+// chunksize for spliting data
+#define SCLDA_CHUNKSIZE ((size_t)1460)
+// 30% of chunksize
+#define SCLDA_30P_CHUNKSIZE SCLDA_CHUNKSIZE / 10 * 3
+// bufsize for utime, PID
+#define SCLDA_PID_CLOCK_SIZE ((int)80)
 // max size of the buffer
 #define SCLDA_SCDATA_BUFMAX ((int)2048)
 // PID_PPID_COMM msg buffer size

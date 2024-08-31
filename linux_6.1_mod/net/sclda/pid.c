@@ -70,6 +70,8 @@ static void sclda_sendall_pidinfo(void) {
 int is_sclda_allsend_fin(void) { return sclda_allsend_fin; }
 
 int sclda_send_pidinfo(struct sclda_iov *siov) {
+    int ret, len;
+    char buf[10];
     siov->len = SCLDA_PID_PPID_BUFSIZE;
     // まだscldaが初期化されていない場合
     if (!is_sclda_init_fin()) {
@@ -83,7 +85,9 @@ int sclda_send_pidinfo(struct sclda_iov *siov) {
         return 0;
     }
     // scldaは初期化済み、allsendは終わっていない
-    if (sclda_send_mutex("sclda\0", 6, &sclda_pid_client) == 6) {
+    len = snprintf(buf, 10, "%csclda%c", SCLDA_MSG_START, SCLDA_MSG_END);
+    ret = sclda_send_mutex(buf, len, &sclda_pid_client);
+    if (ret == len) {
         // 送信可能-> sendall
         sclda_sendall_pidinfo();
         sclda_send_mutex(siov->str, siov->len, &sclda_pid_client);

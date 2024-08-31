@@ -270,7 +270,7 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
     curptr = sclda_syscall_heads[target_index].next;
     while (curptr != NULL) {
         for (i = 0; i < curptr->sc_iov_len; i++) {
-            // +2はSCLDA_EACH_DLMTを前後2つで挟む分
+            // +2はstartとendの前後2つで挟む分
             len = curptr->pid_time.len + curptr->syscall[i].len + 2;
 
             // chunkに余裕がある場合
@@ -278,8 +278,8 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
                 temp->data.len +=
                     snprintf(temp->data.str + temp->data.len,
                              SCLDA_CHUNKSIZE - temp->data.len, "%c%s%s%c",
-                             SCLDA_EACH_DLMT, curptr->pid_time.str,
-                             curptr->syscall[i].str, SCLDA_EACH_DLMT);
+                             SCLDA_MSG_START, curptr->pid_time.str,
+                             curptr->syscall[i].str, SCLDA_MSG_END);
                 continue;
             }
 
@@ -303,8 +303,8 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
                 temp->data.len += snprintf(
                     temp->data.str + temp->data.len,
                     SCLDA_CHUNKSIZE - temp->data.len, "%c%s%.*s%c",
-                    SCLDA_EACH_DLMT, curptr->pid_time.str, (int)writable,
-                    curptr->syscall[i].str, SCLDA_EACH_DLMT);
+                    SCLDA_MSG_START, curptr->pid_time.str, (int)writable,
+                    curptr->syscall[i].str, SCLDA_MSG_END);
 
                 chnk_remain = SCLDA_CHUNKSIZE - temp->data.len;
                 if (chnk_remain < SCLDA_30P_CHUNKSIZE){
@@ -373,6 +373,9 @@ int sclda_sendall_syscallinfo(void *data) {
 
 int sclda_sendall_on_reboot(void) {
     size_t i;
+    char buf[20];
+    int len;
+
     // すべてのmutexロックを取得し、
     // これ以上データを追加しないようにする
     for (i = 0; i < SCLDA_SCI_NUM; i++) mutex_lock(&sclda_syscall_mutex[i]);
@@ -384,8 +387,10 @@ int sclda_sendall_on_reboot(void) {
         sclda_sendall_siovls(i);
     }
 
+    len = snprintf(buf, 20, "%csclda_reboot%c", SCLDA_MSG_START, SCLDA_MSG_END);
+
     // 終了したというメッセージを送信する
-    sclda_send("sclda_reboot\0", 14, &(sclda_syscall_client[0]));
+    sclda_send_mutex(buf, len, &(sclda_syscall_client[0]));
 
     // 一応アンロックして終了する
     for (i = 0; i < SCLDA_SCI_NUM; i++) mutex_unlock(&sclda_syscall_mutex[i]);

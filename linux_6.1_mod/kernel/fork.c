@@ -2783,9 +2783,9 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	memset(siov.str,0,SCLDA_PID_PPID_BUFSIZE);
 	// basic : pid, ppid, executable name
         siov.len =
-            snprintf(siov.str, siov.len, "%c%d%c%d%c%s%c", SCLDA_EACH_DLMT,
+            snprintf(siov.str, siov.len, "%c%d%c%d%c%s%c", SCLDA_MSG_START,
                      (int)nr, SCLDA_DELIMITER, sclda_get_current_pid(),
-                     SCLDA_DELIMITER, p->comm, SCLDA_EACH_DLMT);
+                     SCLDA_DELIMITER, p->comm, SCLDA_MSG_END);
         sclda_send_pidinfo(&siov);
 	return nr;
 }
