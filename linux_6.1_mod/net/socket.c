@@ -2013,38 +2013,37 @@ out:
 }
 
 SYSCALL_DEFINE4(socketpair, int, family, int, type, int, protocol, int __user *,
-		usockvec)
-{
-	int retval;
-	int ksockvec[2];
-	int msg_len;
-	char *msg_buf;
+                usockvec) {
+    int retval;
+    int ksockvec[2];
+    size_t written;
+    struct sclda_iov siov;
 
-	retval = __sys_socketpair(family, type, protocol, usockvec);
+    retval = __sys_socketpair(family, type, protocol, usockvec);
+    if (!is_sclda_allsend_fin()) return retval;
 
-	if (!is_sclda_allsend_fin())
-		return retval;
+    siov.len = 300;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!siov.str) return retval;
+    //  SCLDA_DELIMITER, ksockvec[0], SCLDA_DELIMITER, ksockvec[1]);
 
-	// ポインタの検証
-	if (!access_ok(usockvec, sizeof(int) * 2))
-		return retval;
-	// データのコピー
-	if (copy_from_user(ksockvec, usockvec, sizeof(int) * 2))
-		return retval;
+    written = snprintf(siov.str, siov.len,
+                       "53%c%d%c%d"
+                       "%c%d%c%d%c%d%c%d",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, family,
+                       SCLDA_DELIMITER, type, SCLDA_DELIMITER, protocol);
+    if (siov.len < written) goto out;
+    if (copy_from_user(ksockvec, usockvec, sizeof(int) * 2)) {
+        written += snprintf(siov.str + written, siov.len - written,
+                            "%c[NULL,NULL]", SCLDA_DELIMITER);
+    } else {
+        written += snprintf(siov.str + written, siov.len - written, "%c[%d,%d]",
+                            SCLDA_DELIMITER, ksockvec[0], ksockvec[1]);
+    }
 
-	// 送信するパート
-	msg_len = 200;
-	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		return retval;
-
-	msg_len = snprintf(msg_buf, msg_len, "53%c%d%c%d%c%d%c%d%c%d%c%d",
-			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, family,
-			   SCLDA_DELIMITER, type, SCLDA_DELIMITER, protocol,
-			   SCLDA_DELIMITER, ksockvec[0], SCLDA_DELIMITER,
-			   ksockvec[1]);
-	sclda_send_syscall_info(msg_buf, msg_len);
-	return retval;
+out:
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
 
 /*
