@@ -73,6 +73,7 @@ static char *escape_control_chars(const char *data, size_t len,
     return escaped_data;
 }
 
+
 struct sclda_iov *copy_userchar_to_siov(const char __user *src, size_t len, size_t *vlen) {
     long length;
     size_t copy_len, vec_len, copyable, i;
@@ -88,41 +89,37 @@ struct sclda_iov *copy_userchar_to_siov(const char __user *src, size_t len, size
         copy_len = len;
     }
 
-    vec_len = (copy_len + SCLDA_SCDATA_BUFMAX - 1) / SCLDA_SCDATA_BUFMAX;
+    copyable = SCLDA_SCDATA_BUFMAX - 1;
+
+    vec_len = copy_len / copyable + 1;
     *vlen = vec_len;
     siov = kmalloc_array(vec_len + 1, sizeof(struct sclda_iov), GFP_KERNEL);
     if (!siov) return NULL;
 
-    copyable = SCLDA_SCDATA_BUFMAX - 1;
     for (i = 0; i < vec_len; i++) {
         data.len = min(copy_len - copyable * i, copyable);
         data.str = kmalloc(data.len, GFP_KERNEL);
-        if (!(data.str)) {
-            while (i > 0) kfree(siov[--i].str);
-            kfree(siov);
-            return NULL;
-        }
+        if (!(data.str))
+            goto out_err;
 
-        if (copy_from_user(data.str, src + copyable * i, data.len)) {
-            while (i > 0) kfree(siov[--i].str);
-            kfree(siov);
-            kfree(data.str);
-            return NULL;
-        }
-
+        if (copy_from_user(data.str, src + copyable * i, data.len))
+            goto free_data;
         siov[i + 1].str =
             escape_control_chars(data.str, data.len, &(siov[i + 1].len));
-        if (!(siov[i + 1].str)) {
-            while (i > 0) kfree(siov[--i].str);
-            kfree(siov);
-            kfree(data.str);
-            return NULL;
-        }
+
+        if (!(siov[i + 1].str)) goto free_data;
         kfree(data.str);
         data.str = NULL;
     }
 
     return siov;
+
+free_data:
+    kfree(data.str);
+out_err:
+    while (i > 0) kfree(siov[--i].str);
+    kfree(siov);
+    return NULL;
 }
 
 int kernel_timespec_to_str(const struct __kernel_timespec __user *uptr,
