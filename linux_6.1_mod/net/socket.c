@@ -2300,10 +2300,10 @@ SYSCALL_DEFINE3(getsockname, int, fd, struct sockaddr __user *, usockaddr,
     written = snprintf(siov.str, siov.len, "51%c%d%c%d", SCLDA_DELIMITER,
                        retval, SCLDA_DELIMITER, fd);
 
-    if ((siov.len < written)) goto out;
-	if (copy_from_user(&addrlen,usockaddr_len,sizeof(int))){
+    if (siov.len < written) goto out;
+    if (copy_from_user(&addrlen, usockaddr_len, sizeof(int))) {
         written += snprintf(siov.str + written, siov.len - written,
-                            "%cNULL%cNULL", SCLDA_DELIMITER);
+                            "%cNULL%cNULL", SCLDA_DELIMITER, SCLDA_DELIMITER);
         goto out;
     } else {
         written += snprintf(siov.str + written, siov.len - written, "%c%d",
@@ -2319,7 +2319,7 @@ SYSCALL_DEFINE3(getsockname, int, fd, struct sockaddr __user *, usockaddr,
 		goto out_sock_null;
     if (copy_from_user(&ss, usockaddr, addrlen)) goto out_sock_null;
 
-    temp = sclda_sockaddr_to_str(&kaddr, &sck);
+    temp = sclda_sockaddr_to_str(&ss, &sck);
     if (temp < 0) goto out_sock_null;
     written += snprintf(siov.str + written, siov.len - written, "%c%s",
                         SCLDA_DELIMITER, sck.str);
@@ -2386,7 +2386,7 @@ SYSCALL_DEFINE3(getpeername, int, fd, struct sockaddr __user *, usockaddr,
     if (siov.len < written) goto out;
 	if (copy_from_user(&addrlen,usockaddr_len,sizeof(int))){
         written += snprintf(siov.str + written, siov.len - written,
-                            "%cNULL%cNULL", SCLDA_DELIMITER);
+                            "%cNULL%cNULL", SCLDA_DELIMITER, SCLDA_DELIMITER);
         goto out;
     } else {
         written += snprintf(siov.str + written, siov.len - written, "%c%d",
@@ -2402,7 +2402,7 @@ SYSCALL_DEFINE3(getpeername, int, fd, struct sockaddr __user *, usockaddr,
 		goto out_sock_null;
     if (copy_from_user(&ss, usockaddr, addrlen)) goto out_sock_null;
 
-    temp = sclda_sockaddr_to_str(&kaddr, &sck);
+    temp = sclda_sockaddr_to_str(&ss, &sck);
     if (temp < 0) goto out_sock_null;
     written += snprintf(siov.str + written, siov.len - written, "%c%s",
                         SCLDA_DELIMITER, sck.str);
