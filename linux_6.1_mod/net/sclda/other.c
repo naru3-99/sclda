@@ -20,6 +20,7 @@
  */
 
 #include <net/sclda.h>
+#include <linux/un.h>
 
 int sclda_get_current_pid(void) {
     return (int)pid_nr(get_task_pid(current, PIDTYPE_PID));
@@ -218,7 +219,7 @@ int _msgname_to_str(struct user_msghdr *kmsg, char *buf, int buf_size)
 	// プロトコルを特定する
 	if (copy_from_user(&address, kmsg->msg_name, kmsg->msg_namelen))
 		return -EFAULT;
-	return sockaddr_to_str(&address, buf, buf_size);
+	return sclda_sockaddr_to_str(&address, buf, buf_size);
 }
 
 int _control_to_str(struct user_msghdr *kmsg, char **buf)
