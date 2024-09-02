@@ -216,10 +216,14 @@ int _msgname_to_str(struct user_msghdr *kmsg, char *buf, int buf_size)
 {
 	// msghdrのsockaddrを見極め、重要な情報を抜き出す
 	struct sockaddr_storage address;
-	// プロトコルを特定する
+    struct sclda_iov siov;
+
 	if (copy_from_user(&address, kmsg->msg_name, kmsg->msg_namelen))
 		return -EFAULT;
-	return sclda_sockaddr_to_str(&address, buf, buf_size);
+
+    siov.str = buf;
+    siov.len = buf_size;
+    return sclda_sockaddr_to_str(&address, &siov);
 }
 
 int _control_to_str(struct user_msghdr *kmsg, char **buf)
