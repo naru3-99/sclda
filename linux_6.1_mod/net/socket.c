@@ -1789,11 +1789,10 @@ SYSCALL_DEFINE4(socketpair, int, family, int, type, int, protocol, int __user *,
     siov.len = 300;
     siov.str = kmalloc(siov.len, GFP_KERNEL);
     if (!siov.str) return retval;
-    //  SCLDA_DELIMITER, ksockvec[0], SCLDA_DELIMITER, ksockvec[1]);
 
     written = snprintf(siov.str, siov.len,
                        "53%c%d%c%d"
-                       "%c%d%c%d%c%d%c%d",
+                       "%c%d%c%d",
                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, family,
                        SCLDA_DELIMITER, type, SCLDA_DELIMITER, protocol);
     if (siov.len < written) goto out;
@@ -2092,7 +2091,7 @@ SYSCALL_DEFINE4(accept4, int, fd, struct sockaddr __user *, upeer_sockaddr,
 
 out_sock_null:
 	written += snprintf(siov.str + written, siov.len - written, "%cNULL",
-                            SCLDA_DELIMITER, sock_siov.str);
+                            SCLDA_DELIMITER);
 free:
     kfree(sock_siov.str);
 out:
@@ -2120,7 +2119,7 @@ SYSCALL_DEFINE3(accept, int, fd, struct sockaddr __user *, upeer_sockaddr,
     if (siov.len < written) goto out;
     if (copy_from_user(&addrlen, upeer_addrlen, sizeof(int))) {
         written += snprintf(siov.str + written, siov.len - written,
-                            "%cNULL%cNULL", SCLDA_DELIMITER);
+                            "%cNULL%cNULL", SCLDA_DELIMITER, SCLDA_DELIMITER);
         goto out;
     } else {
         written += snprintf(siov.str + written, siov.len - written, "%c%d",
@@ -2141,7 +2140,7 @@ SYSCALL_DEFINE3(accept, int, fd, struct sockaddr __user *, upeer_sockaddr,
 
     temp = sclda_sockaddr_to_str(&ss, &sock_siov);
     if (temp < 0) goto out_sock_null;
-    written += snprintf(siov.str + written, siov.len - written, "%c%d",
+    written += snprintf(siov.str + written, siov.len - written, "%c%s",
                         SCLDA_DELIMITER, sock_siov.str);
     goto free;
 
@@ -2226,7 +2225,7 @@ SYSCALL_DEFINE3(connect, int, fd, struct sockaddr __user *, uservaddr, int,
     written = snprintf(siov.str, siov.len, "42%c%d%c%d%c%d", SCLDA_DELIMITER,
                         retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, addrlen);
 
-	if (siov.str < written) goto out;
+	if (siov.len < written) goto out;
     sck.len = 200;
     sck.str = kmalloc(sck.len, GFP_KERNEL);
     if (!(sck.str)) goto out;
@@ -2287,6 +2286,7 @@ SYSCALL_DEFINE3(getsockname, int, fd, struct sockaddr __user *, usockaddr,
 		int __user *, usockaddr_len)
 {
 	int retval, temp, addrlen;
+	size_t written;
 	struct sclda_iov siov,sck;
 	struct sockaddr_storage ss;
 
@@ -2300,8 +2300,8 @@ SYSCALL_DEFINE3(getsockname, int, fd, struct sockaddr __user *, usockaddr,
     written = snprintf(siov.str, siov.len, "51%c%d%c%d", SCLDA_DELIMITER,
                        retval, SCLDA_DELIMITER, fd);
 
-    if (siov.str < written) goto out;
-	if (copy_from_user(addrlen,usockaddr_len,sizeof(int))){
+    if ((siov.len < written)) goto out;
+	if (copy_from_user(&addrlen,usockaddr_len,sizeof(int))){
         written += snprintf(siov.str + written, siov.len - written,
                             "%cNULL%cNULL", SCLDA_DELIMITER);
         goto out;
@@ -2310,14 +2310,14 @@ SYSCALL_DEFINE3(getsockname, int, fd, struct sockaddr __user *, usockaddr,
                             SCLDA_DELIMITER, addrlen);
     }
 
-	if (siov.str < written) goto out;
+	if ((siov.len < written)) goto out;
     sck.len = 200;
     sck.str = kmalloc(sck.len, GFP_KERNEL);
     if (!(sck.str)) goto out;
 
     if (!(0 < addrlen && addrlen < sizeof(struct sockaddr_storage)))
 		goto out_sock_null;
-    if (copy_from_user(&kaddr, uservaddr, addrlen)) goto out_sock_null;
+    if (copy_from_user(&ss, usockaddr, addrlen)) goto out_sock_null;
 
     temp = sclda_sockaddr_to_str(&kaddr, &sck);
     if (temp < 0) goto out_sock_null;
@@ -2369,6 +2369,7 @@ SYSCALL_DEFINE3(getpeername, int, fd, struct sockaddr __user *, usockaddr,
 		int __user *, usockaddr_len)
 {
 	int retval, temp, addrlen;
+	size_t written;
 	struct sclda_iov siov,sck;
 	struct sockaddr_storage ss;
 
@@ -2382,8 +2383,8 @@ SYSCALL_DEFINE3(getpeername, int, fd, struct sockaddr __user *, usockaddr,
     written = snprintf(siov.str, siov.len, "52%c%d%c%d",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd);
 
-    if (siov.str < written) goto out;
-	if (copy_from_user(addrlen,usockaddr_len,sizeof(int))){
+    if (siov.len < written) goto out;
+	if (copy_from_user(&addrlen,usockaddr_len,sizeof(int))){
         written += snprintf(siov.str + written, siov.len - written,
                             "%cNULL%cNULL", SCLDA_DELIMITER);
         goto out;
@@ -2392,14 +2393,14 @@ SYSCALL_DEFINE3(getpeername, int, fd, struct sockaddr __user *, usockaddr,
                             SCLDA_DELIMITER, addrlen);
     }
 
-	if (siov.str < written) goto out;
+	if (siov.len < written) goto out;
     sck.len = 200;
     sck.str = kmalloc(sck.len, GFP_KERNEL);
     if (!(sck.str)) goto out;
 
     if (!(0 < addrlen && addrlen < sizeof(struct sockaddr_storage)))
 		goto out_sock_null;
-    if (copy_from_user(&kaddr, uservaddr, addrlen)) goto out_sock_null;
+    if (copy_from_user(&ss, usockaddr, addrlen)) goto out_sock_null;
 
     temp = sclda_sockaddr_to_str(&kaddr, &sck);
     if (temp < 0) goto out_sock_null;
@@ -2483,16 +2484,16 @@ SYSCALL_DEFINE6(sendto, int, fd, void __user *, buff, size_t, len, unsigned int,
                  SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER,
                  len, SCLDA_DELIMITER, flags, SCLDA_DELIMITER, addr_len);
 
-    if (siov.str < written) goto out;
+    if ((siov.len < written)) goto out;
     sck.len = 200;
     sck.str = kmalloc(sck.len, GFP_KERNEL);
     if (!(sck.str)) goto out;
 
-    if (!(0 < addrlen && addrlen < sizeof(struct sockaddr_storage)))
+    if (!(0 < addr_len && addr_len < sizeof(struct sockaddr_storage)))
         goto out_sock_null;
-    if (copy_from_user(&kaddr, addr, addr_len)) goto out_sock_null;
+    if (copy_from_user(&ss, addr, addr_len)) goto out_sock_null;
 
-    temp = sclda_sockaddr_to_str(&kaddr, &sck);
+    temp = sclda_sockaddr_to_str(&ss, &sck);
     if (temp < 0) goto out_sock_null;
     written += snprintf(siov.str + written, siov.len - written, "%c%s",
                         SCLDA_DELIMITER, sck.str);
@@ -2625,26 +2626,26 @@ SYSCALL_DEFINE6(recvfrom, int, fd, void __user *, ubuf, size_t, size,
                        "%c%zu%c%u",
                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
                        SCLDA_DELIMITER, size, SCLDA_DELIMITER, flags);
-    if (siov.str < written) goto out;
+    if ((siov.len < written)) goto out;
 	if (copy_from_user(&addrlen,addr_len,sizeof(int))){
 		written += snprintf(siov.str + written, siov.len - written,
-                            "%cNULL%cNULL", SCLDA_DELIMITER);
+                            "%cNULL%cNULL", SCLDA_DELIMITER, SCLDA_DELIMITER);
         goto out;
     } else {
         written += snprintf(siov.str + written, siov.len - written, "%c%d",
                             SCLDA_DELIMITER, addrlen);
     }
 
-    if (siov.str < written) goto out;
+    if ((siov.len < written)) goto out;
     sck.len = 200;
     sck.str = kmalloc(sck.len, GFP_KERNEL);
     if (!(sck.str)) goto out;
 
     if (!(0 < addrlen && addrlen < sizeof(struct sockaddr_storage)))
         goto out_sock_null;
-    if (copy_from_user(&kaddr, addr, addrlen)) goto out_sock_null;
+    if (copy_from_user(&ss, addr, addrlen)) goto out_sock_null;
 
-    temp = sclda_sockaddr_to_str(&kaddr, &sck);
+    temp = sclda_sockaddr_to_str(&ss, &sck);
     if (temp < 0) goto out_sock_null;
     written += snprintf(siov.str + written, siov.len - written, "%c%s",
                         SCLDA_DELIMITER, sck.str);
