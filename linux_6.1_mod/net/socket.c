@@ -110,242 +110,6 @@
 #include <linux/ptp_clock_kernel.h>
 #include <linux/un.h>
 
-
-int sockaddr_to_str(struct sockaddr_storage *ss, char *buf, int len) {
-    // sockaddr構造体から
-    // 重要な情報(ホストIPやportなど)を抜き出し、
-    // 文字列に変換する関数
-    char *info_buf;
-    int info_len = 100;
-
-    if (!ss) return -EFAULT;
-
-    info_buf = kmalloc(info_len, GFP_KERNEL);
-    if (!info_buf) return -ENOMEM;
-
-    // sa_familyごとに取得する情報を変更する
-    if (ss->ss_family == AF_INET) {
-        // IPv4 socket address
-        uint32_t ip;
-        struct sockaddr_in *addr_in;
-
-        // ipアドレスとport番号を取得する
-        addr_in = (struct sockaddr_in *)ss;
-        ip = ntohl(addr_in->sin_addr.s_addr);
-        snprintf(info_buf, info_len,
-                 "ipv4: address= %u:%u:%u:%u"
-                 " port= %u",
-                 (ip >> 24) & 0xFF, (ip >> 16) & 0xFF, (ip >> 8) & 0xFF,
-                 ip & 0xFF, (unsigned int)ntohs(addr_in->sin_port));
-
-    } else if (ss->ss_family == AF_INET6) {
-        // IPv6 socket address
-        struct sockaddr_in6 *addr_in6;
-        int i, offset;
-
-        // ipアドレスを取得する
-        addr_in6 = (struct sockaddr_in6 *)ss;
-        offset = snprintf(info_buf, info_len, "ipv6: address= %02x",
-                          addr_in6->sin6_addr.in6_u.u6_addr8[0]);
-        for (i = 1; i < 16; i++) {
-            offset += snprintf(info_buf + offset, info_len - offset, ":%02x",
-                               addr_in6->sin6_addr.in6_u.u6_addr8[i]);
-        }
-
-        // ipアドレスとport番号を書き込む
-        offset += snprintf(info_buf + offset, info_len - offset,
-                           "port= %u flowinfo= %u scopeid= %u",
-                           (unsigned int)ntohs(addr_in6->sin6_port),
-                           (unsigned int)addr_in6->sin6_flowinfo,
-                           (unsigned int)addr_in6->sin6_scope_id);
-        info_len = offset;
-
-    } else if (ss->ss_family == PF_UNSPEC) {
-        // sa->sa_familyが0の時
-        info_len = snprintf(info_buf, info_len, "unspecified");
-
-    } else if (ss->ss_family == PF_UNIX) {
-        // sa->sa_familyが1の時
-        struct sockaddr_un *addr_un = (struct sockaddr_un *)ss;
-        info_len =
-            snprintf(info_buf, info_len, "unix_domain: %s", addr_un->sun_path);
-    } else if (ss->ss_family == PF_NETLINK) {
-        struct sockaddr_nl *addr_nl = (struct sockaddr_nl *)ss;
-        info_len =
-            snprintf(info_buf, info_len, "netlink: port= %u groups= 0x%x",
-                     addr_nl->nl_pid, addr_nl->nl_groups);
-    } else if (ss->ss_family == PF_PACKET) {
-        struct sockaddr_ll *ll = (struct sockaddr_ll *)ss;
-        info_len = snprintf(info_buf, info_len,
-                            "packet: index= %d hatype= %u ptktype= %u"
-                            " sll_halen= %u addr=%02x:%02x:%02x:%02x:%02x:%02x",
-                            ll->sll_ifindex, ll->sll_hatype, ll->sll_pkttype,
-                            ll->sll_halen, ll->sll_addr[0], ll->sll_addr[1],
-                            ll->sll_addr[2], ll->sll_addr[3], ll->sll_addr[4],
-                            ll->sll_addr[5]);
-    } else {
-        // unknown socket address
-        info_len =
-            snprintf(info_buf, info_len, "unknown: %d", (int)ss->ss_family);
-    }
-
-    len = snprintf(buf, len, "%u%c%s", (unsigned int)ss->ss_family,
-                   SCLDA_DELIMITER, info_buf);
-    kfree(info_buf);
-    return len;
-}
-
-int _msgname_to_str(struct user_msghdr *kmsg, char *buf, int buf_size)
-{
-	// msghdrのsockaddrを見極め、重要な情報を抜き出す
-	struct sockaddr_storage address;
-	// プロトコルを特定する
-	if (copy_from_user(&address, kmsg->msg_name, kmsg->msg_namelen))
-		return -EFAULT;
-	return sockaddr_to_str(&address, buf, buf_size);
-}
-
-int _control_to_str(struct user_msghdr *kmsg, char **buf)
-{
-	// control 文字列の取得
-	// bufの解放は呼び出し元が責任を負う
-	int control_len;
-	char *control_buf;
-
-	control_len = kmsg->msg_controllen;
-	control_buf = kmalloc(control_len, GFP_KERNEL);
-	if (!control_buf)
-		return -EFAULT;
-
-	if (copy_from_user(control_buf, kmsg->msg_control,
-			   kmsg->msg_controllen)) {
-		control_buf[0] = '\0';
-		control_len = 1;
-	}
-	*buf = control_buf;
-	return control_len;
-}
-
-int user_msghdr_to_str(const struct user_msghdr __user *umsg,
-		       struct sclda_iov **iov_ls, char *msg_buf, int msg_len)
-{
-	// msgname, iov, controlを取得する
-	int retval = -EFAULT;
-	char *msgname_buf, *control_buf, *msg_ctrl_buf, *iov_buf;
-	int msgname_len, control_len, msg_ctrl_len;
-	size_t iov_len, iov_buf_len;
-	int i, j, k;
-	struct iovec *iov;
-	struct sclda_iov *siov;
-	struct user_msghdr kmsg;
-
-	// カーネル空間にumsgをコピーする
-	if (copy_from_user(&kmsg, umsg, sizeof(struct user_msghdr)))
-		return -EFAULT;
-
-	// msgnameの情報を取得
-	msgname_len = 200;
-	msgname_buf = kmalloc(msgname_len, GFP_KERNEL);
-	if (!msgname_buf)
-		return -ENOMEM;
-	msgname_len = _msgname_to_str(&kmsg, msgname_buf, msgname_len);
-	if (msgname_len < 0)
-		goto free_msgname;
-
-	// control文字列の取得
-	control_len = _control_to_str(&kmsg, &control_buf);
-	if (control_len <= 0)
-		goto free_msgname;
-
-	// msgnameとcontrol文字列をひとまとめにする
-	msg_ctrl_len = msgname_len + control_len + 50;
-	msg_ctrl_buf = kmalloc(msg_ctrl_len, GFP_KERNEL);
-	if (!msg_ctrl_buf)
-		goto free_control;
-	msg_ctrl_len = snprintf(msg_ctrl_buf, msg_ctrl_len, "%u%c%s%c%s",
-				kmsg.msg_flags, SCLDA_DELIMITER, control_buf,
-				SCLDA_DELIMITER, msgname_buf);
-
-	// sclda_iovの段取り
-	siov = kmalloc_array((size_t)kmsg.msg_iovlen + 1,
-			     sizeof(struct sclda_iov), GFP_KERNEL);
-	if (!siov)
-		goto free_msg_ctrl;
-
-	// iovの取得
-	// コピーするための配列を段取り
-	iov = kmalloc_array((size_t)kmsg.msg_iovlen, sizeof(struct iovec),
-			    GFP_KERNEL);
-	if (!iov) {
-		retval = -ENOMEM;
-		goto free_msg_ctrl;
-	}
-	// カーネル空間にiovをコピー・最大サイズを計る
-	iov_buf_len = 1;
-	for (i = 0; i < kmsg.msg_iovlen; i++) {
-		if (copy_from_user(&iov[i], &(kmsg.msg_iov[i]),
-				   sizeof(struct iovec)))
-			goto free_iov;
-		iov_buf_len = (iov_buf_len < iov[i].iov_len) ? iov[i].iov_len :
-							       iov_buf_len;
-	}
-	// 最大の大きさのiov分のバッファをコピーする
-	// 大きすぎるとエラーになる(MAX_RW_COUNT)
-	iov_len = (SCLDA_SCDATA_BUFMAX < iov_buf_len) ? SCLDA_SCDATA_BUFMAX :
-						      iov_buf_len;
-	iov_buf = kmalloc(iov_buf_len + 1, GFP_KERNEL);
-	if (!iov_buf)
-		goto free_iov;
-
-	// siovにiovの情報をコピー
-	for (i = 0; i < kmsg.msg_iovlen; i++) {
-		k = i + 1;
-		// strをmallocする
-		iov_len = (SCLDA_SCDATA_BUFMAX < iov[i].iov_len) ?
-				  SCLDA_SCDATA_BUFMAX :
-				  iov[i].iov_len;
-		siov[k].str = kmalloc(iov_len + 1, GFP_KERNEL);
-		if (!siov[k].str) {
-			for (j = 0; j < i; j++)
-				kfree(siov[j + 1].str);
-			goto free_iov_buf;
-		}
-		// iov_baseをカーネルにコピー
-		memset(iov_buf, 0, iov_buf_len);
-		if (copy_from_user(iov_buf, iov[i].iov_base, iov_len)) {
-			// 失敗した場合は、エラーメッセージを入れとく
-			iov_len = snprintf(iov_buf, iov_len, "ERROR");
-		}
-		// 文字列をコピーする
-		siov[k].len = snprintf(siov[k].str, iov_len, "%s", iov_buf);
-	}
-	// siovの初期にmsg_ctrlの情報を追加
-	siov[0].str = kmalloc(msg_ctrl_len + msg_len + 10, GFP_KERNEL);
-	if (!siov[0].str) {
-		for (i = 0; i < kmsg.msg_iovlen; i++)
-			kfree(siov[i + 1].str);
-		goto free_iov_buf;
-	}
-	siov[0].len = snprintf(siov[0].str, msg_ctrl_len + msg_len + 10,
-			       "%s%c%s", msg_buf, SCLDA_DELIMITER,
-			       msg_ctrl_buf);
-
-	*iov_ls = siov;
-	retval = (int)kmsg.msg_iovlen + 1;
-
-free_iov_buf:
-	kfree(iov_buf);
-free_iov:
-	kfree(iov);
-free_msg_ctrl:
-	kfree(msg_ctrl_buf);
-free_control:
-	kfree(control_buf);
-free_msgname:
-	kfree(msgname_buf);
-	return retval;
-}
-
 #ifdef CONFIG_NET_RX_BUSY_POLL
 unsigned int sysctl_net_busy_read __read_mostly;
 unsigned int sysctl_net_busy_poll __read_mostly;
@@ -2078,42 +1842,42 @@ int __sys_bind(int fd, struct sockaddr __user *umyaddr, int addrlen)
 
 SYSCALL_DEFINE3(bind, int, fd, struct sockaddr __user *, umyaddr, int,
                 addrlen) {
-    int retval;
-    int sa_len, msg_len;
-    char *sa_buf, *msg_buf;
+    int retval, str_ret;
+    size_t written;
+    struct sclda_iov siov, sa_siov;
     struct sockaddr_storage ss;
 
     retval = __sys_bind(fd, umyaddr, addrlen);
     if (!is_sclda_allsend_fin()) return retval;
 
-    // sockaddrを文字列にする
-    sa_len = 200;
-    sa_buf = kmalloc(sa_len, GFP_KERNEL);
-    if (!sa_buf) return retval;
+    siov.len = 400;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!siov.str) return retval;
+    written = snprintf(siov.str, siov.len, "49%c%d%c%d%c%d", SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, addrlen);
 
-    // sockaddrを文字列にする
+    if (siov.len < written) goto out;
 
-    if (copy_from_user(&ss, umyaddr, addrlen)) goto failed;
-    if (addrlen < 0 || addrlen > sizeof(struct sockaddr_storage)) goto failed;
-    sa_len = sockaddr_to_str(&ss, sa_buf, sa_len);
-    if (sa_len < 0) goto failed;
-    goto sclda;
+    sa_siov.len = 200;
+    sa_siov.str = kmalloc(sa_siov.len, GFP_KERNEL);
+    if (!sa_siov.str) goto out;
 
-failed:
-    sa_len = 1;
-    sa_buf[0] = '\0';
+    if (!(0 < addrlen && addrlen < sizeof(struct sockaddr_storage)))
+        goto out_free;
+    if (copy_from_user(&ss, umyaddr, addrlen)) goto out_free;
+    str_ret = sclda_sockaddr_to_str(&ss, &sa_siov);
+    if (str_ret <= 0) {
+        written += snprintf(siov.str + written, siov.len - written, "%cNULL",
+                            SCLDA_DELIMITER);
+    } else {
+        written += snprintf(siov.str + written, siov.len - written, "%c%s",
+                            SCLDA_DELIMITER, sa_siov.str);
+    }
 
-sclda:
-    // 送信するパート
-    msg_len = 200 + sa_len;
-    msg_buf = kmalloc(msg_len, GFP_KERNEL);
-    if (!msg_buf) goto free_sa;
-    msg_len = snprintf(msg_buf, msg_len, "49%c%d%c%d%c%d%c%s", SCLDA_DELIMITER,
-                       retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, addrlen,
-                       SCLDA_DELIMITER, sa_buf);
-    sclda_send_syscall_info(msg_buf, msg_len);
-free_sa:
-    kfree(sa_buf);
+out_free:
+    kfree(sa_siov.str);
+out:
+    sclda_send_syscall_info(siov.str, written);
     return retval;
 }
 
@@ -2299,30 +2063,37 @@ SYSCALL_DEFINE4(accept4, int, fd, struct sockaddr __user *, upeer_sockaddr,
     written = snprintf(siov.str, siov.len, "288%c%d%c%d%c%d", SCLDA_DELIMITER,
                        retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, flags);
 
-    if (copy_from_user(&addrlen, upeer_addrlen, sizeof(int))) goto out;
-
-    if (siov.len > written)
+    if (siov.len < written) goto out;
+    if (copy_from_user(&addrlen, upeer_addrlen, sizeof(int))) {
+        written += snprintf(siov.str + written, siov.len - written,
+                            "%cNULL%cNULL", SCLDA_DELIMITER, SCLDA_DELIMITER);
+        goto out;
+	}else{
         written += snprintf(siov.str + written, siov.len - written, "%c%d",
                             SCLDA_DELIMITER, addrlen);
+	}
 
-    // check the length is in [0, sizeof(struct sockaddr_storage)]
-    if (!(0 < addrlen && addrlen <= sizeof(struct sockaddr_storage))) goto out;
-    if (copy_from_user(&ss, (struct sockaddr_storage *)upeer_sockaddr, addrlen))
-        goto out;
-
+	if (siov.len < written) goto out;
     sock_siov.len = 200;
     sock_siov.str = kmalloc(sock_siov.len, GFP_KERNEL);
     if (!siov.str) goto out;
 
-    temp = sockaddr_to_str(&ss, sock_siov.str, sock_siov.len);
-    if (temp < 0) {
-        kfree(sock_siov.str);
-        goto out;
-    }
+    if (!(0 < addrlen && addrlen <= sizeof(struct sockaddr_storage)))
+        goto out_sock_null;
+    if (copy_from_user(&ss, (struct sockaddr_storage *)upeer_sockaddr, addrlen))
+        goto out_sock_null;
 
-    if (siov.len > written)
-        written += snprintf(siov.str + written, siov.len - written, "%c%s",
+    temp = sclda_sockaddr_to_str(&ss, &sock_siov);
+    if (temp < 0) goto out_sock_null;
+
+	written += snprintf(siov.str + written, siov.len - written, "%c%s",
                             SCLDA_DELIMITER, sock_siov.str);
+	goto free;
+
+out_sock_null:
+	written += snprintf(siov.str + written, siov.len - written, "%cNULL",
+                            SCLDA_DELIMITER, sock_siov.str);
+free:
     kfree(sock_siov.str);
 out:
     sclda_send_syscall_info(siov.str, written);
@@ -2346,30 +2117,39 @@ SYSCALL_DEFINE3(accept, int, fd, struct sockaddr __user *, upeer_sockaddr,
     written = snprintf(siov.str, siov.len, "43%c%d%c%d", SCLDA_DELIMITER,
                        retval, SCLDA_DELIMITER, fd);
 
-    if (copy_from_user(&addrlen, upeer_addrlen, sizeof(int))) goto out;
-
-    if (siov.len > written)
+    if (siov.len < written) goto out;
+    if (copy_from_user(&addrlen, upeer_addrlen, sizeof(int))) {
+        written += snprintf(siov.str + written, siov.len - written,
+                            "%cNULL%cNULL", SCLDA_DELIMITER);
+        goto out;
+    } else {
         written += snprintf(siov.str + written, siov.len - written, "%c%d",
                             SCLDA_DELIMITER, addrlen);
+    }
 
-    // check the length is in [0, sizeof(struct sockaddr_storage)]
-    if (!(0 < addrlen && addrlen <= sizeof(struct sockaddr_storage))) goto out;
-    if (copy_from_user(&ss, (struct sockaddr_storage *)upeer_sockaddr, addrlen))
-        goto out;
+    if (siov.len < written) goto out;
 
     sock_siov.len = 200;
     sock_siov.str = kmalloc(sock_siov.len, GFP_KERNEL);
     if (!siov.str) goto out;
 
-    temp = sockaddr_to_str(&ss, sock_siov.str, sock_siov.len);
-    if (temp < 0) {
-        kfree(sock_siov.str);
-        goto out;
-    }
+    // check the length is in [0, sizeof(struct sockaddr_storage)]
+    if (!(0 < addrlen && addrlen <= sizeof(struct sockaddr_storage)))
+        goto out_sock_null;
+    if (copy_from_user(&ss, (struct sockaddr_storage *)upeer_sockaddr, addrlen))
+        goto out_sock_null;
 
-    if (siov.len > written)
-        written += snprintf(siov.str + written, siov.len - written, "%c%s",
-                            SCLDA_DELIMITER, sock_siov.str);
+    temp = sclda_sockaddr_to_str(&ss, &sock_siov);
+    if (temp < 0) goto out_sock_null;
+    written += snprintf(siov.str + written, siov.len - written, "%c%d",
+                        SCLDA_DELIMITER, sock_siov.str);
+    goto free;
+
+out_sock_null:
+    written += snprintf(siov.str + written, siov.len - written, "%cNULL",
+                        SCLDA_DELIMITER);
+
+free:
     kfree(sock_siov.str);
 out:
     sclda_send_syscall_info(siov.str, written);
@@ -2431,50 +2211,43 @@ int __sys_connect(int fd, struct sockaddr __user *uservaddr, int addrlen)
 
 SYSCALL_DEFINE3(connect, int, fd, struct sockaddr __user *, uservaddr, int,
                 addrlen) {
-    int retval, sck_ok = 0, sck_free = 0;
+    int retval, temp;
     size_t written;
-    struct sclda_iov siov, sck, allmsg;
+    struct sclda_iov siov, sck;
 	struct sockaddr_storage kaddr;
 
     retval = __sys_connect(fd, uservaddr, addrlen);
     if (!is_sclda_allsend_fin()) return retval;
 
-    siov.len = 100;
+    siov.len = 300;
     siov.str = kmalloc(siov.len, GFP_KERNEL);
     if (!(siov.str)) return retval;
 
-    siov.len = snprintf(siov.str, siov.len, "42%c%d%c%d%c%d", SCLDA_DELIMITER,
+    written = snprintf(siov.str, siov.len, "42%c%d%c%d%c%d", SCLDA_DELIMITER,
                         retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, addrlen);
 
+	if (siov.str < written) goto out;
     sck.len = 200;
     sck.str = kmalloc(sck.len, GFP_KERNEL);
     if (!(sck.str)) goto out;
-    sck_free = 1;
 
-    if (0 < addrlen && addrlen < sizeof(struct sockaddr_storage)) {
-        if (copy_from_user(&kaddr, uservaddr, addrlen)) goto out;
-    } else {
-        goto out;
-    }
+    if (!(0 < addrlen && addrlen < sizeof(struct sockaddr_storage)))
+		goto out_sock_null;
+    if (copy_from_user(&kaddr, uservaddr, addrlen)) goto out_sock_null;
 
-    sck.len = sockaddr_to_str(&kaddr, sck.str, sck.len);
-    if (sck.len < 0) goto out;
-    sck_ok = 1;
+    temp = sclda_sockaddr_to_str(&kaddr, &sck);
+    if (temp < 0) goto out_sock_null;
+    written += snprintf(siov.str + written, siov.len - written, "%c%s",
+                        SCLDA_DELIMITER, sck.str);
+	goto free;
 
+out_sock_null:
+    written += snprintf(siov.str + written, siov.len - written, "%cNULL",
+                        SCLDA_DELIMITER);
+free:
+	kfree(sck.str);
 out:
-    allmsg.len = siov.len + (sck_ok ? sck.len : 0);
-    allmsg.str = kmalloc(allmsg.len, GFP_KERNEL);
-    if (!(allmsg.str)) goto free_all;
-
-    written = snprintf(allmsg.str, allmsg.len, "%s", siov.str);
-    if (sck_ok && allmsg.len > written)
-        written += snprintf(allmsg.str + written, allmsg.len - written, "%c%s",
-                            SCLDA_DELIMITER, sck.str);
-
-    sclda_send_syscall_info(allmsg.str, written);
-free_all:
-    kfree(siov.str);
-    if (sck_free) kfree(sck.str);
+    sclda_send_syscall_info(siov.str, written);
     return retval;
 }
 
@@ -2513,52 +2286,53 @@ out:
 SYSCALL_DEFINE3(getsockname, int, fd, struct sockaddr __user *, usockaddr,
 		int __user *, usockaddr_len)
 {
-	int retval;
-	int struct_len, msg_len;
-	char *struct_buf, *msg_buf;
-	int addrlen;
+	int retval, temp, addrlen;
+	struct sclda_iov siov,sck;
 	struct sockaddr_storage ss;
 
 	retval = __sys_getsockname(fd, usockaddr, usockaddr_len);
-	if (!is_sclda_allsend_fin())
-		return retval;
+	if (!is_sclda_allsend_fin()) return retval;
 
-	struct_len = 200;
-	struct_buf = kmalloc(struct_len, GFP_KERNEL);
-	if (!struct_buf)
-		return retval;
+    siov.len = 300;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
 
-	if (copy_from_user(&addrlen, usockaddr_len, sizeof(int)))
-		goto failed;
-	if (addrlen < 0 || addrlen > sizeof(struct sockaddr_storage))
-		goto failed;
-	if (copy_from_user(&ss, usockaddr, addrlen))
-		goto failed;
-	struct_len = sockaddr_to_str(&ss, struct_buf, struct_len);
-	if (struct_len < 0)
-		goto failed;
-	goto sclda;
+    written = snprintf(siov.str, siov.len, "51%c%d%c%d", SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, fd);
 
-failed:
-	struct_len = 1;
-	struct_buf[0] = '\0';
+    if (siov.str < written) goto out;
+	if (copy_from_user(addrlen,usockaddr_len,sizeof(int))){
+        written += snprintf(siov.str + written, siov.len - written,
+                            "%cNULL%cNULL", SCLDA_DELIMITER);
+        goto out;
+    } else {
+        written += snprintf(siov.str + written, siov.len - written, "%c%d",
+                            SCLDA_DELIMITER, addrlen);
+    }
 
-sclda:
-	// 送信するパート
-	msg_len = 200 + struct_len;
-	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		goto free_struct;
+	if (siov.str < written) goto out;
+    sck.len = 200;
+    sck.str = kmalloc(sck.len, GFP_KERNEL);
+    if (!(sck.str)) goto out;
 
-	msg_len = snprintf(msg_buf, msg_len, "51%c%d%c%d%c%d%c%s",
-			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
-			   SCLDA_DELIMITER, addrlen, SCLDA_DELIMITER,
-			   struct_buf);
-	sclda_send_syscall_info(msg_buf, msg_len);
+    if (!(0 < addrlen && addrlen < sizeof(struct sockaddr_storage)))
+		goto out_sock_null;
+    if (copy_from_user(&kaddr, uservaddr, addrlen)) goto out_sock_null;
 
-free_struct:
-	kfree(struct_buf);
-	return retval;
+    temp = sclda_sockaddr_to_str(&kaddr, &sck);
+    if (temp < 0) goto out_sock_null;
+    written += snprintf(siov.str + written, siov.len - written, "%c%s",
+                        SCLDA_DELIMITER, sck.str);
+	goto free;
+
+out_sock_null:
+    written += snprintf(siov.str + written, siov.len - written, "%cNULL",
+                        SCLDA_DELIMITER);
+free:
+	kfree(sck.str);
+out:
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
 
 /*
@@ -2594,53 +2368,53 @@ int __sys_getpeername(int fd, struct sockaddr __user *usockaddr,
 SYSCALL_DEFINE3(getpeername, int, fd, struct sockaddr __user *, usockaddr,
 		int __user *, usockaddr_len)
 {
-	int retval;
-	int struct_len, msg_len;
-	char *struct_buf, *msg_buf;
-	int addrlen;
+	int retval, temp, addrlen;
+	struct sclda_iov siov,sck;
 	struct sockaddr_storage ss;
 
 	retval = __sys_getpeername(fd, usockaddr, usockaddr_len);
-	if (!is_sclda_allsend_fin())
-		return retval;
+	if (!is_sclda_allsend_fin()) return retval;
 
-	// sockaddrを文字列に変換
-	struct_len = 200;
-	struct_buf = kmalloc(struct_len, GFP_KERNEL);
-	if (!struct_buf)
-		return retval;
+    siov.len = 300;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
 
-	if (copy_from_user(&addrlen, usockaddr_len, sizeof(int)))
-		goto failed;
-	if (addrlen < 0 || addrlen > sizeof(struct sockaddr_storage))
-		goto failed;
-	if (copy_from_user(&ss, usockaddr, addrlen))
-		goto failed;
-	struct_len = sockaddr_to_str(&ss, struct_buf, struct_len);
-	if (struct_len < 0)
-		goto failed;
-	goto sclda;
+    written = snprintf(siov.str, siov.len, "52%c%d%c%d",
+			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd);
 
-failed:
-	struct_len = 1;
-	struct_buf[0] = '\0';
+    if (siov.str < written) goto out;
+	if (copy_from_user(addrlen,usockaddr_len,sizeof(int))){
+        written += snprintf(siov.str + written, siov.len - written,
+                            "%cNULL%cNULL", SCLDA_DELIMITER);
+        goto out;
+    } else {
+        written += snprintf(siov.str + written, siov.len - written, "%c%d",
+                            SCLDA_DELIMITER, addrlen);
+    }
 
-sclda:
-	// 送信するパート
-	msg_len = 200 + struct_len;
-	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		goto free_struct;
+	if (siov.str < written) goto out;
+    sck.len = 200;
+    sck.str = kmalloc(sck.len, GFP_KERNEL);
+    if (!(sck.str)) goto out;
 
-	msg_len = snprintf(msg_buf, msg_len, "52%c%d%c%d%c%d%c%s",
-			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
-			   SCLDA_DELIMITER, addrlen, SCLDA_DELIMITER,
-			   struct_buf);
-	sclda_send_syscall_info(msg_buf, msg_len);
+    if (!(0 < addrlen && addrlen < sizeof(struct sockaddr_storage)))
+		goto out_sock_null;
+    if (copy_from_user(&kaddr, uservaddr, addrlen)) goto out_sock_null;
 
-free_struct:
-	kfree(struct_buf);
-	return retval;
+    temp = sclda_sockaddr_to_str(&kaddr, &sck);
+    if (temp < 0) goto out_sock_null;
+    written += snprintf(siov.str + written, siov.len - written, "%c%s",
+                        SCLDA_DELIMITER, sck.str);
+	goto free;
+
+out_sock_null:
+    written += snprintf(siov.str + written, siov.len - written, "%cNULL",
+                        SCLDA_DELIMITER);
+free:
+	kfree(sck.str);
+out:
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
 
 /*
@@ -2690,18 +2464,17 @@ out:
 
 SYSCALL_DEFINE6(sendto, int, fd, void __user *, buff, size_t, len, unsigned int,
                 flags, struct sockaddr __user *, addr, int, addr_len) {
-    // todo buffの使い方
     int retval, temp;
-    size_t written;
-    struct sclda_iov siov, sock_siov, buff_siov;
+    size_t vlen, written;
+    struct sclda_iov *siov_ls, siov, sck;
     struct sockaddr_storage ss;
 
     retval = __sys_sendto(fd, buff, len, flags, addr, addr_len);
     if (!is_sclda_allsend_fin()) return retval;
 
-    siov.len = 500;
+    siov.len = 400;
     siov.str = kmalloc(siov.len, GFP_KERNEL);
-    if (!siov.str) return retval;
+    if (!(siov.str)) return retval;
 
     written =
         snprintf(siov.str, siov.len,
@@ -2710,40 +2483,35 @@ SYSCALL_DEFINE6(sendto, int, fd, void __user *, buff, size_t, len, unsigned int,
                  SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER,
                  len, SCLDA_DELIMITER, flags, SCLDA_DELIMITER, addr_len);
 
-    // check the length is in [0, sizeof(struct sockaddr_storage)]
-    if (!(0 < addr_len && addr_len <= sizeof(struct sockaddr_storage)))
-        goto out;
-    if (copy_from_user(&ss, (struct sockaddr_storage *)addr, addr_len))
-        goto out_buff;
+    if (siov.str < written) goto out;
+    sck.len = 200;
+    sck.str = kmalloc(sck.len, GFP_KERNEL);
+    if (!(sck.str)) goto out;
 
-    sock_siov.len = 200;
-    sock_siov.str = kmalloc(sock_siov.len, GFP_KERNEL);
-    if (!siov.str) goto out_buff;
+    if (!(0 < addrlen && addrlen < sizeof(struct sockaddr_storage)))
+        goto out_sock_null;
+    if (copy_from_user(&kaddr, addr, addr_len)) goto out_sock_null;
 
-    temp = sockaddr_to_str(&ss, sock_siov.str, sock_siov.len);
-    if (temp < 0) {
-        kfree(sock_siov.str);
-        goto out_buff;
-    }
+    temp = sclda_sockaddr_to_str(&kaddr, &sck);
+    if (temp < 0) goto out_sock_null;
+    written += snprintf(siov.str + written, siov.len - written, "%c%s",
+                        SCLDA_DELIMITER, sck.str);
+    goto free;
 
-    if (siov.len > written)
-        written += snprintf(siov.str + written, siov.len - written, "%c[%s]",
-                            SCLDA_DELIMITER, sock_siov.str);
-    kfree(sock_siov.str);
-
-out_buff:
-    if (0 < len) goto out;
-    if (len + written < SCLDA_SCDATA_BUFMAX) {
-        buff_siov.len = len;
-    } else {
-        buff_siov.len = SCLDA_SCDATA_BUFMAX - written;
-    }
-    buff_siov.str = kmalloc(buff_siov.len, GFP_KERNEL);
-    if (!buff_siov.str) goto out;
-
-    if (copy_from_user(buff_siov.str, buff, len))
-    out:
+out_sock_null:
+    written += snprintf(siov.str + written, siov.len - written, "%cNULL",
+                        SCLDA_DELIMITER);
+free:
+    kfree(sck.str);
+out:
+    siov_ls = copy_userchar_to_siov(buff, len, &vlen);
+    if (!siov_ls) {
         sclda_send_syscall_info(siov.str, written);
+        return retval;
+    }
+    siov_ls[0].str = siov.str;
+    siov_ls[0].len = written;
+    sclda_send_syscall_info2(siov_ls, vlen);
     return retval;
 }
 
@@ -2840,75 +2608,63 @@ SYSCALL_DEFINE6(recvfrom, int, fd, void __user *, ubuf, size_t, size,
 		unsigned int, flags, struct sockaddr __user *, addr,
 		int __user *, addr_len)
 {
-	// syscall invocation
-	int retval;
-	int struct_len, buff_len, msg_len;
-	char *struct_buf, *buff_buf, *msg_buf;
-	int addrlen = 0;
-	struct sockaddr_storage ss;
+    int retval, temp, addrlen;
+    size_t vlen, written;
+    struct sclda_iov *siov_ls, siov, sck;
+    struct sockaddr_storage ss;
 
-	retval = __sys_recvfrom(fd, ubuf, size, flags, addr, addr_len);
-	if (!is_sclda_allsend_fin())
-		return retval;
+    retval = __sys_recvfrom(fd, ubuf, size, flags, addr, addr_len);
+    if (!is_sclda_allsend_fin()) return retval;
 
-	// sockaddrを文字列に変換
-	struct_len = 200;
-	struct_buf = kmalloc(struct_len, GFP_KERNEL);
-	if (!struct_buf)
-		return retval;
+    siov.len = 400;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
 
-	if (copy_from_user(&addrlen, addr_len, sizeof(int)))
-		goto failed;
-	if (addrlen < 0 || addrlen > sizeof(struct sockaddr_storage))
-		goto failed;
-	if (copy_from_user(&ss, addr, addrlen))
-		goto failed;
-	struct_len = sockaddr_to_str(&ss, struct_buf, struct_len);
-	if (struct_len < 0)
-		goto failed;
-	goto get_buff;
+    written = snprintf(siov.str, siov.len,
+                       "45%c%d%c%d"
+                       "%c%zu%c%u",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+                       SCLDA_DELIMITER, size, SCLDA_DELIMITER, flags);
+    if (siov.str < written) goto out;
+	if (copy_from_user(&addrlen,addr_len,sizeof(int))){
+		written += snprintf(siov.str + written, siov.len - written,
+                            "%cNULL%cNULL", SCLDA_DELIMITER);
+        goto out;
+    } else {
+        written += snprintf(siov.str + written, siov.len - written, "%c%d",
+                            SCLDA_DELIMITER, addrlen);
+    }
 
-failed:
-	struct_len = 1;
-	struct_buf[0] = '\0';
+    if (siov.str < written) goto out;
+    sck.len = 200;
+    sck.str = kmalloc(sck.len, GFP_KERNEL);
+    if (!(sck.str)) goto out;
 
-get_buff:
-	// buffを参照するが、エラーの場合は何もしない
-	buff_len = (retval < 0) ? 1 : size;
-	buff_buf = kmalloc(buff_len + 1, GFP_KERNEL);
-	if (!buff_buf)
-		goto free_struct;
-	if (retval < 0) {
-		// 失敗しているため、何もしない
-		buff_len = 0;
-	} else {
-		// 成功しているため、buffを読み込む
-		if (copy_from_user(buff_buf, ubuf, buff_len))
-			buff_len = 0;
-	}
-	buff_buf[buff_len] = '\0';
+    if (!(0 < addrlen && addrlen < sizeof(struct sockaddr_storage)))
+        goto out_sock_null;
+    if (copy_from_user(&kaddr, addr, addrlen)) goto out_sock_null;
 
-	// 送信する
-	msg_len = buff_len + struct_len + 200;
-	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		goto free_buff;
-	// メッセージを作成
-	msg_len = snprintf(msg_buf, msg_len,
-			   "45%c%d%c%d"
-			   "%c%zu%c%u"
-			   "%c%d%c%s%c%s",
-			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
-			   SCLDA_DELIMITER, size, SCLDA_DELIMITER, flags,
-			   SCLDA_DELIMITER, addrlen, SCLDA_DELIMITER,
-			   struct_buf, SCLDA_DELIMITER, buff_buf);
-	sclda_send_syscall_info(msg_buf, msg_len);
+    temp = sclda_sockaddr_to_str(&kaddr, &sck);
+    if (temp < 0) goto out_sock_null;
+    written += snprintf(siov.str + written, siov.len - written, "%c%s",
+                        SCLDA_DELIMITER, sck.str);
+    goto free;
 
-free_buff:
-	kfree(buff_buf);
-free_struct:
-	kfree(struct_buf);
-	return retval;
+out_sock_null:
+    written += snprintf(siov.str + written, siov.len - written, "%cNULL",
+                        SCLDA_DELIMITER);
+free:
+    kfree(sck.str);
+out:
+    siov_ls = copy_userchar_to_siov(ubuf, size, &vlen);
+    if (!siov_ls) {
+        sclda_send_syscall_info(siov.str, written);
+        return retval;
+    }
+    siov_ls[0].str = siov.str;
+    siov_ls[0].len = written;
+    sclda_send_syscall_info2(siov_ls, vlen);
+    return retval;
 }
 
 /*
