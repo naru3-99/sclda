@@ -386,6 +386,7 @@ static int sclda_sendall_syscallinfo(void *data) {
     scinfo_to_siov(target_index, 1);
     // send all siov in linked list
     sclda_sendall_siovls(target_index);
+    sclda_siovls_num[target_index] = 0;
     return 0;
 }
 
