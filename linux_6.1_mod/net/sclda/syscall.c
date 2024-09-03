@@ -266,7 +266,7 @@ static int save_siovls(struct sclda_iov_ls *siov, int target_index) {
 
 static int scinfo_to_siov(int target_index, int use_mutex) {
     int i, cnt, succeeded = 0;
-    size_t chnk_remain, data_remain, writable;
+    size_t chnk_remain, written, writable;
     struct sclda_iov_ls *temp;
     struct sclda_syscallinfo_ls *curptr, *next;
 
@@ -302,8 +302,7 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
             }
             // chunkに余裕が無い場合
             // 分割して書き込む
-            data_remain = curptr->syscall[i].len;
-            while (data_remain != 0) {
+            while (curptr->syscall[i].len > written) {
                 // 80% 以上埋まってたら保存する
                 if (temp->data.len > SCLDA_LEAST_CHUNKSIZE) {
                     save_siovls(temp, target_index);
@@ -314,10 +313,10 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
                         goto out;
                     }
                 }
-                // Leastを使うのは、SCLDA_MSG_STARTや
+                // Least(80%)を使うのは、SCLDA_MSG_STARTや
                 // pid_time_strなどが入る可能性があるため
                 chnk_remain = SCLDA_LEAST_CHUNKSIZE - temp->data.len;
-                writable = min(chnk_remain, data_remain);
+                writable = min(chnk_remain, curptr->syscall[i].len - written);
                 temp->data.len +=
                     snprintf(temp->data.str + temp->data.len,
                              SCLDA_CHUNKSIZE - temp->data.len, "%c%llu%c%d%c",
@@ -330,11 +329,11 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
 
                 temp->data.len += snprintf(
                     temp->data.str + temp->data.len,
-                    SCLDA_CHUNKSIZE - temp->data.len, "%.*s%c", writable,
-                    curptr->syscall[i].str, SCLDA_MSG_END);
+                    SCLDA_CHUNKSIZE - temp->data.len, "%.*s%c", (int)writable,
+                    curptr->syscall[i].str + written, SCLDA_MSG_END);
 
                 cnt += 1;
-                data_remain -= writable;
+                written += writable;
             }
         }
 
