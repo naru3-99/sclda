@@ -2505,14 +2505,18 @@ out_sock_null:
 free:
     kfree(sck.str);
 out:
-    siov_ls = copy_userchar_to_siov(buff, len, &vlen);
-    if (!siov_ls) {
-        sclda_send_syscall_info(siov.str, written);
-        return retval;
-    }
+    if (retval <= 0) goto failed;
+    siov_ls = copy_userchar_to_siov(buff, (size_t)retval, &vlen);
+    if (!siov_ls) goto failed;
     siov_ls[0].str = siov.str;
     siov_ls[0].len = written;
     sclda_send_syscall_info2(siov_ls, vlen);
+    return retval;
+failed:
+    if ((siov.len > written))
+        written += snprintf(siov.str + written, siov.len - written, "%cNULL",
+                            SCLDA_DELIMITER);
+    sclda_send_syscall_info(siov.str, written);
     return retval;
 }
 
@@ -2540,7 +2544,7 @@ SYSCALL_DEFINE4(send, int, fd, void __user *, buff, size_t, len, unsigned int,
 			   SCLDA_DELIMITER, len, SCLDA_DELIMITER, flags);
 
     if (retval <= 0) goto failed;
-    siov_ls = copy_userchar_to_siov(buf, (size_t)retval, &vlen);
+    siov_ls = copy_userchar_to_siov(buff, (size_t)retval, &vlen);
     if (!siov_ls) goto failed;
 
     siov_ls[0].len = written;
