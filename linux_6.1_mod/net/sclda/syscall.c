@@ -266,7 +266,7 @@ static int save_siovls(struct sclda_iov_ls *siov, int target_index) {
 }
 
 static int process_one_scinfo(struct sclda_syscallinfo_ls *curptr,
-                              struct sclda_iov_ls **iovls) {
+                              struct sclda_iov_ls **iovls, int target_index) {
     int i, cnt = 0, first = 1;
     size_t chnk_remain, data_remain, writable;
     struct sclda_iov_ls *temp = *iovls;
@@ -343,7 +343,7 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
 
     curptr = sclda_syscall_heads[target_index].next;
     while (curptr != NULL) {
-        if (process_one_scinfo(curptr, &temp)) {
+        if (process_one_scinfo(curptr, &temp, target_index)) {
             // 失敗 -> 引き継ぎ
             sclda_syscall_heads[target_index].next = curptr;
             sclda_syscallinfo_num[target_index] -= cnt;
