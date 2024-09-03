@@ -280,10 +280,12 @@ static int process_one_scinfo(struct sclda_syscallinfo_ls *curptr,
                          SCLDA_MSG_START, curptr->syscall_id, SCLDA_DELIMITER,
                          cnt, SCLDA_DELIMITER);
             cnt += 1;
-            if (i == 0)
+            if (first){
                 temp->data.len += snprintf(temp->data.str + temp->data.len,
                                            SCLDA_CHUNKSIZE - temp->data.len,
                                            "%s", curptr->pid_time.str);
+                first = 0;
+            }
 
             temp->data.len += snprintf(temp->data.str + temp->data.len,
                                        SCLDA_CHUNKSIZE - temp->data.len, "%s%c",
