@@ -267,7 +267,7 @@ static int save_siovls(struct sclda_iov_ls *siov, int target_index) {
 
 static int process_one_scinfo(struct sclda_syscallinfo_ls *curptr,
                               struct sclda_iov_ls **iovls, int target_index) {
-    int i, cnt = 0, first = 1;
+    int i, cnt = 0;
     size_t chnk_remain, data_remain, writable;
     struct sclda_iov_ls *temp = *iovls;
 
@@ -279,18 +279,15 @@ static int process_one_scinfo(struct sclda_syscallinfo_ls *curptr,
                          SCLDA_CHUNKSIZE - temp->data.len, "%c%llu%c%d%c",
                          SCLDA_MSG_START, curptr->syscall_id, SCLDA_DELIMITER,
                          cnt, SCLDA_DELIMITER);
-            cnt += 1;
-            if (first){
+            if (cnt == 0)
                 temp->data.len += snprintf(temp->data.str + temp->data.len,
                                            SCLDA_CHUNKSIZE - temp->data.len,
                                            "%s", curptr->pid_time.str);
-                first = 0;
-            }
 
             temp->data.len += snprintf(temp->data.str + temp->data.len,
                                        SCLDA_CHUNKSIZE - temp->data.len, "%s%c",
                                        curptr->syscall[i].str, SCLDA_MSG_END);
-
+            cnt += 1;
             continue;
         }
         // chunkに余裕が無い場合
@@ -312,9 +309,7 @@ static int process_one_scinfo(struct sclda_syscallinfo_ls *curptr,
                          SCLDA_CHUNKSIZE - temp->data.len, "%c%llu%c%d%c",
                          SCLDA_MSG_START, curptr->syscall_id, SCLDA_DELIMITER,
                          cnt, SCLDA_DELIMITER);
-            cnt += 1;
-
-            if (i == 0 && first){
+            if (cnt == 0){
                 temp->data.len += snprintf(temp->data.str + temp->data.len,
                                            SCLDA_CHUNKSIZE - temp->data.len,
                                            "%s", curptr->pid_time.str);
@@ -325,6 +320,7 @@ static int process_one_scinfo(struct sclda_syscallinfo_ls *curptr,
                          SCLDA_CHUNKSIZE - temp->data.len, "%.*s%c",
                          (int)writable, curptr->syscall[i].str, SCLDA_MSG_END);
 
+            cnt += 1;
             data_remain -= writable;
         }
     }
