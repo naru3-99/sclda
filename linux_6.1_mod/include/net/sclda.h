@@ -76,6 +76,7 @@ struct sclda_client_struct {
     struct sockaddr_in addr;
     struct msghdr hdr;
     struct mutex mtx;
+    int init_ok;
 };
 
 // char + len struct

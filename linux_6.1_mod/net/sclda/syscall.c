@@ -89,6 +89,7 @@ int sclda_syscall_init(void) {
         sclda_syscall_heads[i].next = NULL;
         sclda_syscall_tails[i] = &sclda_syscall_heads[i];
         sclda_syscallinfo_num[i] = 0;
+        sclda_syscall_client[i].init_ok = 0;
     }
 
     // init sclda_client_struct

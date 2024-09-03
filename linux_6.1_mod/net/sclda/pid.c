@@ -32,6 +32,7 @@ struct sclda_pidinfo_ls *sclda_pidinfo_tail = &sclda_pidinfo_head;
 
 // returns 0 on success, minus value on failed
 int sclda_pid_init(void) {
+    sclda_pid_client.init_ok = 0;
     return init_sclda_client(&sclda_pid_client, SCLDA_PIDPPID_PORT);
 }
 

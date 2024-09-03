@@ -40,6 +40,7 @@ int sclda_tcp_init(void) {
 int init_sclda_client_tcp(struct sclda_client_struct *sclda_cs_ptr, int port) {
     int retval;
     if (sclda_cs_ptr == NULL) return -EFAULT;
+    if (sclda_cs_ptr->init_ok) return 0;
 
     // ソケットの作成
     retval = sock_create_kern(&init_net, PF_INET, SOCK_STREAM, IPPROTO_TCP,
@@ -69,5 +70,6 @@ int init_sclda_client_tcp(struct sclda_client_struct *sclda_cs_ptr, int port) {
 
     // ミューテックスの初期化
     mutex_init(&sclda_cs_ptr->mtx);
+    sclda_cs_ptr->init_ok = 1;
     return 0;
 }
