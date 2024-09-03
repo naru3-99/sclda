@@ -61,10 +61,10 @@
 
 // chunksize for spliting data
 #define SCLDA_CHUNKSIZE ((size_t)1460)
-// 30% of chunksize
-#define SCLDA_30P_CHUNKSIZE SCLDA_CHUNKSIZE / 10 * 3
+// we will send if 80% of chunksize is full
+#define SCLDA_LEAST_CHUNKSIZE SCLDA_CHUNKSIZE / 10 * 8
 // bufsize for utime, PID
-#define SCLDA_PID_CLOCK_SIZE ((int)80)
+#define SCLDA_PID_CLOCK_SIZE ((int)50)
 // max size of the buffer
 #define SCLDA_SCDATA_BUFMAX ((int)2048)
 // PID_PPID_COMM msg buffer size
@@ -99,6 +99,7 @@ struct sclda_pidinfo_ls {
 // syscall information linked list
 struct sclda_syscallinfo_ls {
     struct sclda_syscallinfo_ls *next;  // pointer for next
+    unsigned long long syscall_id;      // id for syscall
     struct sclda_iov pid_time;          // invoked pid & time information
     int sc_iov_len;                     // length for iov
     struct sclda_iov *syscall;          // strings
@@ -135,7 +136,6 @@ int sclda_syscall_init(void);
 int sclda_send_syscall_info(char *, int);
 int sclda_send_syscall_info2(struct sclda_iov *, unsigned long);
 
-int sclda_sendall_syscallinfo(void *data);
 int sclda_sendall_on_reboot(void);
 int print_sclda_debug(void);
 

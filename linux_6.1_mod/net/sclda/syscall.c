@@ -45,6 +45,11 @@ int sclda_syscallinfo_num[SCLDA_SCI_NUM];
 static DEFINE_MUTEX(sclda_sci_index_mutex);
 int sclda_sci_index = 0;
 
+// prototype
+static int sclda_sendall_syscallinfo(void *data);
+
+
+// getter/ setter for current sci_index
 static int get_sclda_sci_index(void) {
     int current_index;
 
@@ -60,7 +65,8 @@ static void add_sclda_sci_index(void) {
     mutex_unlock(&sclda_sci_index_mutex);
 }
 
-static unsigned long long get_scid(void){
+// identical number for each syscall
+static unsigned long long get_scid(void) {
     unsigned long long ret;
 
     mutex_lock(&sclda_scid_mutex);
@@ -108,10 +114,10 @@ static int sclda_syscallinfo_init(struct sclda_syscallinfo_ls **ptr) {
     if (!(s->pid_time.str)) goto free_scinfo;
 
     s->next = NULL;
-    s->pid_time.len =
-        snprintf(s->pid_time.str, SCLDA_PID_CLOCK_SIZE, "%llu%c%d%c%llu%c",
-                 get_scid(), SCLDA_DELIMITER, sclda_get_current_pid(),
-                 SCLDA_DELIMITER, sched_clock(), SCLDA_DELIMITER);
+    s->pid_time.len = snprintf(s->pid_time.str, SCLDA_PID_CLOCK_SIZE,
+                               "%d%c%llu%c", sclda_get_current_pid(),
+                               SCLDA_DELIMITER, sched_clock(), SCLDA_DELIMITER);
+    s->syscall_id = get_scid();
 
     *ptr = s;
     return 0;
@@ -167,6 +173,7 @@ out:
     return 0;
 }
 
+// use these in SYSCALL_DEFINE MACRO
 int sclda_send_syscall_info(char *msg_buf, int msg_len) {
     int retval;
     struct sclda_syscallinfo_ls *s;
@@ -218,6 +225,7 @@ int sclda_send_syscall_info2(struct sclda_iov *siov_ls, unsigned long num) {
     return 0;
 }
 
+// for sclda_sendall_syscallinfo
 static int kfree_scinfo_ls(struct sclda_syscallinfo_ls *scinfo_ptr) {
     size_t i;
     kfree(scinfo_ptr->pid_time.str);
@@ -257,68 +265,87 @@ static int save_siovls(struct sclda_iov_ls *siov, int target_index) {
     return 0;
 }
 
+static int process_one_scinfo(struct sclda_syscallinfo_ls *curptr,
+                              struct sclda_iov_ls **iovls) {
+    int i, cnt = 0, first = 1;
+    size_t chnk_remain, data_remain, writable;
+    struct sclda_iov_ls *temp = *iovls;
+
+    for (i = 0; i < curptr->sc_iov_len; i++) {
+        if (temp->data.len + curptr->syscall[i].len < SCLDA_LEAST_CHUNKSIZE) {
+            // chunkに余裕がある場合
+            temp->data.len +=
+                snprintf(temp->data.str + temp->data.len,
+                         SCLDA_CHUNKSIZE - temp->data.len, "%c%llu%c%d%c",
+                         SCLDA_MSG_START, curptr->syscall_id, SCLDA_DELIMITER,
+                         cnt, SCLDA_DELIMITER);
+            cnt += 1;
+            if (i == 0)
+                temp->data.len += snprintf(temp->data.str + temp->data.len,
+                                           SCLDA_CHUNKSIZE - temp->data.len,
+                                           "%s", curptr->pid_time.str);
+
+            temp->data.len += snprintf(temp->data.str + temp->data.len,
+                                       SCLDA_CHUNKSIZE - temp->data.len, "%s%c",
+                                       curptr->syscall[i].str, SCLDA_MSG_END);
+
+            continue;
+        }
+        // chunkに余裕が無い場合
+
+        // 分割して書き込む
+        data_remain = curptr->syscall[i].len;
+        while (data_remain != 0) {
+            // 80% 以上埋まってたら保存する
+            if (temp->data.len > SCLDA_LEAST_CHUNKSIZE){
+                save_siovls(temp, target_index);
+                if (init_siovls(&temp) < 0) return -ENOMEM;
+            }
+            // 書き込む(Leastを使うのは、SCLDA_MSG_STARTや
+            // pid_time_strなどが入る可能性があるため)
+            chnk_remain = SCLDA_LEAST_CHUNKSIZE - temp->data.len;
+            writable = min(chnk_remain, data_remain);
+            temp->data.len +=
+                snprintf(temp->data.str + temp->data.len,
+                         SCLDA_CHUNKSIZE - temp->data.len, "%c%llu%c%d%c",
+                         SCLDA_MSG_START, curptr->syscall_id, SCLDA_DELIMITER,
+                         cnt, SCLDA_DELIMITER);
+            cnt += 1;
+
+            if (i == 0 && first){
+                temp->data.len += snprintf(temp->data.str + temp->data.len,
+                                           SCLDA_CHUNKSIZE - temp->data.len,
+                                           "%s", curptr->pid_time.str);
+                first = 0;
+            }
+            temp->data.len +=
+                snprintf(temp->data.str + temp->data.len,
+                         SCLDA_CHUNKSIZE - temp->data.len, "%.*s%c",
+                         (int)writable, curptr->syscall[i].str, SCLDA_MSG_END);
+
+            data_remain -= writable;
+        }
+    }
+    return 0;
+}
+
 static int scinfo_to_siov(int target_index, int use_mutex) {
     int cnt = 0;
-    size_t i, chnk_remain, data_remain, len, writable;
-    struct sclda_syscallinfo_ls *curptr, *next;
     struct sclda_iov_ls *temp;
+    struct sclda_syscallinfo_ls *curptr, *next;
 
+    // init node
     if (init_siovls(&temp) < 0) return -EFAULT;
 
     if (use_mutex) mutex_lock(&sclda_syscall_mutex[target_index]);
 
     curptr = sclda_syscall_heads[target_index].next;
     while (curptr != NULL) {
-        for (i = 0; i < curptr->sc_iov_len; i++) {
-            // +2はstartとendの前後2つで挟む分
-            len = curptr->pid_time.len + curptr->syscall[i].len + 2;
-
-            // chunkに余裕がある場合
-            if (temp->data.len + len < SCLDA_CHUNKSIZE) {
-                temp->data.len +=
-                    snprintf(temp->data.str + temp->data.len,
-                             SCLDA_CHUNKSIZE - temp->data.len, "%c%s%s%c",
-                             SCLDA_MSG_START, curptr->pid_time.str,
-                             curptr->syscall[i].str, SCLDA_MSG_END);
-                continue;
-            }
-
-            // chunkに余裕が無い場合
-            // chunkの残りが30%以下の場合、切り捨てる
-            chnk_remain = SCLDA_CHUNKSIZE - temp->data.len;
-            if (chnk_remain < SCLDA_30P_CHUNKSIZE){
-                save_siovls(temp, target_index);
-                if (init_siovls(&temp) < 0) {
-                    // 失敗 -> 引き継ぎ
-                    sclda_syscall_heads[target_index].next = curptr;
-                    sclda_syscallinfo_num[target_index] -= cnt;
-                    goto out;
-                };
-                chnk_remain = SCLDA_CHUNKSIZE;
-            }
-            // 分割して書き込む
-            data_remain = curptr->syscall[i].len;
-            while (data_remain != 0) {
-                writable = min(chnk_remain - curptr->pid_time.len - 2, data_remain);
-                temp->data.len += snprintf(
-                    temp->data.str + temp->data.len,
-                    SCLDA_CHUNKSIZE - temp->data.len, "%c%s%.*s%c",
-                    SCLDA_MSG_START, curptr->pid_time.str, (int)writable,
-                    curptr->syscall[i].str, SCLDA_MSG_END);
-
-                chnk_remain = SCLDA_CHUNKSIZE - temp->data.len;
-                if (chnk_remain < SCLDA_30P_CHUNKSIZE){
-                    save_siovls(temp, target_index);
-                    if (init_siovls(&temp) < 0) {
-                        // 失敗 -> 引き継ぎ
-                        sclda_syscall_heads[target_index].next = curptr;
-                        sclda_syscallinfo_num[target_index] -= cnt;
-                        goto out;
-                    };
-                    chnk_remain = SCLDA_CHUNKSIZE;
-                }
-                data_remain -= writable;
-            }
+        if (process_one_scinfo(curptr, &temp)) {
+            // 失敗 -> 引き継ぎ
+            sclda_syscall_heads[target_index].next = curptr;
+            sclda_syscallinfo_num[target_index] -= cnt;
+            goto out;
         }
         next = curptr->next;
         kfree_scinfo_ls(curptr);
@@ -334,7 +361,7 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
     sclda_syscallinfo_num[target_index] = 0;
 out:
     if (use_mutex) mutex_unlock(&sclda_syscall_mutex[target_index]);
-    return cnt;
+    return 0;
 }
 
 static int sclda_sendall_siovls(int target_index) {
@@ -356,7 +383,7 @@ static int sclda_sendall_siovls(int target_index) {
     return 0;
 }
 
-int sclda_sendall_syscallinfo(void *data) {
+static int sclda_sendall_syscallinfo(void *data) {
     int target_index;
     target_index = *(int *)data;
     kfree(data);
