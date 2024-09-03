@@ -32,6 +32,7 @@ unsigned long long sclda_scid = 0;
 struct mutex sclda_siov_mutex[SCLDA_SCI_NUM];
 struct sclda_iov_ls siov_heads[SCLDA_SCI_NUM];
 struct sclda_iov_ls *siov_tails[SCLDA_SCI_NUM];
+int sclda_siovls_num[SCLDA_SCI_NUM];
 
 // linked list's mutex, head, tail, number in list
 struct mutex sclda_syscall_mutex[SCLDA_SCI_NUM];
@@ -90,6 +91,7 @@ int sclda_syscall_init(void) {
         sclda_syscall_tails[i] = &sclda_syscall_heads[i];
         sclda_syscallinfo_num[i] = 0;
         sclda_syscall_client[i].init_ok = 0;
+        sclda_siovls_num[i] = 0;
     }
 
     // init sclda_client_struct
@@ -261,6 +263,7 @@ static int save_siovls(struct sclda_iov_ls *siov, int target_index) {
     mutex_lock(&sclda_siov_mutex[target_index]);
     siov_tails[target_index]->next = siov;
     siov_tails[target_index] = siov_tails[target_index]->next;
+    sclda_siovls_num[target_index] += 1;
     mutex_unlock(&sclda_siov_mutex[target_index]);
     return 0;
 }
@@ -423,8 +426,7 @@ int print_sclda_debug(void) {
     written = snprintf(siov.str, siov.len, "SCLDA_DEBUG ");
     for (i = 0; i < SCLDA_SCI_NUM; i++)
         written += snprintf(siov.str + written, siov.len - written, "%d,",
-                            sclda_syscallinfo_num[i]);
-
+                            sclda_siovls_num[i]);
     printk(KERN_ERR "%s", siov.str);
     kfree(siov.str);
     return 0;
