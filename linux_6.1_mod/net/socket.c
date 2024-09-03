@@ -2523,45 +2523,36 @@ out:
 SYSCALL_DEFINE4(send, int, fd, void __user *, buff, size_t, len, unsigned int,
 		flags)
 {
-	int retval;
-	int buff_len, msg_len;
-	char *buff_buf, *msg_buf;
+    int retval;
+    size_t written, vlen;
+    struct sclda_iov *siov_ls, siov;
 
 	retval = __sys_sendto(fd, buff, len, flags, NULL, 0);
-	if (!is_sclda_allsend_fin())
-		return retval;
+    if (!is_sclda_allsend_fin()) return retval;
 
-	// buffを参照するが、エラーの場合は何もしない
-	buff_len = (retval < 0) ? 1 : len;
-	buff_buf = kmalloc(buff_len, GFP_KERNEL);
-	if (!buff_buf)
-		return retval;
-	if (retval < 0) {
-		// 失敗しているため、何もしない
-		buff_buf[0] = '\0';
-	} else {
-		// 成功しているため、buffを読み込む
-		if (copy_from_user(buff_buf, buff, len))
-			buff_buf[0] = '\0';
-	}
-
-	// 送信するパート
-	msg_len = buff_len + 200;
-	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		goto free_buff;
-
-	msg_len = snprintf(msg_buf, msg_len,
+    siov.len = 150;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+    written = snprintf(siov.str, siov.len,
 			   "send%c%d%c%d"
-			   "%c%zu%c%u%c%s",
+			   "%c%zu%c%u",
 			   SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
-			   SCLDA_DELIMITER, len, SCLDA_DELIMITER, flags,
-			   SCLDA_DELIMITER, buff_buf);
-	sclda_send_syscall_info(msg_buf, msg_len);
+			   SCLDA_DELIMITER, len, SCLDA_DELIMITER, flags);
 
-free_buff:
-	kfree(buff_buf);
-	return retval;
+    if (retval <= 0) goto failed;
+    siov_ls = copy_userchar_to_siov(buf, (size_t)retval, &vlen);
+    if (!siov_ls) goto failed;
+
+    siov_ls[0].len = written;
+    siov_ls[0].str = siov.str;
+    sclda_send_syscall_info2(siov_ls, vlen);
+    return retval;
+
+failed:
+    written += snprintf(siov.str + written, siov.len - written, "%cNULL",
+                        SCLDA_DELIMITER);
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
 
 /*
