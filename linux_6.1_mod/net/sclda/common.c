@@ -48,6 +48,7 @@ int sclda_init(void) {
     if (retval < 0) return retval;
 
     sclda_init_fin = 1;
+    printk(KERN_INFO "SCLDA_INIT_FIN");
     return 0;
 }
 
