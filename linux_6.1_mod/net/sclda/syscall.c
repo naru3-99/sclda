@@ -306,6 +306,7 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
             }
             // chunkに余裕が無い場合
             // 分割して書き込む
+            written = 0;
             while (curptr->syscall[i].len > written) {
                 // 80% 以上埋まってたら保存する
                 if (temp->data.len > SCLDA_LEAST_CHUNKSIZE) {
@@ -314,7 +315,6 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
                         // 失敗 -> 引き継ぎ
                         sclda_syscall_heads[target_index].next = curptr;
                         sclda_syscallinfo_num[target_index] -= succeeded;
-                        printk(KERN_ERR "SCLDA_ERR missed %d", succeeded);
                         goto out;
                     }
                 }
