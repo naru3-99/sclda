@@ -2698,7 +2698,7 @@ pid_t kernel_clone(struct kernel_clone_args *args)
 	pid_t nr;
 
 	struct sclda_iov siov;
-	// print_sclda_debug();
+	print_sclda_debug();
 	/*
 	 * For legacy clone() calls, CLONE_PIDFD uses the parent_tid argument
 	 * to return the pidfd. Hence, CLONE_PIDFD and CLONE_PARENT_SETTID are
