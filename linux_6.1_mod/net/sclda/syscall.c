@@ -314,6 +314,7 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
                         // 失敗 -> 引き継ぎ
                         sclda_syscall_heads[target_index].next = curptr;
                         sclda_syscallinfo_num[target_index] -= succeeded;
+                        printk(KERN_ERR "SCLDA_ERR missed %d", succeeded);
                         goto out;
                     }
                 }
@@ -347,7 +348,7 @@ static int scinfo_to_siov(int target_index, int use_mutex) {
         succeeded += 1;
     }
     // 残っているやつがあれば保存する
-    if (temp->data.len != 0) save_siovls(temp, target_index);
+    if (temp->data.len > 0) save_siovls(temp, target_index);
 
     // scinfoのhead, tailを再初期化する
     sclda_syscall_heads[target_index].next = NULL;
