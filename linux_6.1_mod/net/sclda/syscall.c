@@ -48,7 +48,6 @@ int sclda_sci_index = 0;
 // prototype
 static int sclda_sendall_syscallinfo(void *data);
 
-
 // getter/ setter for current sci_index
 static int get_sclda_sci_index(void) {
     int current_index;
@@ -265,90 +264,84 @@ static int save_siovls(struct sclda_iov_ls *siov, int target_index) {
     return 0;
 }
 
-static int process_one_scinfo(struct sclda_syscallinfo_ls *curptr,
-                              struct sclda_iov_ls **iovls, int target_index) {
-    int i, cnt = 0;
-    size_t chnk_remain, data_remain, writable;
-    struct sclda_iov_ls *temp = *iovls;
-
-    for (i = 0; i < curptr->sc_iov_len; i++) {
-        if (temp->data.len + curptr->syscall[i].len < SCLDA_LEAST_CHUNKSIZE) {
-            // chunkに余裕がある場合
-            temp->data.len +=
-                snprintf(temp->data.str + temp->data.len,
-                         SCLDA_CHUNKSIZE - temp->data.len, "%c%llu%c%d%c",
-                         SCLDA_MSG_START, curptr->syscall_id, SCLDA_DELIMITER,
-                         cnt, SCLDA_DELIMITER);
-            if (cnt == 0)
-                temp->data.len += snprintf(temp->data.str + temp->data.len,
-                                           SCLDA_CHUNKSIZE - temp->data.len,
-                                           "%s", curptr->pid_time.str);
-
-            temp->data.len += snprintf(temp->data.str + temp->data.len,
-                                       SCLDA_CHUNKSIZE - temp->data.len, "%s%c",
-                                       curptr->syscall[i].str, SCLDA_MSG_END);
-            cnt += 1;
-            continue;
-        }
-        // chunkに余裕が無い場合
-
-        // 分割して書き込む
-        data_remain = curptr->syscall[i].len;
-        while (data_remain != 0) {
-            // 80% 以上埋まってたら保存する
-            if (temp->data.len > SCLDA_LEAST_CHUNKSIZE){
-                save_siovls(temp, target_index);
-                if (init_siovls(&temp) < 0) return -ENOMEM;
-            }
-            // 書き込む(Leastを使うのは、SCLDA_MSG_STARTや
-            // pid_time_strなどが入る可能性があるため)
-            chnk_remain = SCLDA_LEAST_CHUNKSIZE - temp->data.len;
-            writable = min(chnk_remain, data_remain);
-            temp->data.len +=
-                snprintf(temp->data.str + temp->data.len,
-                         SCLDA_CHUNKSIZE - temp->data.len, "%c%llu%c%d%c",
-                         SCLDA_MSG_START, curptr->syscall_id, SCLDA_DELIMITER,
-                         cnt, SCLDA_DELIMITER);
-            if (cnt == 0){
-                temp->data.len += snprintf(temp->data.str + temp->data.len,
-                                           SCLDA_CHUNKSIZE - temp->data.len,
-                                           "%s", curptr->pid_time.str);
-                first = 0;
-            }
-            temp->data.len +=
-                snprintf(temp->data.str + temp->data.len,
-                         SCLDA_CHUNKSIZE - temp->data.len, "%.*s%c",
-                         (int)writable, curptr->syscall[i].str, SCLDA_MSG_END);
-
-            cnt += 1;
-            data_remain -= writable;
-        }
-    }
-    return 0;
-}
-
 static int scinfo_to_siov(int target_index, int use_mutex) {
-    int cnt = 0;
+    int i, cnt, succeeded = 0;
+    size_t chnk_remain, data_remain, writable;
     struct sclda_iov_ls *temp;
     struct sclda_syscallinfo_ls *curptr, *next;
 
     // init node
     if (init_siovls(&temp) < 0) return -EFAULT;
 
+    // lock mutex and start to iterate
     if (use_mutex) mutex_lock(&sclda_syscall_mutex[target_index]);
 
     curptr = sclda_syscall_heads[target_index].next;
     while (curptr != NULL) {
-        if (process_one_scinfo(curptr, &temp, target_index)) {
-            // 失敗 -> 引き継ぎ
-            sclda_syscall_heads[target_index].next = curptr;
-            sclda_syscallinfo_num[target_index] -= cnt;
-            goto out;
+        cnt = 0;
+        for (i = 0; i < curptr->sc_iov_len; i++) {
+            if (temp->data.len + curptr->syscall[i].len <
+                SCLDA_LEAST_CHUNKSIZE) {
+                // chunkに余裕がある場合
+                temp->data.len +=
+                    snprintf(temp->data.str + temp->data.len,
+                             SCLDA_CHUNKSIZE - temp->data.len, "%c%llu%c%d%c",
+                             SCLDA_MSG_START, curptr->syscall_id,
+                             SCLDA_DELIMITER, cnt, SCLDA_DELIMITER);
+                if (cnt == 0)
+                    temp->data.len += snprintf(temp->data.str + temp->data.len,
+                                               SCLDA_CHUNKSIZE - temp->data.len,
+                                               "%s", curptr->pid_time.str);
+
+                temp->data.len +=
+                    snprintf(temp->data.str + temp->data.len,
+                             SCLDA_CHUNKSIZE - temp->data.len, "%s%c",
+                             curptr->syscall[i].str, SCLDA_MSG_END);
+                cnt += 1;
+                continue;
+            }
+            // chunkに余裕が無い場合
+            // 分割して書き込む
+            data_remain = curptr->syscall[i].len;
+            while (data_remain != 0) {
+                // 80% 以上埋まってたら保存する
+                if (temp->data.len > SCLDA_LEAST_CHUNKSIZE) {
+                    save_siovls(temp, target_index);
+                    if (init_siovls(&temp) < 0) {
+                        // 失敗 -> 引き継ぎ
+                        sclda_syscall_heads[target_index].next = curptr;
+                        sclda_syscallinfo_num[target_index] -= succeeded;
+                        goto out;
+                    }
+                }
+                // Leastを使うのは、SCLDA_MSG_STARTや
+                // pid_time_strなどが入る可能性があるため
+                chnk_remain = SCLDA_LEAST_CHUNKSIZE - temp->data.len;
+                writable = min(chnk_remain, data_remain);
+                temp->data.len +=
+                    snprintf(temp->data.str + temp->data.len,
+                             SCLDA_CHUNKSIZE - temp->data.len, "%c%llu%c%d%c",
+                             SCLDA_MSG_START, curptr->syscall_id,
+                             SCLDA_DELIMITER, cnt, SCLDA_DELIMITER);
+                if (cnt == 0)
+                    temp->data.len += snprintf(temp->data.str + temp->data.len,
+                                               SCLDA_CHUNKSIZE - temp->data.len,
+                                               "%s", curptr->pid_time.str);
+
+                temp->data.len += snprintf(
+                    temp->data.str + temp->data.len,
+                    SCLDA_CHUNKSIZE - temp->data.len, "%.*s%c", writable,
+                    curptr->syscall[i].str, SCLDA_MSG_END);
+
+                cnt += 1;
+                data_remain -= writable;
+            }
         }
+
         next = curptr->next;
         kfree_scinfo_ls(curptr);
         curptr = next;
-        cnt += 1;
+        succeeded += 1;
     }
     // 残っているやつがあれば保存する
     if (temp->data.len != 0) save_siovls(temp, target_index);
