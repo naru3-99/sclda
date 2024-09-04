@@ -60,7 +60,12 @@
 #define SCLDA_SCI_NUM SCLDA_PORT_NUMBER
 
 // chunksize for spliting data
-#define SCLDA_CHUNKSIZE ((size_t)1460)
+#ifdef SCLDA_USE_TCP
+    #define SCLDA_CHUNKSIZE ((size_t)8192)
+#else
+    #define SCLDA_CHUNKSIZE ((size_t)1460)
+#endif
+
 // we will send if 80% of chunksize is full
 #define SCLDA_LEAST_CHUNKSIZE SCLDA_CHUNKSIZE / 10 * 8
 // bufsize for utime, PID
