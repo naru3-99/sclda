@@ -256,9 +256,10 @@ static struct sclda_iov *_msgiov_to_str(struct user_msghdr *kmsg,
 
     bufsize = SCLDA_SCDATA_BUFMAX - 1;
     siovlen = 0;
-    for (i = 0; i < vlen; i++)
+    for (i = 0; i < vlen; i++){
+        if (iovec_ls[i].iov_len == 0) continue;
         siovlen += (iovec_ls[i].iov_len - 1) / bufsize + 1;
-
+    }
     *siov_vlen = siovlen;
     siov_ls = kmalloc_array(siovlen, sizeof(struct sclda_iov), GFP_KERNEL);
     if (!siov_ls) goto free_iovec_ls;
@@ -385,121 +386,92 @@ out:
 }
 
 struct sclda_iov *sclda_user_msghdr_to_str(
-    const struct user_msghdr __user *umsg, size_t *vlen2) {
+    const struct user_msghdr __user *umsg, size_t *vlen) {
     struct user_msghdr kmsg;
-    struct iovec *iovec_ls;
-    char msg[1000];
-    size_t i, vlen, written = 0;
+    size_t iov_vlen, all_vlen, i, j, written = 0;
+    struct sclda_iov addr, *iov, control, *all;
+    int addr_ok = 0, control_ok = 0;
 
     if (!umsg) return NULL;
     if (copy_from_user(&kmsg, umsg, sizeof(struct user_msghdr))) return NULL;
 
-    vlen = (size_t)kmsg.msg_iovlen;
-    written +=
-        snprintf(msg + written, 1000 - written, "iovlen =%zu, len =", vlen);
+    // msg_iov
+    iov = _msgiov_to_str(&kmsg, &iov_vlen);
+    if (!iov) return NULL;
+    // msgname
+    addr.str = _msgname_to_str(&kmsg, &addr.len);
+    if (addr.str) addr_ok = 1;
+    // control
+    control.str = _control_to_str(&kmsg, &control.len);
+    if (control.str) control_ok = 1;
 
-    iovec_ls = kmalloc_array(vlen, sizeof(struct iovec), GFP_KERNEL);
-    if (!iovec_ls) return NULL;
+    all_vlen = 2;  // controlなど+最初はscname,retvalなど
+    for (i = 0; i < iov_vlen; i++) {
+        if (!iov[i].str && iov[i].len != 0) all_vlen += 1;
+    }
 
-    if (copy_from_user(iovec_ls, kmsg.msg_iov, sizeof(struct iovec) * vlen))
-        return NULL;
+    *vlen = all_vlen;
+    all = kmalloc_array(all_vlen, sizeof(struct sclda_iov), GFP_KERNEL);
+    if (!all) goto free;
+    all[1].len = addr.len + control.len + 100;
+    all[1].str = kmalloc(all[1].len, GFP_KERNEL);
+    if (!all[1].str) goto free1;
 
-    for (i = 0; i < kmsg.msg_iovlen; i++)
-        written += snprintf(msg + written, 1000 - written, "%zu,",
-                            iovec_ls[i].iov_len);
+    if (addr_ok) {
+        written +=
+            snprintf(all[1].str + written, all[1].len - written,
+                     "[%s]%c%d%c"
+                     "%zu%c",
+                     addr.str, SCLDA_DELIMITER, kmsg.msg_namelen,
+                     SCLDA_DELIMITER, (size_t)kmsg.msg_iovlen, SCLDA_DELIMITER);
+        kfree(addr.str);
+    } else {
+        written += snprintf(all[1].str + written, all[1].len - written,
+                            "NULL%c%d%c"
+                            "%zu%c",
+                            SCLDA_DELIMITER, kmsg.msg_namelen, SCLDA_DELIMITER,
+                            (size_t)kmsg.msg_iovlen, SCLDA_DELIMITER);
+    }
 
-    printk(KERN_ERR "%s", msg);
+    if (control_ok) {
+        written +=
+            snprintf(all[1].str + written, all[1].len - written,
+                     "[%s]%c%zu"
+                     "%c%u%c",
+                     control.str, SCLDA_DELIMITER, (size_t)kmsg.msg_controllen,
+                     SCLDA_DELIMITER, kmsg.msg_flags, SCLDA_DELIMITER);
+        kfree(control.str);
+    } else {
+        written += snprintf(all[1].str + written, all[1].len - written,
+                            "NULL%c%zu"
+                            "%c%u%c",
+                            SCLDA_DELIMITER, (size_t)kmsg.msg_controllen,
+                            SCLDA_DELIMITER, kmsg.msg_flags, SCLDA_DELIMITER);
+    }
+    all[1].len = written;
 
+    i = 0;
+    j = 2;
+    while (i < iov_vlen) {
+        if (!(!iov[i].str && iov[i].len != 0)) {
+            i += 1;
+            continue;
+        }
+        all[j].str = iov[i].str;
+        all[j].len = iov[i].len;
+        kfree(iov[i].str);
+        i += 1;
+        j += 1;
+    }
+    kfree(iov);
+    return all;
+
+free1:
+    kfree(all);
+free:
+    if (control_ok) kfree(control.str);
+    if (addr_ok) kfree(addr.str);
+    for (i = 0; i < iov_vlen; i++) kfree(iov[i].str);
+    kfree(iov);
     return NULL;
 }
-
-// struct sclda_iov *sclda_user_msghdr_to_str(
-//     const struct user_msghdr __user *umsg, size_t *vlen) {
-//     struct user_msghdr kmsg;
-//     size_t iov_vlen, all_vlen, i, j, written = 0;
-//     struct sclda_iov addr, *iov, control, *all;
-//     int addr_ok = 0, control_ok = 0;
-
-//     if (!umsg) return NULL;
-//     if (copy_from_user(&kmsg, umsg, sizeof(struct user_msghdr))) return NULL;
-
-//     // msg_iov
-//     iov = _msgiov_to_str(&kmsg, &iov_vlen);
-//     if (!iov) return NULL;
-//     // msgname
-//     addr.str = _msgname_to_str(&kmsg, &addr.len);
-//     if (addr.str) addr_ok = 1;
-//     // control
-//     control.str = _control_to_str(&kmsg, &control.len);
-//     if (control.str) control_ok = 1;
-
-//     all_vlen = 2;  // controlなど+最初はscname,retvalなど
-//     for (i = 0; i < iov_vlen; i++) {
-//         if (!iov[i].str && iov[i].len != 0) all_vlen += 1;
-//     }
-
-//     *vlen = all_vlen;
-//     all = kmalloc_array(all_vlen, sizeof(struct sclda_iov), GFP_KERNEL);
-//     if (!all) goto free;
-//     all[1].len = addr.len + control.len + 100;
-//     all[1].str = kmalloc(all[1].len, GFP_KERNEL);
-//     if (!all[1].str) goto free1;
-
-//     if (addr_ok) {
-//         written +=
-//             snprintf(all[1].str + written, all[1].len - written,
-//                      "[%s]%c%d%c"
-//                      "%zu%c",
-//                      addr.str, SCLDA_DELIMITER, kmsg.msg_namelen,
-//                      SCLDA_DELIMITER, (size_t)kmsg.msg_iovlen, SCLDA_DELIMITER);
-//         kfree(addr.str);
-//     } else {
-//         written += snprintf(all[1].str + written, all[1].len - written,
-//                             "NULL%c%d%c"
-//                             "%zu%c",
-//                             SCLDA_DELIMITER, kmsg.msg_namelen, SCLDA_DELIMITER,
-//                             (size_t)kmsg.msg_iovlen, SCLDA_DELIMITER);
-//     }
-
-//     if (control_ok) {
-//         written +=
-//             snprintf(all[1].str + written, all[1].len - written,
-//                      "[%s]%c%zu"
-//                      "%c%u%c",
-//                      control.str, SCLDA_DELIMITER, (size_t)kmsg.msg_controllen,
-//                      SCLDA_DELIMITER, kmsg.msg_flags, SCLDA_DELIMITER);
-//         kfree(control.str);
-//     } else {
-//         written += snprintf(all[1].str + written, all[1].len - written,
-//                             "NULL%c%zu"
-//                             "%c%u%c",
-//                             SCLDA_DELIMITER, (size_t)kmsg.msg_controllen,
-//                             SCLDA_DELIMITER, kmsg.msg_flags, SCLDA_DELIMITER);
-//     }
-//     all[1].len = written;
-
-//     i = 0;
-//     j = 2;
-//     while (i < iov_vlen) {
-//         if (!(!iov[i].str && iov[i].len != 0)) {
-//             i += 1;
-//             continue;
-//         }
-//         all[j].str = iov[i].str;
-//         all[j].len = iov[i].len;
-//         kfree(iov[i].str);
-//         i += 1;
-//         j += 1;
-//     }
-//     kfree(iov);
-//     return all;
-
-// free1:
-//     kfree(all);
-// free:
-//     if (control_ok) kfree(control.str);
-//     if (addr_ok) kfree(addr.str);
-//     for (i = 0; i < iov_vlen; i++) kfree(iov[i].str);
-//     kfree(iov);
-//     return NULL;
-// }
