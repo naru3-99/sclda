@@ -324,7 +324,7 @@ static int _control_to_str(struct user_msghdr *umsg, struct sclda_iov *siov) {
 
     // 最初の制御メッセージを取得
     retval = 0;
-    for (cmsg = CMSG_FIRSTHDR(msg); cmsg;
+    for (cmsg = __CMSG_FIRSTHDR(control_buf, umsg->msg_controllen); cmsg;
          cmsg = __CMSG_NXTHDR(control_buf, umsg->msg_controllen, cmsg)) {
         // 制御メッセージが有効か確認
         if (!CMSG_OK(umsg, cmsg)) continue;
