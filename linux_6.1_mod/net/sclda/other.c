@@ -222,7 +222,7 @@ static int _msgname_to_str(struct user_msghdr *kmsg, struct sclda_iov *siov) {
         goto failed;
     if (copy_from_user(&ss, kmsg->msg_name, addrlen)) goto failed;
 
-    if (sclda_sockaddr_to_str(&ss, &addr) >= 0) goto out;
+    if (sclda_sockaddr_to_str(&ss, siov) >= 0) goto out;
 
 failed:
     siov->len = snprintf(siov->str, siov->len, "NULL");
@@ -307,18 +307,28 @@ free_iovec_ls:
 }
 
 static int _control_to_str(struct user_msghdr *umsg, struct sclda_iov *siov) {
+    int retval = -ENOMEM;
     struct cmsghdr *cmsg;
+    void *control_buf;
     size_t i, written = 0;
+
+    control_buf = kmalloc(umsg->msg_controllen,GFP_KERNEL);
+    if (!control_buf) return retval;
+
+    if (copy_from_user(control_buf, umsg->msg_control, umsg->msg_controllen))
+        goto out;
 
     siov->len = 500;
     siov->str = kmalloc(siov->len, GFP_KERNEL);
-    if (!siov->str) return -ENOMEM;
+    if (!siov->str) goto out;
 
     // 最初の制御メッセージを取得
-    for_each_cmsghdr(cmsg, umsg) {
+    retval = 0;
+    for (cmsg = CMSG_FIRSTHDR(msg); cmsg;
+         cmsg = __CMSG_NXTHDR(control_buf, umsg->msg_controllen, cmsg)) {
         // 制御メッセージが有効か確認
         if (!CMSG_OK(umsg, cmsg)) continue;
-        if (siov->len <= written) return 0;
+        if (siov->len <= written) goto out;
 
         // 制御メッセージのレベルとタイプで分岐処理
         if (cmsg->cmsg_level == SOL_SOCKET) {
@@ -368,7 +378,9 @@ static int _control_to_str(struct user_msghdr *umsg, struct sclda_iov *siov) {
                                 "Ulevel:%d", cmsg->cmsg_level);
         }
     }
-    return 0;
+out:
+    kfree(control_buf);
+    return retval;
 }
 
 struct sclda_iov *sclda_user_msghdr_to_str(
@@ -390,11 +402,11 @@ struct sclda_iov *sclda_user_msghdr_to_str(
     if (!_control_to_str(&kmsg, &control)) control_ok = 1;
 
     *vlen = iov_vlen + 2;
-    all = kmalloc_array(iov_vlen + 2, sizeof(sclda_iov), GFP_KERNEL);
-    if (!all) return NULL;
+    all = kmalloc_array(iov_vlen + 2, sizeof(struct sclda_iov), GFP_KERNEL);
+    if (!all) goto free;
     all[1].len = addr.len + control.len + 100;
     all[1].str = kmalloc(all[1].len, GFP_KERNEL);
-    if (!all[1].str) goto free;
+    if (!all[1].str) goto free1;
 
     written +=
         snprintf(all[1].str + written, all[1].len - written,
@@ -440,11 +452,20 @@ struct sclda_iov *sclda_user_msghdr_to_str(
     }
     all[1].len = written;
 
-    for (i = 0; i < vlen; i++) {
+    for (i = 0; i < iov_vlen; i++) {
         all[i + 2].str = iov[i].str;
         all[i + 2].len = iov[i].len;
         kfree(iov[i].str);
     }
     kfree(iov);
     return all;
+
+free1:
+    kfree(all);
+free:
+    if (control_ok) kfree(control.str);
+    if (addr_ok) kfree(addr.str);
+    for (i = 0; i < iov_vlen; i++) kfree(iov[i].str);
+    kfree(iov);
+    return NULL;
 }
