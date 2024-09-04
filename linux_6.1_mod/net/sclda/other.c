@@ -260,7 +260,9 @@ static struct sclda_iov *_msgiov_to_str(struct user_msghdr *kmsg,
         if (iovec_ls[i].iov_len == 0) continue;
         siovlen += (iovec_ls[i].iov_len - 1) / bufsize + 1;
     }
+
     *siov_vlen = siovlen;
+    if (siovlen == 0) goto free_iovec_ls;
     siov_ls = kmalloc_array(siovlen, sizeof(struct sclda_iov), GFP_KERNEL);
     if (!siov_ls) goto free_iovec_ls;
 
@@ -390,14 +392,14 @@ struct sclda_iov *sclda_user_msghdr_to_str(
     struct user_msghdr kmsg;
     size_t iov_vlen, all_vlen, i, j, written = 0;
     struct sclda_iov addr, *iov, control, *all;
-    int addr_ok = 0, control_ok = 0;
+    int addr_ok = 0, iov_ok = 0, control_ok = 0;
 
     if (!umsg) return NULL;
     if (copy_from_user(&kmsg, umsg, sizeof(struct user_msghdr))) return NULL;
 
     // msg_iov
     iov = _msgiov_to_str(&kmsg, &iov_vlen);
-    if (!iov) return NULL;
+    if (iov) iov_ok = 1;
     // msgname
     addr.str = _msgname_to_str(&kmsg, &addr.len);
     if (addr.str) addr_ok = 1;
@@ -406,8 +408,9 @@ struct sclda_iov *sclda_user_msghdr_to_str(
     if (control.str) control_ok = 1;
 
     all_vlen = 2;  // controlなど+最初はscname,retvalなど
-    for (i = 0; i < iov_vlen; i++) {
-        if (!iov[i].str && iov[i].len != 0) all_vlen += 1;
+    if (iov_ok){
+        for (i = 0; i < iov_vlen; i++)
+            if (!iov[i].str && iov[i].len != 0) all_vlen += 1;
     }
 
     *vlen = all_vlen;
