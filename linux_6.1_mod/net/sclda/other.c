@@ -239,8 +239,10 @@ static struct sclda_iov *_msgiov_to_str(struct user_msghdr *kmsg,
     // buf for copy iovec
     struct iovec *iovec_ls;
     size_t vlen;
+    // buffer for copying iovec.iobase
+    char *temp;
     // buf for returning siov
-    struct sclda_iov *siov_ls, temp;
+    struct sclda_iov *siov_ls;
     size_t siovlen;
 
     if (!kmsg->msg_iov) return NULL;
@@ -261,9 +263,8 @@ static struct sclda_iov *_msgiov_to_str(struct user_msghdr *kmsg,
     siov_ls = kmalloc_array(siovlen, sizeof(struct sclda_iov), GFP_KERNEL);
     if (!siov_ls) goto free_iovec_ls;
 
-    temp.len = 0;
-    temp.str = kmalloc(SCLDA_SCDATA_BUFMAX, GFP_KERNEL);
-    if (!temp.str) goto free_siov_ls;
+    temp = kmalloc(SCLDA_SCDATA_BUFMAX, GFP_KERNEL);
+    if (!temp) goto free_siov_ls;
 
     j = 0;
     for (i = 0; i < vlen; i++) {
@@ -271,17 +272,17 @@ static struct sclda_iov *_msgiov_to_str(struct user_msghdr *kmsg,
         written = 0;
         while (len > written) {
             copy = min(bufsize, len - written);
-            if (copy_from_user(temp.str, iovec_ls[i].iov_base + written,
+            if (copy_from_user(temp, iovec_ls[i].iov_base + written,
                                copy)) {
                 j -= 1;
                 goto free;
             }
             written += copy;
 
-            siov_ls[j].str = escape_control_chars(temp.str, copy, &esclen);
+            siov_ls[j].str = escape_control_chars(temp, copy, &esclen);
             if (!siov_ls[j].str) goto free;
 
-            memset(temp.str, 0, SCLDA_SCDATA_BUFMAX);
+            memset(temp, 0, SCLDA_SCDATA_BUFMAX);
             j += 1;
         }
     }
@@ -295,8 +296,8 @@ free:
             j -= 1;
         }
     }
-    // kfree temp.str
-    kfree(temp.str);
+    // kfree temp
+    kfree(temp);
 
 free_siov_ls:
     // kfree siov_ls, if failed
@@ -414,17 +415,6 @@ struct sclda_iov *sclda_user_msghdr_to_str(
     all[1].len = addr.len + control.len + 100;
     all[1].str = kmalloc(all[1].len, GFP_KERNEL);
     if (!all[1].str) goto free1;
-
-    written +=
-        snprintf(all[1].str + written, all[1].len - written,
-                 "[%s]%c%d%c"
-                 "%zu%c[%s]"
-                 "%c%zu%c"
-                 "%u%c",
-                 addr.str, SCLDA_DELIMITER, kmsg.msg_namelen, SCLDA_DELIMITER,
-                 (size_t)kmsg.msg_iovlen, SCLDA_DELIMITER, control.str,
-                 SCLDA_DELIMITER, (size_t)kmsg.msg_controllen, SCLDA_DELIMITER,
-                 kmsg.msg_flags, SCLDA_DELIMITER);
 
     if (addr_ok) {
         written +=
