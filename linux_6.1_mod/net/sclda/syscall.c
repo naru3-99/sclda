@@ -421,15 +421,21 @@ int print_sclda_debug(void) {
     struct sclda_iov siov;
     size_t i, written = 0;
 
-    siov.len = 150;
+    siov.len = 200;
     siov.str = kmalloc(siov.len, GFP_KERNEL);
     if (!siov.str) return 0;
 
-    written = snprintf(siov.str, siov.len, "SCLDA_DEBUG ");
+    written = snprintf(siov.str, siov.len, "SCLDA_DEBUG siovls:");
     for (i = 0; i < SCLDA_SCI_NUM; i++)
         written += snprintf(siov.str + written, siov.len - written, "%d,",
                             sclda_siovls_num[i]);
+    written +=
+        snprintf(siov.str + written, siov.len - written, "\nscinfo:");
+    for (i = 0; i < SCLDA_SCI_NUM; i++)
+        written += snprintf(siov.str + written, siov.len - written, "%d,",
+                            sclda_syscallinfo_num[i]);
     printk(KERN_ERR "%s", siov.str);
+
     kfree(siov.str);
     return 0;
 }
