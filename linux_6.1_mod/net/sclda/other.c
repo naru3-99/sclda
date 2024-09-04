@@ -19,8 +19,8 @@
  * MA 02110-1301 USA.
  */
 
-#include <net/sclda.h>
 #include <linux/un.h>
+#include <net/sclda.h>
 
 int sclda_get_current_pid(void) {
     return (int)pid_nr(get_task_pid(current, PIDTYPE_PID));
@@ -30,7 +30,7 @@ long copy_char_from_user_dinamic(char **dst, const char __user *src) {
     long length;
     char *buf;
 
-    if (src == NULL) return -EFAULT;
+    if (!src) return -EFAULT;
 
     length = strnlen_user(src, PATH_MAX);
     if (length <= 0) return -EFAULT;
@@ -73,8 +73,8 @@ static char *escape_control_chars(const char *data, size_t len,
     return escaped_data;
 }
 
-
-struct sclda_iov *copy_userchar_to_siov(const char __user *src, size_t len, size_t *vlen) {
+struct sclda_iov *copy_userchar_to_siov(const char __user *src, size_t len,
+                                        size_t *vlen) {
     long length;
     size_t copy_len, vec_len, copyable, i;
     struct sclda_iov *siov, data;
@@ -99,8 +99,7 @@ struct sclda_iov *copy_userchar_to_siov(const char __user *src, size_t len, size
     for (i = 0; i < vec_len; i++) {
         data.len = min(copy_len - copyable * i, copyable);
         data.str = kmalloc(data.len, GFP_KERNEL);
-        if (!(data.str))
-            goto out_err;
+        if (!(data.str)) goto out_err;
 
         if (copy_from_user(data.str, src + copyable * i, data.len))
             goto free_data;
@@ -206,160 +205,246 @@ int sclda_sockaddr_to_str(struct sockaddr_storage *ss, struct sclda_iov *siov) {
             snprintf(siov->str, siov->len, "unknown: %d", (int)ss->ss_family);
     }
 
-    return (int) written;
+    return (int)written;
 }
 
-int _msgname_to_str(struct user_msghdr *kmsg, char *buf, int buf_size)
-{
-	// msghdrのsockaddrを見極め、重要な情報を抜き出す
-	struct sockaddr_storage address;
-    struct sclda_iov siov;
+static int _msgname_to_str(struct user_msghdr *kmsg, struct sclda_iov *siov) {
+    struct sockaddr_storage ss;
+    int addrlen;
 
-	if (copy_from_user(&address, kmsg->msg_name, kmsg->msg_namelen))
-		return -EFAULT;
+    siov->len = 200;
+    siov->str = kmalloc(siov->len, GFP_KERNEL);
+    if (!siov->str) return -ENOMEM;
 
-    siov.str = buf;
-    siov.len = buf_size;
-    return sclda_sockaddr_to_str(&address, &siov);
+    if (!kmsg->msg_name) goto failed;
+    addrlen = kmsg->msg_namelen;
+    if (!(0 < addrlen && addrlen < sizeof(struct sockaddr_storage)))
+        goto failed;
+    if (copy_from_user(&ss, kmsg->msg_name, addrlen)) goto failed;
+
+    if (sclda_sockaddr_to_str(&ss, &addr) >= 0) goto out;
+
+failed:
+    siov->len = snprintf(siov->str, siov->len, "NULL");
+out:
+    return 0;
 }
 
-int _control_to_str(struct user_msghdr *kmsg, char **buf)
-{
-	// control 文字列の取得
-	// bufの解放は呼び出し元が責任を負う
-	int control_len;
-	char *control_buf;
+static struct sclda_iov *_msgiov_to_str(struct user_msghdr *kmsg,
+                                        size_t *siov_vlen) {
+    int failed = 1;
+    size_t i, j, len, bufsize, written, copy, esclen;
+    // buf for copy iovec
+    struct iovec *iovec_ls;
+    size_t vlen;
+    // buf for returning siov
+    struct sclda_iov *siov_ls, temp;
+    size_t siovlen;
 
-	control_len = kmsg->msg_controllen;
-	control_buf = kmalloc(control_len, GFP_KERNEL);
-	if (!control_buf)
-		return -EFAULT;
+    if (!kmsg->msg_iov) return NULL;
 
-	if (copy_from_user(control_buf, kmsg->msg_control,
-			   kmsg->msg_controllen)) {
-		control_buf[0] = '\0';
-		control_len = 1;
-	}
-	*buf = control_buf;
-	return control_len;
+    vlen = (size_t)kmsg->msg_iovlen;
+    iovec_ls = kmalloc_array(vlen, sizeof(struct iovec), GFP_KERNEL);
+    if (!iovec_ls) return NULL;
+
+    if (copy_from_user(iovec_ls, kmsg->msg_iov, sizeof(struct iovec) * vlen))
+        goto free_iovec_ls;
+
+    bufsize = SCLDA_SCDATA_BUFMAX - 1;
+    siovlen = 0;
+    for (i = 0; i < vlen; i++)
+        siovlen += (iovec_ls[i].iov_len - 1) / bufsize + 1;
+
+    *siov_vlen = siovlen;
+    siov_ls = kmalloc_array(siovlen, sizeof(struct sclda_iov), GFP_KERNEL);
+    if (!siov_ls) goto free_iovec_ls;
+
+    temp.len = 0;
+    temp.str = kmalloc(SCLDA_SCDATA_BUFMAX, GFP_KERNEL);
+    if (!temp.str) goto free_siov_ls;
+
+    j = 0;
+    for (i = 0; i < vlen; i++) {
+        len = iovec_ls[i].iov_len;
+        written = 0;
+        while (len > written) {
+            copy = min(bufsize, len - written);
+            if (copy_from_user(temp.str, iovec_ls[i].iov_base + written,
+                               copy)) {
+                j -= 1;
+                goto free;
+            }
+            written += copy;
+
+            siov_ls[j].str = escape_control_chars(temp.str, copy, &esclen);
+            if (!siov_ls[j].str) goto free;
+
+            memset(temp.str, 0, SCLDA_SCDATA_BUFMAX);
+            j += 1;
+        }
+    }
+    failed = 0;
+
+free:
+    // kfree siov_ls[j].str, where 0 ~ current j, if failed
+    if (failed) {
+        while (j != -1) {
+            kfree(siov_ls[j].str);
+            j -= 1;
+        }
+    }
+    // kfree temp.str
+    kfree(temp.str);
+
+free_siov_ls:
+    // kfree siov_ls, if failed
+    if (failed) kfree(siov_ls);
+
+free_iovec_ls:
+    // kfree iovec_ls
+    kfree(iovec_ls);
+    return failed ? NULL : siov_ls;
 }
 
-int user_msghdr_to_str(const struct user_msghdr __user *umsg,
-		       struct sclda_iov **iov_ls, char *msg_buf, int msg_len)
-{
-	// msgname, iov, controlを取得する
-	int retval = -EFAULT;
-	char *msgname_buf, *control_buf, *msg_ctrl_buf, *iov_buf;
-	int msgname_len, control_len, msg_ctrl_len;
-	size_t iov_len, iov_buf_len;
-	int i, j, k;
-	struct iovec *iov;
-	struct sclda_iov *siov;
-	struct user_msghdr kmsg;
+static int _control_to_str(struct user_msghdr *umsg, struct sclda_iov *siov) {
+    struct cmsghdr *cmsg;
+    size_t i, written = 0;
 
-	// カーネル空間にumsgをコピーする
-	if (copy_from_user(&kmsg, umsg, sizeof(struct user_msghdr)))
-		return -EFAULT;
+    siov->len = 500;
+    siov->str = kmalloc(siov->len, GFP_KERNEL);
+    if (!siov->str) return -ENOMEM;
 
-	// msgnameの情報を取得
-	msgname_len = 200;
-	msgname_buf = kmalloc(msgname_len, GFP_KERNEL);
-	if (!msgname_buf)
-		return -ENOMEM;
-	msgname_len = _msgname_to_str(&kmsg, msgname_buf, msgname_len);
-	if (msgname_len < 0)
-		goto free_msgname;
+    // 最初の制御メッセージを取得
+    for_each_cmsghdr(cmsg, umsg) {
+        // 制御メッセージが有効か確認
+        if (!CMSG_OK(umsg, cmsg)) continue;
+        if (siov->len <= written) return 0;
 
-	// control文字列の取得
-	control_len = _control_to_str(&kmsg, &control_buf);
-	if (control_len <= 0)
-		goto free_msgname;
+        // 制御メッセージのレベルとタイプで分岐処理
+        if (cmsg->cmsg_level == SOL_SOCKET) {
+            switch (cmsg->cmsg_type) {
+                case SCM_RIGHTS: {
+                    // ファイルディスクリプタを受信している場合
+                    int *fd_array = (int *)CMSG_DATA(cmsg);
+                    size_t fd_count =
+                        (cmsg->cmsg_len - sizeof(struct cmsghdr)) / sizeof(int);
 
-	// msgnameとcontrol文字列をひとまとめにする
-	msg_ctrl_len = msgname_len + control_len + 50;
-	msg_ctrl_buf = kmalloc(msg_ctrl_len, GFP_KERNEL);
-	if (!msg_ctrl_buf)
-		goto free_control;
-	msg_ctrl_len = snprintf(msg_ctrl_buf, msg_ctrl_len, "%u%c%s%c%s",
-				kmsg.msg_flags, SCLDA_DELIMITER, control_buf,
-				SCLDA_DELIMITER, msgname_buf);
+                    written += snprintf(siov->str + written,
+                                        siov->len - written, "fd:");
+                    for (i = 0; i < fd_count; i++)
+                        written +=
+                            snprintf(siov->str + written, siov->len - written,
+                                     "%d,", fd_array[i]);
+                    break;
+                }
+                case SCM_CREDENTIALS: {
+                    // ユーザ資格情報 (credentials) の場合
+                    struct ucred *cred = (struct ucred *)CMSG_DATA(cmsg);
+                    written +=
+                        snprintf(siov->str + written, siov->len - written,
+                                 "cred:pid=%d,uid=%d,gid=%d,", cred->pid,
+                                 cred->uid, cred->gid);
+                    break;
+                }
+                case SCM_SECURITY: {
+                    char *security_label = (char *)CMSG_DATA(cmsg);
+                    size_t label_len = cmsg->cmsg_len - sizeof(struct cmsghdr);
 
-	// sclda_iovの段取り
-	siov = kmalloc_array((size_t)kmsg.msg_iovlen + 1,
-			     sizeof(struct sclda_iov), GFP_KERNEL);
-	if (!siov)
-		goto free_msg_ctrl;
+                    written +=
+                        snprintf(siov->str + written, siov->len - written,
+                                 "sl:%.*s", (int)label_len, security_label);
+                    break;
+                }
+                // 他のソケットレベルの制御メッセージを処理
+                default:
+                    written +=
+                        snprintf(siov->str + written, siov->len - written,
+                                 "Utype:%d", cmsg->cmsg_type);
+                    break;
+            }
+        } else {
+            // 他のプロトコルレベルの制御メッセージの処理
+            written += snprintf(siov->str + written, siov->len - written,
+                                "Ulevel:%d", cmsg->cmsg_level);
+        }
+    }
+    return 0;
+}
 
-	// iovの取得
-	// コピーするための配列を段取り
-	iov = kmalloc_array((size_t)kmsg.msg_iovlen, sizeof(struct iovec),
-			    GFP_KERNEL);
-	if (!iov) {
-		retval = -ENOMEM;
-		goto free_msg_ctrl;
-	}
-	// カーネル空間にiovをコピー・最大サイズを計る
-	iov_buf_len = 1;
-	for (i = 0; i < kmsg.msg_iovlen; i++) {
-		if (copy_from_user(&iov[i], &(kmsg.msg_iov[i]),
-				   sizeof(struct iovec)))
-			goto free_iov;
-		iov_buf_len = (iov_buf_len < iov[i].iov_len) ? iov[i].iov_len :
-							       iov_buf_len;
-	}
-	// 最大の大きさのiov分のバッファをコピーする
-	// 大きすぎるとエラーになる(MAX_RW_COUNT)
-	iov_len = (SCLDA_SCDATA_BUFMAX < iov_buf_len) ? SCLDA_SCDATA_BUFMAX :
-						      iov_buf_len;
-	iov_buf = kmalloc(iov_buf_len + 1, GFP_KERNEL);
-	if (!iov_buf)
-		goto free_iov;
+struct sclda_iov *sclda_user_msghdr_to_str(
+    const struct user_msghdr __user *umsg, size_t *vlen) {
+    struct user_msghdr kmsg;
+    size_t iov_vlen, i, written = 0;
+    struct sclda_iov addr, *iov, control, *all;
+    int addr_ok = 0, control_ok = 0;
 
-	// siovにiovの情報をコピー
-	for (i = 0; i < kmsg.msg_iovlen; i++) {
-		k = i + 1;
-		// strをmallocする
-		iov_len = (SCLDA_SCDATA_BUFMAX < iov[i].iov_len) ?
-				  SCLDA_SCDATA_BUFMAX :
-				  iov[i].iov_len;
-		siov[k].str = kmalloc(iov_len + 1, GFP_KERNEL);
-		if (!siov[k].str) {
-			for (j = 0; j < i; j++)
-				kfree(siov[j + 1].str);
-			goto free_iov_buf;
-		}
-		// iov_baseをカーネルにコピー
-		memset(iov_buf, 0, iov_buf_len);
-		if (copy_from_user(iov_buf, iov[i].iov_base, iov_len)) {
-			// 失敗した場合は、エラーメッセージを入れとく
-			iov_len = snprintf(iov_buf, iov_len, "ERROR");
-		}
-		// 文字列をコピーする
-		siov[k].len = snprintf(siov[k].str, iov_len, "%s", iov_buf);
-	}
-	// siovの初期にmsg_ctrlの情報を追加
-	siov[0].str = kmalloc(msg_ctrl_len + msg_len + 10, GFP_KERNEL);
-	if (!siov[0].str) {
-		for (i = 0; i < kmsg.msg_iovlen; i++)
-			kfree(siov[i + 1].str);
-		goto free_iov_buf;
-	}
-	siov[0].len = snprintf(siov[0].str, msg_ctrl_len + msg_len + 10,
-			       "%s%c%s", msg_buf, SCLDA_DELIMITER,
-			       msg_ctrl_buf);
+    if (!umsg) return NULL;
+    if (copy_from_user(&kmsg, umsg, sizeof(struct user_msghdr))) return NULL;
 
-	*iov_ls = siov;
-	retval = (int)kmsg.msg_iovlen + 1;
+    // msg_iov
+    iov = _msgiov_to_str(&kmsg, &iov_vlen);
+    if (!iov) return NULL;
+    // msgname
+    if (!_msgname_to_str(&kmsg, &addr)) addr_ok = 1;
+    // control
+    if (!_control_to_str(&kmsg, &control)) control_ok = 1;
 
-free_iov_buf:
-	kfree(iov_buf);
-free_iov:
-	kfree(iov);
-free_msg_ctrl:
-	kfree(msg_ctrl_buf);
-free_control:
-	kfree(control_buf);
-free_msgname:
-	kfree(msgname_buf);
-	return retval;
+    *vlen = iov_vlen + 2;
+    all = kmalloc_array(iov_vlen + 2, sizeof(sclda_iov), GFP_KERNEL);
+    if (!all) return NULL;
+    all[1].len = addr.len + control.len + 100;
+    all[1].str = kmalloc(all[1].len, GFP_KERNEL);
+    if (!all[1].str) goto free;
+
+    written +=
+        snprintf(all[1].str + written, all[1].len - written,
+                 "[%s]%c%d%c"
+                 "%zu%c[%s]"
+                 "%c%zu%c"
+                 "%u%c",
+                 addr.str, SCLDA_DELIMITER, kmsg.msg_namelen, SCLDA_DELIMITER,
+                 (size_t)kmsg.msg_iovlen, SCLDA_DELIMITER, control.str,
+                 SCLDA_DELIMITER, (size_t)kmsg.msg_controllen, SCLDA_DELIMITER,
+                 kmsg.msg_flags, SCLDA_DELIMITER);
+
+    if (addr_ok) {
+        written +=
+            snprintf(all[1].str + written, all[1].len - written,
+                     "[%s]%c%d%c"
+                     "%zu%c",
+                     addr.str, SCLDA_DELIMITER, kmsg.msg_namelen,
+                     SCLDA_DELIMITER, (size_t)kmsg.msg_iovlen, SCLDA_DELIMITER);
+        kfree(addr.str);
+    } else {
+        written += snprintf(all[1].str + written, all[1].len - written,
+                            "NULL%c%d%c"
+                            "%zu%c",
+                            SCLDA_DELIMITER, kmsg.msg_namelen, SCLDA_DELIMITER,
+                            (size_t)kmsg.msg_iovlen, SCLDA_DELIMITER);
+    }
+
+    if (control_ok) {
+        written +=
+            snprintf(all[1].str + written, all[1].len - written,
+                     "[%s]%c%zu"
+                     "%c%u%c",
+                     control.str, SCLDA_DELIMITER, (size_t)kmsg.msg_controllen,
+                     SCLDA_DELIMITER, kmsg.msg_flags, SCLDA_DELIMITER);
+        kfree(control.str);
+    } else {
+        written += snprintf(all[1].str + written, all[1].len - written,
+                            "NULL%c%zu"
+                            "%c%u%c",
+                            SCLDA_DELIMITER, (size_t)kmsg.msg_controllen,
+                            SCLDA_DELIMITER, kmsg.msg_flags, SCLDA_DELIMITER);
+    }
+    all[1].len = written;
+
+    for (i = 0; i < vlen; i++) {
+        all[i + 2].str = iov[i].str;
+        all[i + 2].len = iov[i].len;
+        kfree(iov[i].str);
+    }
+    kfree(iov);
+    return all;
 }

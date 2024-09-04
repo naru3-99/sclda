@@ -3139,36 +3139,32 @@ out:
 }
 
 SYSCALL_DEFINE3(sendmsg, int, fd, struct user_msghdr __user *, msg,
-		unsigned int, flags)
-{
-	long retval;
-	char *msg_buf;
-	int msg_len = 120;
-	int ret;
-	struct sclda_iov *iov_ls;
+                unsigned int, flags) {
+    long retval;
+    struct sclda_iov *siov_ls, siov;
+    size_t vlen, written;
 
-	// システムコール呼び出し
-	retval = __sys_sendmsg(fd, msg, flags, true);
-	if (!is_sclda_allsend_fin())
-		return retval;
+    retval = __sys_sendmsg(fd, msg, flags, true);
+    if (!is_sclda_allsend_fin()) return retval;
 
-	// 取得が簡単な情報だけ先に取得
-	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		return retval;
-	msg_len = snprintf(msg_buf, msg_len, "46%c%ld%c%d%c%u", SCLDA_DELIMITER,
-			   retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, flags);
+    siov.len = 100;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+    written = snprintf(siov.str, siov.len, "46%c%ld%c%d%c%u", SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, flags);
 
-	// ここでmsghdrの情報を追加する
-	ret = user_msghdr_to_str(msg, &iov_ls, msg_buf, msg_len);
-	if (ret < 0) {
-		// 失敗時は呼び出されたことだけ送信する
-		sclda_send_syscall_info(msg_buf, msg_len);
-		return retval;
-	}
-	sclda_send_syscall_info2(iov_ls, ret);
-	kfree(msg_buf);
-	return retval;
+    siov_ls = sclda_user_msghdr_to_str(msg, &vlen);
+    if (!siov_ls) goto failed;
+
+    siov_ls[0].str = siov.str;
+    siov_ls[0].len = written;
+    sclda_send_syscall_info2(siov_ls, vlen);
+    return retval;
+failed:
+    written += snprintf(siov.str + written, siov.len - written, "%c[NULL]",
+                        SCLDA_DELIMITER);
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
 
 /*
@@ -3377,35 +3373,31 @@ out:
 SYSCALL_DEFINE3(recvmsg, int, fd, struct user_msghdr __user *, msg,
 		unsigned int, flags)
 {
-	long retval;
-	char *msg_buf;
-	int msg_len = 120;
-	int ret;
-	struct sclda_iov *iov_ls;
+    long retval;
+    struct sclda_iov *siov_ls, siov;
+    size_t vlen, written;
 
-	// システムコール呼び出し
 	retval = __sys_recvmsg(fd, msg, flags, true);
-	if (!is_sclda_allsend_fin())
-		return retval;
+    if (!is_sclda_allsend_fin()) return retval;
 
-	// 取得が簡単な情報だけ先に取得
-	msg_buf = kmalloc(msg_len, GFP_KERNEL);
-	if (!msg_buf)
-		return retval;
-	msg_len = snprintf(msg_buf, msg_len, "47%c%ld%c%d%c%u", SCLDA_DELIMITER,
-			   retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, flags);
+    siov.len = 100;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+    written = snprintf(siov.str, siov.len, "47%c%ld%c%d%c%u", SCLDA_DELIMITER,
+                       retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, flags);
 
-	// ここでmsghdrの情報を追加する
-	ret = user_msghdr_to_str(msg, &iov_ls, msg_buf, msg_len);
-	if (ret < 0) {
-		// 失敗時は呼び出されたことだけ送信する
-		sclda_send_syscall_info(msg_buf, msg_len);
-		return retval;
-	}
-	sclda_send_syscall_info2(iov_ls, ret);
+    siov_ls = sclda_user_msghdr_to_str(msg, &vlen);
+    if (!siov_ls) goto failed;
 
-	kfree(msg_buf);
-	return retval;
+    siov_ls[0].str = siov.str;
+    siov_ls[0].len = written;
+    sclda_send_syscall_info2(siov_ls, vlen);
+    return retval;
+failed:
+    written += snprintf(siov.str + written, siov.len - written, "%c[NULL]",
+                        SCLDA_DELIMITER);
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
 
 /*
