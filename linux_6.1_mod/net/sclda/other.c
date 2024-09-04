@@ -223,7 +223,7 @@ static char *_msgname_to_str(struct user_msghdr *kmsg, size_t *len) {
         goto failed;
     if (copy_from_user(&ss, kmsg->msg_name, addrlen)) goto failed;
 
-    if (sclda_sockaddr_to_str(&ss, siov) >= 0) goto out;
+    if (sclda_sockaddr_to_str(&ss, &siov) >= 0) goto out;
 
 failed:
     siov.len = snprintf(siov.str, siov.len, "NULL");
