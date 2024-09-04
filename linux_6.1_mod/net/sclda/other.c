@@ -314,7 +314,7 @@ static char *_control_to_str(struct user_msghdr *umsg, size_t *len) {
     size_t i, written = 0;
     struct sclda_iov siov;
 
-    control_buf = kmalloc(umsg->msg_controllen,GFP_KERNEL);
+    control_buf = kmalloc(umsg->msg_controllen, GFP_KERNEL);
     if (!control_buf) return NULL;
 
     if (copy_from_user(control_buf, umsg->msg_control, umsg->msg_controllen))
@@ -340,8 +340,8 @@ static char *_control_to_str(struct user_msghdr *umsg, size_t *len) {
                     size_t fd_count =
                         (cmsg->cmsg_len - sizeof(struct cmsghdr)) / sizeof(int);
 
-                    written += snprintf(siov.str + written,
-                                        siov.len - written, "fd:");
+                    written +=
+                        snprintf(siov.str + written, siov.len - written, "fd:");
                     for (i = 0; i < fd_count; i++)
                         written +=
                             snprintf(siov.str + written, siov.len - written,
@@ -351,10 +351,9 @@ static char *_control_to_str(struct user_msghdr *umsg, size_t *len) {
                 case SCM_CREDENTIALS: {
                     // ユーザ資格情報 (credentials) の場合
                     struct ucred *cred = (struct ucred *)CMSG_DATA(cmsg);
-                    written +=
-                        snprintf(siov.str + written, siov.len - written,
-                                 "cred:pid=%d,uid=%d,gid=%d,", cred->pid,
-                                 cred->uid, cred->gid);
+                    written += snprintf(siov.str + written, siov.len - written,
+                                        "cred:pid=%d,uid=%d,gid=%d,", cred->pid,
+                                        cred->uid, cred->gid);
                     break;
                 }
                 case SCM_SECURITY: {
@@ -368,9 +367,8 @@ static char *_control_to_str(struct user_msghdr *umsg, size_t *len) {
                 }
                 // 他のソケットレベルの制御メッセージを処理
                 default:
-                    written +=
-                        snprintf(siov.str + written, siov.len - written,
-                                 "Utype:%d", cmsg->cmsg_type);
+                    written += snprintf(siov.str + written, siov.len - written,
+                                        "Utype:%d", cmsg->cmsg_type);
                     break;
             }
         } else {
@@ -388,7 +386,7 @@ out:
 struct sclda_iov *sclda_user_msghdr_to_str(
     const struct user_msghdr __user *umsg, size_t *vlen) {
     struct user_msghdr kmsg;
-    size_t iov_vlen, i, written = 0;
+    size_t iov_vlen, all_vlen, i, j, written = 0;
     struct sclda_iov addr, *iov, control, *all;
     int addr_ok = 0, control_ok = 0;
 
@@ -405,8 +403,13 @@ struct sclda_iov *sclda_user_msghdr_to_str(
     control.str = _control_to_str(&kmsg, &control.len);
     if (control.str) control_ok = 1;
 
-    *vlen = iov_vlen + 2;
-    all = kmalloc_array(iov_vlen + 2, sizeof(struct sclda_iov), GFP_KERNEL);
+    all_vlen = 2;  // controlなど+最初はscname,retvalなど
+    for (i = 0; i < iov_vlen; i++) {
+        if (!iov[i].str && iov[i].len != 0) all_vlen += 1;
+    }
+
+    *vlen = all_vlen;
+    all = kmalloc_array(all_vlen, sizeof(struct sclda_iov), GFP_KERNEL);
     if (!all) goto free;
     all[1].len = addr.len + control.len + 100;
     all[1].str = kmalloc(all[1].len, GFP_KERNEL);
@@ -456,16 +459,20 @@ struct sclda_iov *sclda_user_msghdr_to_str(
     }
     all[1].len = written;
 
-    for (i = 0; i < iov_vlen; i++) {
-        all[i + 2].str = iov[i].str;
-        all[i + 2].len = iov[i].len;
+    i = 0;
+    j = 2;
+    while (i < iov_vlen) {
+        if (!(!iov[i].str && iov[i].len != 0)) {
+            i += 1;
+            continue;
+        }
+        all[j].str = iov[i].str;
+        all[j].len = iov[i].len;
         kfree(iov[i].str);
+        i += 1;
+        j += 1;
     }
     kfree(iov);
-
-    // for debug
-    for (i = 0; i < iov_vlen + 2; i++) printk(KERN_ERR "%s", all[i].str);
-
     return all;
 
 free1:
