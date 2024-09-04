@@ -385,7 +385,7 @@ out:
 }
 
 struct sclda_iov *sclda_user_msghdr_to_str(
-    const struct user_msghdr __user *umsg, size_t *vlen) {
+    const struct user_msghdr __user *umsg, size_t *vlen2) {
     struct user_msghdr kmsg;
     struct iovec *iovec_ls;
     char msg[1000];
@@ -394,14 +394,14 @@ struct sclda_iov *sclda_user_msghdr_to_str(
     if (!umsg) return NULL;
     if (copy_from_user(&kmsg, umsg, sizeof(struct user_msghdr))) return NULL;
 
-    vlen = (size_t)kmsg->msg_iovlen;
+    vlen = (size_t)kmsg.msg_iovlen;
     written +=
         snprintf(msg + written, 1000 - written, "iovlen =%zu, len =", vlen);
 
     iovec_ls = kmalloc_array(vlen, sizeof(struct iovec), GFP_KERNEL);
     if (!iovec_ls) return NULL;
 
-    if (copy_from_user(iovec_ls, kmsg->msg_iov, sizeof(struct iovec) * vlen))
+    if (copy_from_user(iovec_ls, kmsg.msg_iov, sizeof(struct iovec) * vlen))
         return NULL;
 
     for (i = 0; i < kmsg.msg_iovlen; i++)
