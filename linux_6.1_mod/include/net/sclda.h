@@ -66,7 +66,7 @@
 // bufsize for utime, PID
 #define SCLDA_PID_CLOCK_SIZE ((int)50)
 // max size of the buffer
-#define SCLDA_SCDATA_BUFMAX ((int)2048)
+#define SCLDA_SCDATA_BUFMAX ((int)8192)
 // PID_PPID_COMM msg buffer size
 #define SCLDA_PID_PPID_BUFSIZE ((int)50)
 
