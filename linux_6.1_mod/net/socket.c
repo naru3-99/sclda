@@ -3569,13 +3569,52 @@ int __sys_recvmmsg(int fd, struct mmsghdr __user *mmsg, unsigned int vlen,
 }
 
 SYSCALL_DEFINE5(recvmmsg, int, fd, struct mmsghdr __user *, mmsg, unsigned int,
-		vlen, unsigned int, flags, struct __kernel_timespec __user *,
-		timeout)
-{
-	if (flags & MSG_CMSG_COMPAT)
-		return -EINVAL;
+                vlen, unsigned int, flags, struct __kernel_timespec __user *,
+                timeout) {
+    int retval;
+	struct __kerenl_timespec kts;
+    struct sclda_iov siov, *siov_ls;
+    size_t vec_len, written;
 
-	return __sys_recvmmsg(fd, mmsg, vlen, flags, timeout, NULL);
+    if (flags & MSG_CMSG_COMPAT) {
+        retval = -EINVAL;
+    } else {
+        retval = __sys_recvmmsg(fd, mmsg, vlen, flags, timeout, NULL);
+    }
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 200;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+    written = snprintf(siov.str, siov.len,
+                       "299%c%d%c%d"
+                       "%c%u%c%u",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+                       SCLDA_DELIMITER, vlen, SCLDA_DELIMITER, flags);
+
+	if (siov.len > written){
+		if (timeout && !copy_from_user(&kts, timeout, sizeof(kts))) {
+			written += snprintf(siov.str + written, siov.len - written,
+								"%c[%lld,%ld]", SCLDA_DELIMITER,
+								(long long)kts.tv_sec, kts.tv_nsec);
+		} else {
+			written += snprintf(siov.str + written, siov.len - written,
+								"%c[NULL,NULL]", SCLDA_DELIMITER);
+		}
+	}
+
+    siov_ls = sclda_user_mmsghdr_to_str(mmsg, vlen, &vec_len);
+    if (!siov_ls) goto failed;
+
+    siov_ls[0].str = siov.str;
+    siov_ls[0].len = written;
+    sclda_send_syscall_info2(siov_ls, vec_len);
+    return retval;
+failed:
+    written += snprintf(siov.str + written, siov.len - written, "%c[NULL]",
+                        SCLDA_DELIMITER);
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
 
 #ifdef CONFIG_COMPAT_32BIT_TIME

@@ -213,6 +213,7 @@ dup3,292,retval,old_fd,new_fd,flags,,,,,,,,,,,,,,
 pipe,293,retval,fildes,flags
 preadv,295,retval,fd,vlen,[pos,pos_l,pos_h],vec
 pwritev,296,retval,fd,vlen,[pos,pos_l,pos_h],vec
+recvmmsg,299,retval,fd,vlen,flags,timespec.[tv_sec,tv_nsec],mmsghdr1,mmsghdr2,...
 prlimit64,302,retval,pid,resource,old_rlim_cur,old_rlim_max,new_rlim_cur,new_rlim_max
 sendmmsg,307,retval,fd,vlen,flags,mmsghdr1,mmsghdr2,...
 renameat2,316,retval,olddfd,newdfd,flags,oldname,newname

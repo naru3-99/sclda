@@ -103,11 +103,11 @@ struct sclda_iov *copy_userchar_to_siov(const char __user *src, size_t len,
 
     for (i = 0; i < vec_len; i++) {
         to_copy = min(copy_len - copyable * i, copyable);
-        if (copy_from_user(data.str, src + copyable * i, to_copy))
+        if (copy_from_user(buffer, src + copyable * i, to_copy))
             goto free_siov_ls;
 
         siov[i + 1].str =
-            escape_control_chars(data.str, to_copy, &(siov[i + 1].len));
+            escape_control_chars(buffer, to_copy, &(siov[i + 1].len));
         if (!(siov[i + 1].str)) goto free_siov_ls;
         memset(buffer, 0, copyable);
     }
