@@ -502,7 +502,8 @@ struct sclda_iov *sclda_user_mmsghdr_to_str(const struct mmsghdr __user *umsg,
     struct sclda_iov_ls head, *tail, *temp, *curptr;
 
     // set
-    if (!umsg) return NULL;
+    if (!umsg || vlen == 0) return NULL;
+    head.next = NULL;
     tail = head.next;
     if (vlen > UIO_MAXIOV) vlen = UIO_MAXIOV;
 
@@ -537,7 +538,6 @@ struct sclda_iov *sclda_user_mmsghdr_to_str(const struct mmsghdr __user *umsg,
         memset(&kmsg, 0, sizeof(kmsg));
         ++datagrams;
         ++entry;
-        if (!entry) break;
         cond_resched();
     }
 
