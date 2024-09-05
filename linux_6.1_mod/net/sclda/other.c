@@ -327,6 +327,9 @@ static char *_control_to_str(struct user_msghdr *umsg, size_t *len) {
     msg_sys.msg_name = &address;
     if (__copy_msghdr(&msg_sys, umsg, NULL)) return NULL;
 
+    printk(KERN_ERR "msg_sys.msg_controllen= %zu", msg_sys.msg_controllen);
+    if (msg_sys.msg_controllen > INT_MAX) return NULL;
+
     // get data
     siov.len = 500;
     siov.str = kmalloc(siov.len, GFP_KERNEL);
