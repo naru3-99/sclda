@@ -336,7 +336,7 @@ static char *_control_to_str(struct user_msghdr *umsg, size_t *len) {
     // 最初の制御メッセージを取得
     for_each_cmsghdr(cmsg, &msg_sys) {
         // 制御メッセージが有効か確認
-        if (!CMSG_OK(&msg_sys, cmsg)) continue;
+        if (!CMSG_OK(&msg_sys, cmsg)) goto out;
         if (siov.len <= written) goto out;
 
         // 制御メッセージのレベルとタイプで分岐処理
