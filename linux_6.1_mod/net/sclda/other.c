@@ -316,7 +316,7 @@ free_iovec_ls:
 static char *_control_to_str(struct user_msghdr *umsg, size_t *len) {
     // for copy_msghdr_from_user
     struct msghdr msg_sys;
-    struct sockaddr_strage address;
+    struct sockaddr_storage address;
 
     // other
     struct cmsghdr *cmsg;
