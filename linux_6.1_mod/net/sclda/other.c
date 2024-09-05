@@ -524,18 +524,20 @@ struct sclda_iov *sclda_user_mmsghdr_to_str(const struct mmsghdr __user *umsg,
                                 kmsg.msg_len);
 
         for (j = 1; j < veclen; j++) {
-            temp = kmalloc(sizeof(struct sclda_iov_ls), GFP_KERNEL);
-            if (!temp) goto free_spls;
+            printk(KERN_ERR "sclda j= %d, siov_ls[j].str = ", j,
+                   siov_ls[j].str);
+            // temp = kmalloc(sizeof(struct sclda_iov_ls), GFP_KERNEL);
+            // if (!temp) goto free_spls;
 
-            temp->next = NULL;
-            temp->data.len = siov_ls[j].len;
-            temp->data.str = siov_ls[j].str;
+            // temp->next = NULL;
+            // temp->data.len = siov_ls[j].len;
+            // temp->data.str = siov_ls[j].str;
 
-            alllen += 1;
-            tail->next = temp;
-            tail = tail->next;
+            // alllen += 1;
+            // tail->next = temp;
+            // tail = tail->next;
         }
-        memset(&kmsg, 0, sizeof(kmsg));
+        memset(&kmsg, 0, sizeof(struct mmsghdr));
         ++datagrams;
         ++entry;
     }
