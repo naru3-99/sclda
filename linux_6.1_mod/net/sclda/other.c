@@ -75,10 +75,14 @@ static char *escape_control_chars(const char *data, size_t len,
 
 struct sclda_iov *copy_userchar_to_siov(const char __user *src, size_t len,
                                         size_t *vlen) {
+    // var
+    int failed = 1;
     long length;
-    size_t copy_len, vec_len, copyable, i;
-    struct sclda_iov *siov, data;
+    size_t copy_len, vec_len, copyable, to_copy, i;
+    struct sclda_iov *siov;
+    char *buffer;
 
+    // set
     if (src == NULL) return NULL;
 
     if (len == 0) {
@@ -86,39 +90,40 @@ struct sclda_iov *copy_userchar_to_siov(const char __user *src, size_t len,
         if (length <= 0) return NULL;
         copy_len = (size_t)length;
     } else {
+        if (len >= INT_MAX) len = INT_MAX - 1;
         copy_len = len;
     }
 
     copyable = SCLDA_SCDATA_BUFMAX - 1;
+    buffer = kmalloc(copyable, GFP_KERNEL);
+    if (!buffer) return NULL;
 
-    vec_len = copy_len / copyable + 1;
+    vec_len = (copy_len - 1) / copyable + 1;
     *vlen = vec_len;
+
     siov = kmalloc_array(vec_len + 1, sizeof(struct sclda_iov), GFP_KERNEL);
-    if (!siov) return NULL;
+    if (!siov) goto free_buffer;
 
     for (i = 0; i < vec_len; i++) {
-        data.len = min(copy_len - copyable * i, copyable);
-        data.str = kmalloc(data.len, GFP_KERNEL);
-        if (!(data.str)) goto out_err;
+        to_copy = min(copy_len - copyable * i, copyable);
+        if (copy_from_user(data.str, src + copyable * i, to_copy))
+            goto free_siov_ls;
 
-        if (copy_from_user(data.str, src + copyable * i, data.len))
-            goto free_data;
         siov[i + 1].str =
-            escape_control_chars(data.str, data.len, &(siov[i + 1].len));
-
-        if (!(siov[i + 1].str)) goto free_data;
-        kfree(data.str);
-        data.str = NULL;
+            escape_control_chars(data.str, to_copy, &(siov[i + 1].len));
+        if (!(siov[i + 1].str)) goto free_siov_ls;
+        memset(buffer, 0, copyable);
     }
+    failed = 0;
 
-    return siov;
-
-free_data:
-    kfree(data.str);
-out_err:
-    while (i > 0) kfree(siov[--i].str);
-    kfree(siov);
-    return NULL;
+free_siov_ls:
+    if (failed) {
+        while (i > 0) kfree(siov[--i].str);
+        kfree(siov);
+    }
+free_buffer:
+    kfree(buffer);
+    return failed ? NULL : siov;
 }
 
 int kernel_timespec_to_str(const struct __kernel_timespec __user *uptr,
