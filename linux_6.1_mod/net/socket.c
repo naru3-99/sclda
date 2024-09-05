@@ -3572,7 +3572,7 @@ SYSCALL_DEFINE5(recvmmsg, int, fd, struct mmsghdr __user *, mmsg, unsigned int,
                 vlen, unsigned int, flags, struct __kernel_timespec __user *,
                 timeout) {
     int retval;
-	struct __kerenl_timespec kts;
+	struct __kernel_timespec kts;
     struct sclda_iov siov, *siov_ls;
     size_t vec_len, written;
 
@@ -3595,7 +3595,7 @@ SYSCALL_DEFINE5(recvmmsg, int, fd, struct mmsghdr __user *, mmsg, unsigned int,
 	if (siov.len > written){
 		if (timeout && !copy_from_user(&kts, timeout, sizeof(kts))) {
 			written += snprintf(siov.str + written, siov.len - written,
-								"%c[%lld,%ld]", SCLDA_DELIMITER,
+								"%c[%lld,%lld]", SCLDA_DELIMITER,
 								(long long)kts.tv_sec, kts.tv_nsec);
 		} else {
 			written += snprintf(siov.str + written, siov.len - written,
