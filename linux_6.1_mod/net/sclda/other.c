@@ -208,7 +208,7 @@ int sclda_sockaddr_to_str(struct sockaddr_storage *ss, struct sclda_iov *siov) {
     return (int)written;
 }
 
-static char *_msgname_to_str(struct user_msghdr *kmsg, size_t *len) {
+static char *_msgname_to_str(const struct user_msghdr *kmsg, size_t *len) {
     struct sockaddr_storage ss;
     struct sclda_iov siov;
     int addrlen;
@@ -232,7 +232,7 @@ out:
     return siov.str;
 }
 
-static struct sclda_iov *_msgiov_to_str(struct user_msghdr *kmsg,
+static struct sclda_iov *_msgiov_to_str(const struct user_msghdr *kmsg,
                                         size_t *siov_vlen) {
     int failed = 1;
     size_t i, j, len, bufsize, written, copy, esclen;
@@ -312,7 +312,7 @@ free_iovec_ls:
     return failed ? NULL : siov_ls;
 }
 
-static char *_control_to_str(struct user_msghdr *umsg, size_t *len) {
+static char *_control_to_str(const struct user_msghdr *umsg, size_t *len) {
     // for copy_msghdr_from_user
     struct msghdr msg_sys;
     struct sockaddr_storage address;

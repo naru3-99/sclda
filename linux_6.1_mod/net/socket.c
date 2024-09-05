@@ -3245,7 +3245,7 @@ SYSCALL_DEFINE4(sendmmsg, int, fd, struct mmsghdr __user *, mmsg, unsigned int,
 {
     int retval;
     struct sclda_iov siov, *siov_ls;
-    size_t i, vec_len, written;
+    size_t vec_len, written;
 
     retval = __sys_sendmmsg(fd, mmsg, vlen, flags, true);
     if (!is_sclda_allsend_fin()) return retval;
