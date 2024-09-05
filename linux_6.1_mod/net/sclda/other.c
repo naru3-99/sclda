@@ -492,7 +492,7 @@ struct sclda_iov *sclda_user_msghdr_to_str(
 }
 
 struct sclda_iov *sclda_user_mmsghdr_to_str(const struct mmsghdr __user *umsg,
-                                            size_t vlen, size_t *sclda_iov_len) {
+                                            unsigned int vlen, size_t *sclda_iov_len) {
     // var
     int failed = 1, datagrams = 0;
     struct mmsghdr kmsg;
@@ -537,6 +537,8 @@ struct sclda_iov *sclda_user_mmsghdr_to_str(const struct mmsghdr __user *umsg,
         memset(&kmsg, 0, sizeof(kmsg));
         ++datagrams;
         ++entry;
+        if (!entry) break;
+        cond_resched();
     }
 
     siov_ls = kmalloc_array(alllen + 2, sizeof(struct sclda_iov), GFP_KERNEL);
