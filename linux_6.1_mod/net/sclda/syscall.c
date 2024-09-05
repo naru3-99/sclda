@@ -402,7 +402,9 @@ int sclda_sendall_on_reboot(void) {
 
     // すべての残っている情報を送信する
     for (i = 0; i < SCLDA_SCI_NUM; i++) {
-        if (sclda_syscallinfo_num[i] == 0) continue;
+        if (sclda_syscallinfo_num[i] == 0 && sclda_siovls_num[i] == 0) continue;
+        // sclda_sendall_siovlsがロックしている可能性があるため
+        while(mutex_is_locked(&sclda_siov_mutex[i]));
         scinfo_to_siov(i, 0);
         sclda_sendall_siovls(i);
     }
