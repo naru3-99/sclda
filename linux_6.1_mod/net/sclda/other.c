@@ -512,8 +512,7 @@ struct sclda_iov *sclda_user_mmsghdr_to_str(const struct mmsghdr __user *umsg,
     written = snprintf(siov.str, siov.len, "[");
 
     for (i = 0; i < vlen; i++) {
-        if (copy_from_user(&kmsg, umsg + sizeof(struct mmsghdr) * i,
-                           sizeof(struct mmsghdr)))
+        if (copy_from_user(&kmsg, umsg + i, sizeof(struct mmsghdr)))
             goto free_spls;
         siov_ls = kernel_msghdr_to_str(&kmsg.msg_hdr, &veclen);
 
