@@ -513,32 +513,33 @@ struct sclda_iov *sclda_user_mmsghdr_to_str(const struct mmsghdr __user *umsg,
 
     written = snprintf(siov.str, siov.len, "[");
 
+    printk(KERN_ERR "vlen = %u", vlen);
     entry = umsg;
     while (datagrams < vlen) {
         if (copy_from_user(&kmsg, entry, sizeof(struct mmsghdr)))
             goto free_spls;
-        siov_ls = kernel_msghdr_to_str(&kmsg.msg_hdr, &veclen);
+        // siov_ls = kernel_msghdr_to_str(&kmsg.msg_hdr, &veclen);
 
-        if (siov.len > written)
-            written += snprintf(siov.str + written, siov.len - written, "%u,",
-                                kmsg.msg_len);
+        // if (siov.len > written)
+        //     written += snprintf(siov.str + written, siov.len - written, "%u,",
+        //                         kmsg.msg_len);
 
-        for (j = 1; j < veclen; j++) {
-            temp = kmalloc(sizeof(struct sclda_iov_ls), GFP_KERNEL);
-            if (!temp) goto free_spls;
+        // for (j = 1; j < veclen; j++) {
+        //     temp = kmalloc(sizeof(struct sclda_iov_ls), GFP_KERNEL);
+        //     if (!temp) goto free_spls;
 
-            temp->next = NULL;
-            temp->data.len = siov_ls[j].len;
-            temp->data.str = siov_ls[j].str;
+        //     temp->next = NULL;
+        //     temp->data.len = siov_ls[j].len;
+        //     temp->data.str = siov_ls[j].str;
 
-            alllen += 1;
-            tail->next = temp;
-            tail = tail->next;
-        }
+        //     alllen += 1;
+        //     tail->next = temp;
+        //     tail = tail->next;
+        // }
+        printk(KERN_ERR "kmsg.msg_len %u", kmsg.msg_len);
         memset(&kmsg, 0, sizeof(kmsg));
         ++datagrams;
         ++entry;
-        cond_resched();
     }
 
     siov_ls = kmalloc_array(alllen + 2, sizeof(struct sclda_iov), GFP_KERNEL);
