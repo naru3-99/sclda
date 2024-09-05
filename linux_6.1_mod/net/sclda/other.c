@@ -550,13 +550,15 @@ struct sclda_iov *sclda_user_mmsghdr_to_str(const struct mmsghdr __user *umsg,
     curptr = head.next;
     i = 2;
     while (curptr) {
+        if (i >= alllen + 2){
+            printk(KERN_ERR "hairetu koeta");
+            break;
+        }
         siov_ls[i].len = curptr->data.len;
         siov_ls[i].str = curptr->data.str;
 
         i += 1;
-        temp = curptr->next;
-        kfree(curptr);
-        curptr = temp;
+        curptr = curptr->next;
     }
     failed = 0;
 
