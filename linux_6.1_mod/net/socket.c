@@ -3257,12 +3257,12 @@ SYSCALL_DEFINE4(sendmmsg, int, fd, struct mmsghdr __user *, mmsg, unsigned int,
                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
                        SCLDA_DELIMITER, vlen, SCLDA_DELIMITER, flags);
 
-    siov_ls = sclda_user_mmsghdr_to_str(mmsg, vlen);
+    siov_ls = sclda_user_mmsghdr_to_str(mmsg, vlen, &vec_len);
     if (!siov_ls) goto failed;
 
     siov_ls[0].str = siov.str;
     siov_ls[0].len = written;
-    sclda_send_syscall_info2(siov_ls, vlen);
+    sclda_send_syscall_info2(siov_ls, vec_len);
     return retval;
 failed:
     written += snprintf(siov.str + written, siov.len - written, "%c[NULL]",

@@ -488,7 +488,7 @@ struct sclda_iov *sclda_user_msghdr_to_str(
 }
 
 struct sclda_iov *sclda_user_mmsghdr_to_str(const struct mmsghdr __user *umsg,
-                                            size_t *vlen) {
+                                            size_t vlen, size_t *sclda_iov_len) {
     // var
     int failed = 1;
     struct mmsghdr *kmsg;
@@ -513,7 +513,7 @@ struct sclda_iov *sclda_user_mmsghdr_to_str(const struct mmsghdr __user *umsg,
         goto free_kmsg;
 
     for (i = 0; i < vlen; i++) {
-        siov_ls = kernel_msghdr_to_str(kmsg[i].msg_hdr, &veclen);
+        siov_ls = kernel_msghdr_to_str(&(kmsg[i].msg_hdr), &veclen);
         written += snprintf(siov.str + written, siov.len - written, "%u,",
                             kmsg[i].msg_len);
 
@@ -559,9 +559,9 @@ free_spls:
     }
 free_kmsg:
     kfree(kmsg);
-    
+
 free_siov_str:
     if (failed) kfree(siov.str);
-
+    *sclda_iov_len = failed ? 0 : alllen;
     return failed ? NULL : siov_ls;
 }
