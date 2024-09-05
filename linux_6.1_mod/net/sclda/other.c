@@ -312,7 +312,7 @@ free_iovec_ls:
     return failed ? NULL : siov_ls;
 }
 
-static char *_control_to_str(const struct user_msghdr *umsg, size_t *len) {
+static char *_control_to_str(struct user_msghdr *umsg, size_t *len) {
     // for copy_msghdr_from_user
     struct msghdr msg_sys;
     struct sockaddr_storage address;
