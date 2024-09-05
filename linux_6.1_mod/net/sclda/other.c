@@ -494,8 +494,9 @@ struct sclda_iov *sclda_user_msghdr_to_str(
 struct sclda_iov *sclda_user_mmsghdr_to_str(const struct mmsghdr __user *umsg,
                                             size_t vlen, size_t *sclda_iov_len) {
     // var
-    int failed = 1;
+    int failed = 1, datagrams = 0;
     struct mmsghdr kmsg;
+    struct mmsghdr __user *entry;
     size_t i, j, written, veclen, alllen = 0;
     struct sclda_iov *siov_ls, siov;
     struct sclda_iov_ls head, *tail, *temp, *curptr;
@@ -511,8 +512,9 @@ struct sclda_iov *sclda_user_mmsghdr_to_str(const struct mmsghdr __user *umsg,
 
     written = snprintf(siov.str, siov.len, "[");
 
-    for (i = 0; i < vlen; i++) {
-        if (copy_from_user(&kmsg, umsg + i, sizeof(struct mmsghdr)))
+    entry = umsg;
+    while (datagrams < vlen) {
+        if (copy_from_user(&kmsg, entry, sizeof(struct mmsghdr)))
             goto free_spls;
         siov_ls = kernel_msghdr_to_str(&kmsg.msg_hdr, &veclen);
 
@@ -533,6 +535,8 @@ struct sclda_iov *sclda_user_mmsghdr_to_str(const struct mmsghdr __user *umsg,
             tail = tail->next;
         }
         memset(&kmsg, 0, sizeof(kmsg));
+        ++datagrams;
+        ++entry;
     }
 
     siov_ls = kmalloc_array(alllen + 2, sizeof(struct sclda_iov), GFP_KERNEL);
