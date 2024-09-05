@@ -263,6 +263,7 @@ static struct sclda_iov *_msgiov_to_str(struct user_msghdr *kmsg,
 
     *siov_vlen = siovlen;
     if (siovlen == 0) goto free_iovec_ls;
+
     siov_ls = kmalloc_array(siovlen, sizeof(struct sclda_iov), GFP_KERNEL);
     if (!siov_ls) goto free_iovec_ls;
 
@@ -313,26 +314,28 @@ free_iovec_ls:
 }
 
 static char *_control_to_str(struct user_msghdr *umsg, size_t *len) {
+    // for copy_msghdr_from_user
+    struct msghdr msg_sys;
+    struct sockaddr_strage address;
+
+    // other
     struct cmsghdr *cmsg;
-    void *control_buf;
-    size_t i, written = 0;
     struct sclda_iov siov;
+    size_t i, written = 0;
 
-    control_buf = kmalloc(umsg->msg_controllen, GFP_KERNEL);
-    if (!control_buf) return NULL;
+    // user_msghdr -> msghdr struct
+    msg_sys.msg_name = &address;
+    if (__copy_msghdr(&msg_sys, umsg, NULL)) return NULL;
 
-    if (copy_from_user(control_buf, umsg->msg_control, umsg->msg_controllen))
-        goto out;
-
+    // get data
     siov.len = 500;
     siov.str = kmalloc(siov.len, GFP_KERNEL);
-    if (!siov.str) goto out;
+    if (!siov.str) return NULL;
 
     // 最初の制御メッセージを取得
-    for (cmsg = __CMSG_FIRSTHDR(control_buf, umsg->msg_controllen); cmsg;
-         cmsg = __CMSG_NXTHDR(control_buf, umsg->msg_controllen, cmsg)) {
+    for_each_cmsghdr(cmsg, &msg_sys) {
         // 制御メッセージが有効か確認
-        if (!CMSG_OK(umsg, cmsg)) continue;
+        if (!CMSG_OK(&msg_sys, cmsg)) continue;
         if (siov.len <= written) goto out;
 
         // 制御メッセージのレベルとタイプで分岐処理
@@ -382,7 +385,6 @@ static char *_control_to_str(struct user_msghdr *umsg, size_t *len) {
         }
     }
 out:
-    kfree(control_buf);
     *len = siov.len;
     return siov.str;
 }
