@@ -495,7 +495,7 @@ struct sclda_iov *sclda_user_mmsghdr_to_str(const struct mmsghdr __user *umsg,
                                             size_t vlen, size_t *sclda_iov_len) {
     // var
     int failed = 1;
-    struct mmsghdr *kmsg;
+    struct mmsghdr kmsg;
     size_t i, j, written, veclen, alllen = 0;
     struct sclda_iov *siov_ls, siov;
     struct sclda_iov_ls head, *tail, *temp, *curptr;
@@ -511,16 +511,15 @@ struct sclda_iov *sclda_user_mmsghdr_to_str(const struct mmsghdr __user *umsg,
 
     written = snprintf(siov.str, siov.len, "[");
 
-    kmsg = kmalloc_array(vlen, sizeof(struct mmsghdr), GFP_KERNEL);
-    if (!kmsg) goto free_siov_str;
-    if (copy_from_user(&kmsg, umsg, sizeof(struct user_msghdr) * vlen))
-        goto free_kmsg;
-
     for (i = 0; i < vlen; i++) {
-        siov_ls = kernel_msghdr_to_str(&(kmsg[i].msg_hdr), &veclen);
+        if (copy_from_user(&kmsg, umsg + sizeof(struct user_msghdr) * i,
+                           sizeof(struct user_msghdr)))
+            goto free_spls;
+        siov_ls = kernel_msghdr_to_str(&kmsg.msg_hdr, &veclen);
+
         if (siov.len > written)
             written += snprintf(siov.str + written, siov.len - written, "%u,",
-                                kmsg[i].msg_len);
+                                kmsg.msg_len);
 
         for (j = 1; j < veclen; j++) {
             temp = kmalloc(sizeof(struct sclda_iov_ls), GFP_KERNEL);
@@ -534,6 +533,7 @@ struct sclda_iov *sclda_user_mmsghdr_to_str(const struct mmsghdr __user *umsg,
             tail->next = temp;
             tail = tail->next;
         }
+        memset(&kmsg, 0, sizeof(kmsg));
     }
 
     siov_ls = kmalloc_array(alllen + 2, sizeof(struct sclda_iov), GFP_KERNEL);
@@ -559,11 +559,10 @@ free_spls:
     curptr = head.next;
     while(curptr) {
         temp = curptr->next;
+        if (failed) kfree(curptr->data.str);
         kfree(curptr);
         curptr = temp;
     }
-free_kmsg:
-    kfree(kmsg);
 
 free_siov_str:
     if (failed) kfree(siov.str);
