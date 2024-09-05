@@ -504,7 +504,7 @@ struct sclda_iov *sclda_user_mmsghdr_to_str(const struct mmsghdr __user *umsg,
     // set
     if (!umsg || vlen == 0) return NULL;
     head.next = NULL;
-    tail = head.next;
+    tail = &head;
     if (vlen > UIO_MAXIOV) vlen = UIO_MAXIOV;
 
     siov.len = vlen * 11 + 20;
