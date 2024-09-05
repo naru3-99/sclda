@@ -505,7 +505,7 @@ struct sclda_iov *sclda_user_mmsghdr_to_str(const struct mmsghdr __user *umsg,
     tail = head.next;
     if (vlen > UIO_MAXIOV) vlen = UIO_MAXIOV;
 
-    siov.len = 500;
+    siov.len = vlen * 11 + 20;
     siov.str = kmalloc(siov.len, GFP_KERNEL);
     if (!siov.str) return NULL;
 
@@ -518,8 +518,9 @@ struct sclda_iov *sclda_user_mmsghdr_to_str(const struct mmsghdr __user *umsg,
 
     for (i = 0; i < vlen; i++) {
         siov_ls = kernel_msghdr_to_str(&(kmsg[i].msg_hdr), &veclen);
-        written += snprintf(siov.str + written, siov.len - written, "%u,",
-                            kmsg[i].msg_len);
+        if (siov.len > written)
+            written += snprintf(siov.str + written, siov.len - written, "%u,",
+                                kmsg[i].msg_len);
 
         for (j = 1; j < veclen; j++) {
             temp = kmalloc(sizeof(struct sclda_iov_ls), GFP_KERNEL);
