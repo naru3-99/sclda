@@ -54,10 +54,7 @@ static char *escape_control_chars(const char *data, size_t len,
     unsigned char ch;
 
     escaped_data = kmalloc(estimated_len + 1, GFP_KERNEL);
-    if (!escaped_data) {
-        *new_len = 0;
-        return NULL;
-    }
+    if (!escaped_data) return NULL;
 
     for (i = 0, j = 0; i < len; i++) {
         ch = data[i];
@@ -83,11 +80,11 @@ struct sclda_iov *copy_userchar_to_siov(const char __user *src, size_t len,
     char *buffer;
 
     // set
-    if (src == NULL) return NULL;
+    if (src == NULL) goto out;
 
     if (len == 0) {
         length = strnlen_user(src, PATH_MAX);
-        if (length <= 0) return NULL;
+        if (length <= 0) goto out;
         copy_len = (size_t)length;
     } else {
         if (len >= INT_MAX) len = INT_MAX - 1;
@@ -96,7 +93,7 @@ struct sclda_iov *copy_userchar_to_siov(const char __user *src, size_t len,
 
     copyable = SCLDA_SCDATA_BUFMAX - 1;
     buffer = kmalloc(copyable, GFP_KERNEL);
-    if (!buffer) return NULL;
+    if (!buffer) goto out;
 
     vec_len = (copy_len - 1) / copyable + 1;
     *vlen = vec_len;
@@ -123,6 +120,8 @@ free_siov_ls:
     }
 free_buffer:
     kfree(buffer);
+out:
+    *vlen = failed ? 0 : vec_len + 1;
     return failed ? NULL : siov;
 }
 
