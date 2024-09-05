@@ -3243,7 +3243,32 @@ int __sys_sendmmsg(int fd, struct mmsghdr __user *mmsg, unsigned int vlen,
 SYSCALL_DEFINE4(sendmmsg, int, fd, struct mmsghdr __user *, mmsg, unsigned int,
 		vlen, unsigned int, flags)
 {
-	return __sys_sendmmsg(fd, mmsg, vlen, flags, true);
+    int retval;
+    struct sclda_iov siov, *siov_ls;
+    size_t i, vec_len, written;
+
+    retval = __sys_sendmmsg(fd, mmsg, vlen, flags, true);
+    if (!is_sclda_allsend_fin()) return retval;
+
+    siov.len = 120;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+    written = snprintf(siov.str, siov.len, "307%c%d%c%d%c%u%c%u",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+                       SCLDA_DELIMITER, vlen, SCLDA_DELIMITER, flags);
+
+    siov_ls = sclda_user_mmsghdr_to_str(mmsg, vlen);
+    if (!siov_ls) goto failed;
+
+    siov_ls[0].str = siov.str;
+    siov_ls[0].len = written;
+    sclda_send_syscall_info2(siov_ls, vlen);
+    return retval;
+failed:
+    written += snprintf(siov.str + written, siov.len - written, "%c[NULL]",
+                        SCLDA_DELIMITER);
+    sclda_send_syscall_info(siov.str, written);
+    return retval;
 }
 
 int recvmsg_copy_msghdr(struct msghdr *msg, struct user_msghdr __user *umsg,

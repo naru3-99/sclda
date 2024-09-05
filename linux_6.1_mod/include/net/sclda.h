@@ -154,6 +154,8 @@ struct sclda_iov *copy_userchar_to_siov(const char __user *src, size_t len,
 int sclda_sockaddr_to_str(struct sockaddr_storage *ss, struct sclda_iov *siov);
 struct sclda_iov *sclda_user_msghdr_to_str(
     const struct user_msghdr __user *umsg, size_t *vlen);
+struct sclda_iov *sclda_user_mmsghdr_to_str(const struct mmsghdr __user *umsg,
+                                            size_t *vlen);
 int kernel_timespec_to_str(const struct __kernel_timespec __user *, char *,
                            int);
 #endif  // SCLDA_H

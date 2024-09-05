@@ -214,6 +214,7 @@ pipe,293,retval,fildes,flags
 preadv,295,retval,fd,vlen,[pos,pos_l,pos_h],vec
 pwritev,296,retval,fd,vlen,[pos,pos_l,pos_h],vec
 prlimit64,302,retval,pid,resource,old_rlim_cur,old_rlim_max,new_rlim_cur,new_rlim_max
+sendmmsg,307,retval,fd,vlen,flags,mmsghdr1,mmsghdr2,...
 renameat2,316,retval,olddfd,newdfd,flags,oldname,newname
 getrandom,318,retval,len,flags,ubuf
 execveat,322,retval,flags,filename,[argv...],[envp...]
