@@ -524,7 +524,7 @@ struct sclda_iov *sclda_user_mmsghdr_to_str(const struct mmsghdr __user *umsg,
                                 kmsg.msg_len);
 
         for (j = 1; j < veclen; j++) {
-            printk(KERN_ERR "sclda j= %d, siov_ls[j].str = %s ", j,
+            printk(KERN_ERR "sclda j= %zu, siov_ls[j].str = %s ", j,
                    siov_ls[j].str);
             // temp = kmalloc(sizeof(struct sclda_iov_ls), GFP_KERNEL);
             // if (!temp) goto free_spls;
