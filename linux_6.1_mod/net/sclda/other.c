@@ -390,7 +390,7 @@ out:
     return siov.str;
 }
 
-static struct sclda_iov *kernel_msghdr_to_str(const struct user_msghdr *kmsg,
+static struct sclda_iov *kernel_msghdr_to_str(struct user_msghdr *kmsg,
                                               size_t *vlen) {
     size_t iov_vlen, all_vlen, i, j, written = 0;
     struct sclda_iov addr, *iov, control, *all;
