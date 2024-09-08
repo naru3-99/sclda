@@ -3814,10 +3814,29 @@ static int do_tkill(pid_t tgid, pid_t pid, int sig) {
  *  method solves the problem of threads exiting and PIDs getting reused.
  */
 SYSCALL_DEFINE3(tgkill, pid_t, tgid, pid_t, pid, int, sig) {
-    /* This is only valid for single tasks */
-    if (pid <= 0 || tgid <= 0) return -EINVAL;
+    int retval;
+    struct sclda_iov siov;
 
-    return do_tkill(tgid, pid, sig);
+    /* This is only valid for single tasks */
+    if (pid <= 0 || tgid <= 0) {
+        retval= -EINVAL;
+    }else{
+        retval = do_tkill(tgid, pid, sig);
+    }
+
+    if (!is_sclda_allsend_fin()) return retval;
+    siov.len = 120;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    siov.len = snprintf(siov.str, siov.len,
+                        "234%c%d%c%d"
+                        "%c%d%c%d",
+                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, (int)tgid,
+                        SCLDA_DELIMITER, (int)pid, SCLDA_DELIMITER, sig);
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
 /**
@@ -3828,10 +3847,29 @@ SYSCALL_DEFINE3(tgkill, pid_t, tgid, pid_t, pid, int, sig) {
  *  Send a signal to only one task, even if it's a CLONE_THREAD task.
  */
 SYSCALL_DEFINE2(tkill, pid_t, pid, int, sig) {
-    /* This is only valid for single tasks */
-    if (pid <= 0) return -EINVAL;
+    int retval;
+    struct sclda_iov siov;
 
-    return do_tkill(0, pid, sig);
+    /* This is only valid for single tasks */
+    if (pid <= 0) {
+        retval = -EINVAL;
+    } else {
+        retval = do_tkill(0, pid, sig);
+    }
+
+    if (!is_sclda_allsend_fin()) return retval;
+    siov.len = 120;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!(siov.str)) return retval;
+
+    siov.len = snprintf(siov.str, siov.len,
+                        "200%c%d%c%d"
+                        "%c%d%c%d",
+                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, (int)pid,
+                        SCLDA_DELIMITER, sig);
+
+    sclda_send_syscall_info(siov.str, siov.len);
+    return retval;
 }
 
 static int do_rt_sigqueueinfo(pid_t pid, int sig, kernel_siginfo_t *info) {
