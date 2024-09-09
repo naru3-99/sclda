@@ -792,6 +792,8 @@ SYSCALL_DEFINE3(ioctl, unsigned int, fd, unsigned int, cmd, unsigned long,
     unsigned int argp_u;
     size_t written;
     struct sclda_iov siov;
+    struct inode *inode;
+
 
     retval = sclda_ioctl(fd, cmd, arg);
     if (!is_sclda_allsend_fin()) return retval;
@@ -805,6 +807,8 @@ SYSCALL_DEFINE3(ioctl, unsigned int, fd, unsigned int, cmd, unsigned long,
                        "%c%u",
                        SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
                        SCLDA_DELIMITER, cmd);
+
+    inode = file_inode(fdget(fd).file);
     switch (cmd) {
         case FIOCLEX:
         case FIONCLEX:
