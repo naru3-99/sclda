@@ -788,21 +788,111 @@ out:
 
 SYSCALL_DEFINE3(ioctl, unsigned int, fd, unsigned int, cmd, unsigned long,
                 arg) {
-    int msg_len;
-    char *msg_buf;
-    int retval;
+    int retval, argp_i;
+    unsigned int argp_u;
+    size_t written;
+    struct sclda_iov siov;
 
     retval = sclda_ioctl(fd, cmd, arg);
     if (!is_sclda_allsend_fin()) return retval;
 
-    msg_len = 300;
-    msg_buf = kmalloc(msg_len, GFP_KERNEL);
-    if (!msg_buf) return retval;
+    siov.len = 1000;
+    siov.str = kmalloc(siov.len, GFP_KERNEL);
+    if (!siov.str) return retval;
 
-    msg_len = snprintf(msg_buf, msg_len, "16%c%d%c%u%c%u%c%lu", SCLDA_DELIMITER,
-                       retval, SCLDA_DELIMITER, fd, SCLDA_DELIMITER, cmd,
-                       SCLDA_DELIMITER, arg);
-    sclda_send_syscall_info(msg_buf, msg_len);
+    written = snprintf(siov.str, siov.len,
+                       "16%c%d%c%u"
+                       "%c%u",
+                       SCLDA_DELIMITER, retval, SCLDA_DELIMITER, fd,
+                       SCLDA_DELIMITER, cmd);
+    switch (cmd) {
+        case FIOCLEX:
+        case FIONCLEX:
+        case FIFREEZE:
+        case FITHAW:
+            goto out;
+
+        case FS_IOC_GETFLAGS:
+        case FS_IOC_SETFLAGS:
+            goto argp_u32;
+
+        case FIONBIO:
+        case FIOASYNC:
+            goto argp_int;
+
+        case FIGETBSZ:
+            if (!inode->i_sb->s_blocksize) goto out;
+            goto argp_int;
+
+        case FIONREAD:
+            if (!S_ISREG(inode->i_mode)) goto arg_lu;
+            goto argp_int;
+
+        case FICLONE:
+            goto arg_lu;
+
+
+        case FIOQSIZE:
+            if (S_ISDIR(inode->i_mode) || S_ISREG(inode->i_mode) ||
+                S_ISLNK(inode->i_mode)) {
+                loff_t res = inode_get_bytes(inode);
+                written += snprintf(siov.str + written, siov.len - written,
+                                    "%c%llu", SCLDA_DELIMITER, (long long)res);
+                goto fin_send;
+            }
+            goto out;
+
+        case FS_IOC_FIEMAP:
+        case FICLONERANGE:
+        case FIDEDUPERANGE:
+        case FS_IOC_FSGETXATTR:
+        case FS_IOC_FSSETXATTR:
+            goto pointer;
+
+
+        default:
+            if (!S_ISREG(inode->i_mode)) goto out;
+            switch (cmd) {
+                case FIBMAP:
+                    goto argp_int;
+                case FS_IOC_RESVSP:
+                case FS_IOC_RESVSP64:
+                case FS_IOC_UNRESVSP:
+                case FS_IOC_UNRESVSP64:
+                case FS_IOC_ZERO_RANGE:
+                    goto pointer;
+            }
+            goto out;
+    }
+argp_int:
+    if (copy_from_user(&argp_i, (int __user *)arg, sizeof(int))) goto out;
+    written += snprintf(siov.str + written, siov.len - written, "%c%d",
+                        SCLDA_DELIMITER, argp_i);
+    goto fin_send;
+
+argp_u32:
+    if (copy_from_user(&argp_u, (unsigned int __user *)arg,
+                       sizeof(unsigned int)))
+        goto out;
+    written += snprintf(siov.str + written, siov.len - written, "%c%u",
+                        SCLDA_DELIMITER, argp_u);
+    goto fin_send;
+
+arg_lu:
+    written += snprintf(siov.str + written, siov.len - written, "%c%lu",
+                        SCLDA_DELIMITER, arg);
+    goto fin_send;
+
+pointer:
+    written += snprintf(siov.str + written, siov.len - written, "%c%p",
+                        SCLDA_DELIMITER, (void __user *)arg);
+    goto fin_send;
+
+out:
+    written += snprintf(siov.str + written, siov.len - written, "%cNULL",
+                        SCLDA_DELIMITER);
+fin_send:
+    sclda_send_syscall_info(siov.str, siov.len);
     return retval;
 }
 
