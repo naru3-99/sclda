@@ -3864,7 +3864,7 @@ SYSCALL_DEFINE2(tkill, pid_t, pid, int, sig) {
 
     siov.len = snprintf(siov.str, siov.len,
                         "200%c%d%c%d"
-                        "%c%d%c%d",
+                        "%c%d",
                         SCLDA_DELIMITER, retval, SCLDA_DELIMITER, (int)pid,
                         SCLDA_DELIMITER, sig);
 
