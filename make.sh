@@ -34,5 +34,5 @@ make -j$(nproc) > out.txt
 echo finish
 sudo make modules_install
 sudo make install
-sudo systemctl set-default multi-user.target
+# sudo systemctl set-default multi-user.target
 # sudo reboot
