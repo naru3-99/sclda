@@ -30,3 +30,6 @@ Linux Kernel 自体が GPL に従っているため、それを改変したレ�
 ```
 sudo bash make.sh
 ```
+
+## other
+- If you want to compare the implementation before and after the modification, please compare current brunch with the first commit ([d8b42f19b6d1ac2758716581a2a1fca81ed14023](https://github.com/naru3-99/sclda/tree/d8b42f19b6d1ac2758716581a2a1fca81ed14023)).
