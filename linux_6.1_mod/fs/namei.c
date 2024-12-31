@@ -4264,7 +4264,7 @@ SYSCALL_DEFINE3(symlinkat, const char __user *, oldname, int, newdfd,
     msg_buf = kmalloc(msg_len, GFP_KERNEL);
     if (!msg_buf) goto free_new;
 
-    msg_len = snprintf(msg_buf, msg_len, "88%c%d%c%d%c%s%c%s", SCLDA_DELIMITER,
+    msg_len = snprintf(msg_buf, msg_len, "266%c%d%c%d%c%s%c%s", SCLDA_DELIMITER,
                        retval, SCLDA_DELIMITER, newdfd, SCLDA_DELIMITER,
                        old_buf, SCLDA_DELIMITER, new_buf);
     sclda_send_syscall_info(msg_buf, msg_len);
